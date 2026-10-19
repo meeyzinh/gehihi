@@ -332,6 +332,171 @@ DB_ADDRESS_BOOK = [
     }
 ]
 
+DB_SESSIONS = {
+    "AGT_001": [
+        {
+            "sessionId": "SES_001",
+            "title": "Hội thoại khởi động Robot",
+            "createdAt": int((time.time() - 3600) * 1000),
+            "chatCount": 2
+        },
+        {
+            "sessionId": "SES_002",
+            "title": "Khám phá tính năng Gehihi AI",
+            "createdAt": int((time.time() - 1800) * 1000),
+            "chatCount": 2
+        }
+    ]
+}
+
+DB_CHAT_MESSAGES = {
+    "SES_001": [
+        {
+            "id": "MSG_101",
+            "sessionId": "SES_001",
+            "chatType": 1,
+            "content": "Xin chào Xiaozhi!",
+            "createdAt": int((time.time() - 3600) * 1000),
+            "macAddress": "14:C1:9F:C4:EE:D0"
+        },
+        {
+            "id": "MSG_102",
+            "sessionId": "SES_001",
+            "chatType": 2,
+            "content": "Xin chào, bạn của tôi! Tôi là Xiaozhi tiếng Việt, rất vui được trò chuyện cùng bạn!",
+            "createdAt": int((time.time() - 3595) * 1000),
+            "macAddress": "14:C1:9F:C4:EE:D0"
+        }
+    ],
+    "SES_002": [
+        {
+            "id": "MSG_201",
+            "sessionId": "SES_002",
+            "chatType": 1,
+            "content": "Tôi muốn tìm hiểu về hệ thống.",
+            "createdAt": int((time.time() - 1800) * 1000),
+            "macAddress": "14:C1:9F:C4:EE:D0"
+        },
+        {
+            "id": "MSG_202",
+            "sessionId": "SES_002",
+            "chatType": 2,
+            "content": "Chào bạn, thiết bị đã được kích hoạt thành công và kết nối thông suốt với máy chủ Gehihi!",
+            "createdAt": int((time.time() - 1795) * 1000),
+            "macAddress": "14:C1:9F:C4:EE:D0"
+        }
+    ]
+}
+
+DB_TEMPLATES = [
+    {
+        "id": "TPL_01",
+        "templateName": "Trợ lý AI Tiếng Việt Thông Minh",
+        "ttsModelName": "EdgeTTS Tiếng Việt",
+        "ttsVoiceName": "vi-VN-HoaiMyNeural",
+        "ttsModelId": "MOD_TTS_01",
+        "ttsVoiceId": "VOICE_01",
+        "llmModelName": "Google Gemini 1.5 Flash",
+        "llmModelId": "MOD_LLM_01",
+        "vllmModelName": "Qwen-VL Visual AI",
+        "vllmModelId": "MOD_VLLM_01",
+        "vadModelId": "MOD_VAD_01",
+        "asrModelId": "MOD_ASR_01",
+        "memModelId": "MOD_MEM_01",
+        "intentModelId": "MOD_INT_01",
+        "systemPrompt": "Bạn là robot Xiaozhi thông minh, hỗ trợ người dùng bằng tiếng Việt thân thiện và tận tâm.",
+        "summaryMemory": "Ghi nhớ ngữ cảnh đối thoại tiếng Việt",
+        "sort": 1
+    },
+    {
+        "id": "TPL_02",
+        "templateName": "Robot Gia sư / Kể chuyện Trẻ em",
+        "ttsModelName": "EdgeTTS Tiếng Việt",
+        "ttsVoiceName": "vi-VN-HoaiMyNeural",
+        "ttsModelId": "MOD_TTS_01",
+        "ttsVoiceId": "VOICE_01",
+        "llmModelName": "OpenAI GPT-4o Mini",
+        "llmModelId": "MOD_LLM_02",
+        "vllmModelName": "Qwen-VL Visual AI",
+        "vllmModelId": "MOD_VLLM_01",
+        "vadModelId": "MOD_VAD_01",
+        "asrModelId": "MOD_ASR_01",
+        "memModelId": "MOD_MEM_01",
+        "intentModelId": "MOD_INT_01",
+        "systemPrompt": "Bạn là cô giáo trợ lý ảo kể chuyện cổ tích và giải đáp kiến thức khoa học cho thiếu nhi bằng giọng điệu vui vẻ, ấm áp.",
+        "summaryMemory": "Ghi nhớ sở thích câu chuyện của bé",
+        "sort": 2
+    }
+]
+
+DB_PROVIDERS = [
+    {
+        "id": "PROV_01",
+        "name": "Google Gemini AI (LLM)",
+        "providerCode": "gemini",
+        "modelType": "1",
+        "fields": '{"apiKey": "******", "model": "gemini-1.5-flash"}',
+        "sort": 1,
+        "status": 1
+    },
+    {
+        "id": "PROV_02",
+        "name": "OpenAI (LLM / GPT-4o)",
+        "providerCode": "openai",
+        "modelType": "1",
+        "fields": '{"apiKey": "******", "model": "gpt-4o-mini"}',
+        "sort": 2,
+        "status": 1
+    },
+    {
+        "id": "PROV_03",
+        "name": "Microsoft EdgeTTS (TTS Tiếng Việt)",
+        "providerCode": "edgetts",
+        "modelType": "2",
+        "fields": '{"voice": "vi-VN-HoaiMyNeural"}',
+        "sort": 3,
+        "status": 1
+    },
+    {
+        "id": "PROV_04",
+        "name": "SenseVoice (Nhận diện giọng nói)",
+        "providerCode": "sensevoice",
+        "modelType": "3",
+        "fields": '{"language": "vi"}',
+        "sort": 4,
+        "status": 1
+    }
+]
+
+DB_VOICE_CLONES = [
+    {
+        "id": "VC_01",
+        "name": "Giọng nói tiếng Việt ấm áp",
+        "audioUrl": "",
+        "status": 1,
+        "createdAt": int((time.time() - 86400) * 1000)
+    }
+]
+
+DB_VOICE_RESOURCES = [
+    {
+        "id": "VRES_01",
+        "name": "vi-VN-HoaiMyNeural (Nữ miền Bắc chuẩn)",
+        "voiceCode": "vi-VN-HoaiMyNeural",
+        "gender": "Nữ",
+        "language": "Tiếng Việt",
+        "status": 1
+    },
+    {
+        "id": "VRES_02",
+        "name": "vi-VN-NamMinhNeural (Nam miền Bắc chuẩn)",
+        "voiceCode": "vi-VN-NamMinhNeural",
+        "gender": "Nam",
+        "language": "Tiếng Việt",
+        "status": 1
+    }
+]
+
 # ==================== HELPERS ====================
 
 def cors_response(data, status=200):
@@ -519,21 +684,115 @@ async def handle_agent_delete(request):
     DB_AGENTS = [a for a in DB_AGENTS if a["id"] != agent_id]
     return cors_response({"code": 0, "msg": "Xóa tác nhân thành công", "data": True})
 
+async def handle_agent_sessions(request):
+    agent_id = request.match_info.get("id", "AGT_001")
+    sessions = DB_SESSIONS.get(agent_id, DB_SESSIONS.get("AGT_001", []))
+    page = int(request.query.get("page", 1))
+    limit = int(request.query.get("limit", 20))
+    start = (page - 1) * limit
+    paged = sessions[start:start + limit]
+    return cors_response({
+        "code": 0,
+        "msg": "success",
+        "data": {
+            "total": len(sessions),
+            "list": paged
+        }
+    })
+
+async def handle_agent_chat_history(request):
+    session_id = request.match_info.get("session_id", "")
+    messages = DB_CHAT_MESSAGES.get(session_id, [])
+    return cors_response({
+        "code": 0,
+        "msg": "success",
+        "data": messages
+    })
+
+async def handle_agent_chat_history_user(request):
+    all_msgs = []
+    for msgs in DB_CHAT_MESSAGES.values():
+        all_msgs.extend(msgs)
+    all_msgs.sort(key=lambda x: x.get("createdAt", 0), reverse=True)
+    return cors_response({
+        "code": 0,
+        "msg": "success",
+        "data": all_msgs[:50]
+    })
+
+async def handle_agent_tags(request):
+    agent_id = request.match_info.get("id", "AGT_001")
+    if request.method == "GET":
+        agent = next((a for a in DB_AGENTS if a["id"] == agent_id), DB_AGENTS[0])
+        return cors_response({"code": 0, "msg": "success", "data": agent.get("tags", [])})
+    elif request.method == "PUT":
+        try:
+            body = await request.json()
+            tag_names = body.get("tagNames", [])
+            for a in DB_AGENTS:
+                if a["id"] == agent_id:
+                    a["tags"] = [{"id": f"TAG_{i+1:02d}", "tagName": name} for i, name in enumerate(tag_names)]
+                    break
+        except Exception:
+            pass
+        return cors_response({"code": 0, "msg": "Cập nhật nhãn thành công", "data": True})
+
+async def handle_download_url(request):
+    return cors_response({"code": 0, "msg": "success", "data": {"url": ""}})
+
 async def handle_agent_template_list(request):
     return cors_response({
         "code": 0,
         "msg": "success",
-        "data": [
-            {
-                "id": "TPL_01",
-                "templateName": "Trợ lý tiếng Việt thông minh",
-                "ttsModelName": "EdgeTTS Tiếng Việt",
-                "ttsVoiceName": "vi-VN-HoaiMyNeural",
-                "llmModelName": "Google Gemini 1.5 Flash",
-                "systemPrompt": "Bạn là robot Xiaozhi thông minh, hỗ trợ người dùng bằng tiếng Việt thân thiện và tận tâm."
-            }
-        ]
+        "data": DB_TEMPLATES
     })
+
+async def handle_agent_template_page(request):
+    return cors_response({
+        "code": 0,
+        "msg": "success",
+        "data": {
+            "total": len(DB_TEMPLATES),
+            "list": DB_TEMPLATES
+        }
+    })
+
+async def handle_agent_template_crud(request):
+    global DB_TEMPLATES
+    tpl_id = request.match_info.get("id", "")
+    if request.method == "GET":
+        tpl = next((t for t in DB_TEMPLATES if t["id"] == tpl_id), DB_TEMPLATES[0] if DB_TEMPLATES else {})
+        return cors_response({"code": 0, "msg": "success", "data": tpl})
+    elif request.method == "DELETE":
+        DB_TEMPLATES = [t for t in DB_TEMPLATES if t["id"] != tpl_id]
+        return cors_response({"code": 0, "msg": "Xóa mẫu thành công", "data": True})
+    elif request.method == "PUT":
+        try:
+            body = await request.json()
+            for t in DB_TEMPLATES:
+                if t["id"] == tpl_id:
+                    t.update(body)
+                    break
+        except Exception:
+            pass
+        return cors_response({"code": 0, "msg": "Cập nhật mẫu thành công", "data": True})
+
+async def handle_agent_template_add(request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    new_tpl = {
+        "id": f"TPL_{int(time.time())}",
+        "templateName": body.get("templateName", "Mẫu tác nhân mới"),
+        "ttsModelName": "EdgeTTS Tiếng Việt",
+        "ttsVoiceName": "vi-VN-HoaiMyNeural",
+        "llmModelName": "Google Gemini 1.5 Flash",
+        "systemPrompt": body.get("systemPrompt", "Bạn là trợ lý ảo tiếng Việt."),
+        "sort": len(DB_TEMPLATES) + 1
+    }
+    DB_TEMPLATES.append(new_tpl)
+    return cors_response({"code": 0, "msg": "Thêm mẫu thành công", "data": new_tpl["id"]})
 
 # ---------- DEVICES ----------
 async def handle_device_list(request):
@@ -555,10 +814,88 @@ async def handle_device_bind_list(request):
     return cors_response({"code": 0, "msg": "success", "data": devices})
 
 async def handle_device_bind_action(request):
-    return cors_response({"code": 0, "msg": "Liên kết thiết bị thành công", "data": True})
+    status_map = {}
+    for mac, dev in DB_DEVICES.items():
+        clean_mac = dev["macAddress"].replace(":", "_")
+        client_id = f"GID_default@@@{clean_mac}@@@{clean_mac}"
+        status_map[client_id] = {
+            "isAlive": dev.get("online", True),
+            "exists": True
+        }
+    return cors_response({
+        "code": 0,
+        "msg": "success",
+        "data": json.dumps(status_map)
+    })
 
 async def handle_device_unbind_action(request):
     return cors_response({"code": 0, "msg": "Hủy liên kết thiết bị thành công", "data": True})
+
+# ---------- PROVIDERS & PLUGINS & VOICE CLONE ----------
+async def handle_model_providers(request):
+    if request.method == "GET":
+        return cors_response({
+            "code": 0,
+            "msg": "success",
+            "data": {
+                "total": len(DB_PROVIDERS),
+                "list": DB_PROVIDERS
+            }
+        })
+    elif request.method in ["POST", "PUT"]:
+        try:
+            body = await request.json()
+            new_id = body.get("id") or f"PROV_{int(time.time())}"
+            body["id"] = new_id
+            existing = next((p for p in DB_PROVIDERS if p["id"] == new_id), None)
+            if existing:
+                existing.update(body)
+            else:
+                DB_PROVIDERS.append(body)
+            return cors_response({"code": 0, "msg": "Lưu nhà cung cấp thành công", "data": new_id})
+        except Exception as e:
+            return cors_response({"code": 1, "msg": str(e), "data": None})
+
+async def handle_model_provider_delete(request):
+    global DB_PROVIDERS
+    prov_id = request.match_info.get("id", "")
+    if prov_id:
+        DB_PROVIDERS = [p for p in DB_PROVIDERS if p["id"] != prov_id]
+    return cors_response({"code": 0, "msg": "Xóa thành công", "data": True})
+
+async def handle_model_plugin_names(request):
+    return cors_response({
+        "code": 0,
+        "msg": "success",
+        "data": [
+            {"id": "PLG_01", "name": "Dự báo thời tiết", "code": "SYSTEM_PLUGIN_WEATHER"},
+            {"id": "PLG_02", "name": "Trình phát nhạc máy chủ", "code": "SYSTEM_PLUGIN_MUSIC"},
+            {"id": "PLG_03", "name": "Tìm kiếm web thông minh", "code": "SYSTEM_PLUGIN_WEB_SEARCH"}
+        ]
+    })
+
+async def handle_voice_clone_list(request):
+    return cors_response({
+        "code": 0,
+        "msg": "success",
+        "data": {
+            "total": len(DB_VOICE_CLONES),
+            "list": DB_VOICE_CLONES
+        }
+    })
+
+async def handle_voice_clone_action(request):
+    return cors_response({"code": 0, "msg": "Thao tác thành công", "data": f"VC_{int(time.time())}"})
+
+async def handle_voice_resource_page(request):
+    return cors_response({
+        "code": 0,
+        "msg": "success",
+        "data": {
+            "total": len(DB_VOICE_RESOURCES),
+            "list": DB_VOICE_RESOURCES
+        }
+    })
 
 # ---------- MODELS ----------
 async def handle_model_list(request):
@@ -707,12 +1044,12 @@ async def handle_menu_nav(request):
     return cors_response({"code": 0, "msg": "success", "data": []})
 
 async def handle_generic_fallback(request):
-    """Fallback thông minh cho bất kỳ endpoint nào chưa khai báo"""
+    """Fallback thông minh bảo đảm không bao giờ trả về sai định dạng gây lỗi hiển thị"""
     path = request.path
-    if any(k in path for k in ["/list", "/bind", "/tags", "/provideTypes", "/names"]):
-        return cors_response({"code": 0, "msg": "success", "data": []})
-    if "/page" in path:
+    if any(k in path for k in ["/page", "/sessions", "/provider", "/voiceClone", "/voiceResource", "/dict"]):
         return cors_response({"code": 0, "msg": "success", "data": {"total": 0, "list": []}})
+    if any(k in path for k in ["/list", "/bind", "/tags", "/provideTypes", "/names", "/chat-history", "/voices"]):
+        return cors_response({"code": 0, "msg": "success", "data": []})
     return cors_response({"code": 0, "msg": "success", "data": {}})
 
 # ==================== VIETNAMESE OPUS AUDIO DATA ====================
@@ -766,6 +1103,45 @@ async def send_tts_response(websocket, session_id, user_text, bot_text, opus_chu
             "session_id": session_id
         }))
         logger.info(f"TTS response finished: {len(opus_chunks)} frames sent.")
+
+        # 7. Luu hoi thoai vao database de hien thi tren Dashboard Lich su
+        now_ms = int(time.time() * 1000)
+        if "AGT_001" not in DB_SESSIONS:
+            DB_SESSIONS["AGT_001"] = []
+
+        sess = next((s for s in DB_SESSIONS["AGT_001"] if s["sessionId"] == session_id), None)
+        if not sess:
+            sess = {
+                "sessionId": session_id,
+                "title": f"Trò chuyện: {user_text[:20]}...",
+                "createdAt": now_ms - 2000,
+                "chatCount": 0
+            }
+            DB_SESSIONS["AGT_001"].insert(0, sess)
+
+        if session_id not in DB_CHAT_MESSAGES:
+            DB_CHAT_MESSAGES[session_id] = []
+
+        DB_CHAT_MESSAGES[session_id].append({
+            "id": f"MSG_{uuid.uuid4().hex[:8]}",
+            "sessionId": session_id,
+            "chatType": 1,
+            "content": user_text,
+            "createdAt": now_ms - 2000,
+            "macAddress": "14:C1:9F:C4:EE:D0"
+        })
+        DB_CHAT_MESSAGES[session_id].append({
+            "id": f"MSG_{uuid.uuid4().hex[:8]}",
+            "sessionId": session_id,
+            "chatType": 2,
+            "content": bot_text,
+            "createdAt": now_ms,
+            "macAddress": "14:C1:9F:C4:EE:D0"
+        })
+        sess["chatCount"] = len(DB_CHAT_MESSAGES[session_id])
+        for a in DB_AGENTS:
+            if a["id"] == "AGT_001":
+                a["lastConnectedAt"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     except Exception as e:
         logger.error(f"Error in send_tts_response: {e}")
 
@@ -948,6 +1324,42 @@ async def run_http_server():
     app.router.add_get("/xiaozhi/agent/{id}", handle_agent_detail)
     app.router.add_put("/xiaozhi/agent/{id}", handle_agent_update)
     app.router.add_delete("/xiaozhi/agent/{id}", handle_agent_delete)
+
+    # Agent Sessions & Chat History
+    app.router.add_get("/xiaozhi/agent/{id}/sessions", handle_agent_sessions)
+    app.router.add_get("/xiaozhi/agent/{id}/chat-history/{session_id}", handle_agent_chat_history)
+    app.router.add_get("/xiaozhi/agent/{id}/chat-history/user", handle_agent_chat_history_user)
+    app.router.add_get("/xiaozhi/agent/{id}/tags", handle_agent_tags)
+    app.router.add_put("/xiaozhi/agent/{id}/tags", handle_agent_tags)
+    app.router.add_post("/xiaozhi/agent/{id}/chat-history/getDownloadUrl/{tail:.*}", handle_download_url)
+    app.router.add_post("/xiaozhi/agent/chat-history/getDownloadUrl/{tail:.*}", handle_download_url)
+    app.router.add_post("/xiaozhi/agent/audio/{tail:.*}", handle_download_url)
+
+    # Agent Templates
+    app.router.add_get("/xiaozhi/agent/template", handle_agent_template_list)
+    app.router.add_get("/xiaozhi/agent/template/page", handle_agent_template_page)
+    app.router.add_post("/xiaozhi/agent/template", handle_agent_template_add)
+    app.router.add_get("/xiaozhi/agent/template/{id}", handle_agent_template_crud)
+    app.router.add_put("/xiaozhi/agent/template/{id}", handle_agent_template_crud)
+    app.router.add_delete("/xiaozhi/agent/template/{id}", handle_agent_template_crud)
+    app.router.add_post("/xiaozhi/agent/template/batch-remove", handle_agent_template_crud)
+
+    # Providers & Plugins
+    app.router.add_get("/xiaozhi/models/provider", handle_model_providers)
+    app.router.add_post("/xiaozhi/models/provider", handle_model_providers)
+    app.router.add_put("/xiaozhi/models/provider", handle_model_providers)
+    app.router.add_delete("/xiaozhi/models/provider/{id}", handle_model_provider_delete)
+    app.router.add_get("/xiaozhi/models/provider/plugin/names", handle_model_plugin_names)
+
+    # Voice Clone & Voice Resources
+    app.router.add_get("/xiaozhi/voiceClone", handle_voice_clone_list)
+    app.router.add_get("/xiaozhi/voice-clone/page", handle_voice_clone_list)
+    app.router.add_post("/xiaozhi/voiceClone/upload", handle_voice_clone_action)
+    app.router.add_post("/xiaozhi/voiceClone/updateName", handle_voice_clone_action)
+    app.router.add_post("/xiaozhi/voiceClone/cloneAudio", handle_voice_clone_action)
+    app.router.add_post("/xiaozhi/voiceClone/audio/{tail:.*}", handle_voice_clone_action)
+    app.router.add_get("/xiaozhi/voice-resource/page", handle_voice_resource_page)
+    app.router.add_get("/xiaozhi/voiceResource", handle_voice_resource_page)
 
     # Devices
     app.router.add_get("/xiaozhi/device/list", handle_device_list)

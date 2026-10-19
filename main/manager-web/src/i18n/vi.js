@@ -529,8 +529,8 @@ export default {
   'cache.viewer': 'Trình xem cache',
 
   // Chat history dialog related
-  'chatHistory.with': 'Với',
-  'chatHistory.dialogTitle': "'s Lịch sử trò chuyện",
+  'chatHistory.with': 'Lịch sử trò chuyện - ',
+  'chatHistory.dialogTitle': '',
   'chatHistory.loading': 'Đang tải...',
   'chatHistory.noMoreRecords': 'Không còn bản ghi nào',
   'chatHistory.selectSession': 'Vui lòng chọn một phiên để xem lịch sử trò chuyện',
