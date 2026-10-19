@@ -714,12 +714,12 @@ export default {
   'common.copyAddress': 'Sao chép địa chỉ',
 
   // Language switch
-  'language.zhCN': '中文简体',
-  'language.zhTW': '中文繁體',
-  'language.en': 'English',
-  'language.de': 'Deutsch',
+  'language.zhCN': 'Tiếng Trung (Giản thể)',
+  'language.zhTW': 'Tiếng Trung (Phồn thể)',
+  'language.en': 'Tiếng Anh (English)',
+  'language.de': 'Tiếng Đức (Deutsch)',
   'language.vi': 'Tiếng Việt',
-  'language.ptBR': 'Português (Brasil)',
+  'language.ptBR': 'Tiếng Bồ Đào Nha (Brasil)',
 
   // Home page text
   'home.addAgent': 'Thêm tác nhân',

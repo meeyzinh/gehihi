@@ -48,7 +48,7 @@
                     <el-input v-model="form.captcha" :placeholder="$t('register.captchaPlaceholder')"
                       style="flex: 1;" />
                   </div>
-                  <img loading="lazy" v-if="captchaUrl" :src="captchaUrl" alt="验证码"
+                  <img loading="lazy" v-if="captchaUrl" :src="captchaUrl" alt="Mã xác minh"
                     style="width: 150px; height: 40px; cursor: pointer;" @click="fetchCaptcha" />
                 </div>
 

@@ -88,20 +88,7 @@
               <el-input v-model="form.password" :placeholder="$t('login.passwordPlaceholder')" type="password"
                 show-password />
             </div>
-            <div style="
-                display: flex;
-                align-items: center;
-                margin-top: 20px;
-                width: 100%;
-                gap: 10px;
-              ">
-              <div class="input-box" style="width: calc(100% - 130px); margin-top: 0">
-                <img loading="lazy" alt="" class="input-icon" src="@/assets/login/shield.png" />
-                <el-input v-model="form.captcha" :placeholder="$t('login.captchaPlaceholder')" style="flex: 1" />
-              </div>
-              <img loading="lazy" v-if="captchaUrl" :src="captchaUrl" alt="验证码"
-                style="width: 150px; height: 40px; cursor: pointer" @click="fetchCaptcha" />
-            </div>
+
             <div style="
                 font-weight: 400;
                 font-size: 14px;
@@ -234,39 +221,21 @@ export default {
     };
   },
   mounted() {
-    this.fetchCaptcha();
     this.$store.dispatch("fetchPubConfig").then(() => {
-      // 根据配置决定默认登录方式
+      // Cấu hình phương thức đăng nhập mặc định
       this.isMobileLogin = this.enableMobileRegister;
     });
   },
   methods: {
     openPage(url) {
-      const lang = this.$i18n ? this.$i18n.locale : 'zh_CN';
+      const lang = this.$i18n ? this.$i18n.locale : 'vi';
       if (!lang.startsWith('zh')) {
         url = url.replace('.html', '-en.html');
       }
       window.open(url, '_blank');
     },
     fetchCaptcha() {
-      // 处理手动清空localstorage导致无法获取验证码的问题
-      const token = localStorage.getItem('token')
-      if (token) {
-        if (this.$route.path !== "/home") {
-          this.$router.push("/home");
-        }
-      } else {
-        this.captchaUuid = getUUID();
-
-        Api.user.getCaptcha(this.captchaUuid, (res) => {
-          if (res.status === 200) {
-            const blob = new Blob([res.data], { type: res.data.type });
-            this.captchaUrl = URL.createObjectURL(blob);
-          } else {
-            showDanger("验证码加载失败，点击刷新");
-          }
-        });
-      }
+      // Đã tắt mã xác minh theo yêu cầu người dùng
     },
 
     // 切换语言下拉菜单的可见状态变化
@@ -310,7 +279,7 @@ export default {
           this.$store.commit("setUserInfo", data.data);
           goToPage("/home");
         } else {
-          showDanger("用户信息获取失败");
+          showDanger("Lấy thông tin người dùng thất bại");
         }
       });
     },
@@ -335,31 +304,24 @@ export default {
       if (!this.validateInput(this.form.password, 'login.requiredPassword')) {
         return;
       }
-      // 验证验证码
-      if (!this.validateInput(this.form.captcha, 'login.requiredCaptcha')) {
-        return;
-      }
-      // 加密密码
-      let encryptedPassword;
-      try {
-        // 拼接验证码和密码
-        const captchaAndPassword = this.form.captcha + this.form.password;
-        encryptedPassword = sm2Encrypt(this.sm2PublicKey, captchaAndPassword);
-      } catch (error) {
-        console.error("密码加密失败:", error);
-        showDanger(this.$t('sm2.encryptionFailed'));
-        return;
+
+      // Xử lý mã hóa mật khẩu nếu có SM2 key, nếu không gửi trực tiếp
+      let encryptedPassword = this.form.password;
+      if (this.sm2PublicKey) {
+        try {
+          encryptedPassword = sm2Encrypt(this.sm2PublicKey, this.form.password);
+        } catch (error) {
+          console.warn("Bỏ qua mã hóa SM2:", error);
+          encryptedPassword = this.form.password;
+        }
       }
 
       const plainUsername = this.form.username;
 
-      this.form.captchaId = this.captchaUuid;
-
-      // 加密
       const loginData = {
         username: plainUsername,
         password: encryptedPassword,
-        captchaId: this.form.captchaId
+        captchaId: ""
       };
 
       Api.user.login(
@@ -370,17 +332,10 @@ export default {
           this.getUserInfo();
         },
         (err) => {
-          // 直接使用后端返回的国际化消息
-          let errorMessage = err.data.msg || "登录失败";
-
+          let errorMessage = (err && err.data && err.data.msg) || "Đăng nhập thất bại";
           showDanger(errorMessage);
         }
       );
-
-      // 重新获取验证码
-      setTimeout(() => {
-        this.fetchCaptcha();
-      }, 1000);
     },
 
     goToRegister() {

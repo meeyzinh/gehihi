@@ -1,9 +1,9 @@
 """
 Gehihi Dynamic Server (Lightweight Unified Backend)
-- Cung cap OTA API cho Robot Xiaozhi (https://gehihi.onrender.com/xiaozhi/ota/)
-- Cung cap WebSocket AI Server cho Robot Xiaozhi (wss://gehihi.onrender.com/xiaozhi/v1/)
-- Cung cap API ho tro Web Dashboard quan tri voi ngon ngu Tieng Viet
-- Tuong thich hoan toan voi Render Environment ($PORT, HTTPS, WSS)
+- Cung cấp OTA API cho Robot Xiaozhi (https://gehihi.onrender.com/xiaozhi/ota/)
+- Cung cấp WebSocket AI Server cho Robot Xiaozhi (wss://gehihi.onrender.com/xiaozhi/v1/)
+- Cung cấp API hỗ trợ Web Dashboard quản trị với ngôn ngữ Tiếng Việt
+- Tương thích hoàn toàn với Render Environment ($PORT, HTTPS, WSS)
 """
 
 import os
@@ -30,6 +30,9 @@ WS_URL = os.environ.get("WEBSOCKET_URL", f"wss://{PUBLIC_HOST}/xiaozhi/v1/")
 HTTP_PORT = int(os.environ.get("GEHIHI_HTTP_PORT", 8003))
 WS_PORT = int(os.environ.get("GEHIHI_WS_PORT", 8000))
 
+# 1x1 transparent GIF bytes for captcha fallback
+TRANSPARENT_GIF = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
+
 # ----------------- HTTP & OTA HANDLERS -----------------
 async def handle_health(request):
     return web.json_response({
@@ -40,12 +43,12 @@ async def handle_health(request):
         "ota_endpoint": f"{PUBLIC_URL}/xiaozhi/ota/",
         "websocket_endpoint": WS_URL,
         "timestamp": int(time.time())
-    })
+    }, headers={'Access-Control-Allow-Origin': '*'})
 
 async def handle_ota(request):
     """
-    Xu ly yeu cau OTA tu robot Xiaozhi (ESP32 firmware)
-    Firmware doc response: { server_time, firmware, websocket, mqtt }
+    Xử lý yêu cầu OTA từ robot Xiaozhi (ESP32 firmware)
+    Firmware đọc response: { server_time, firmware, websocket, mqtt }
     """
     device_id = request.headers.get("Device-Id", "")
     client_id = request.headers.get("Client-Id", "")
@@ -78,10 +81,10 @@ async def handle_ota(request):
             "token": f"gehihi-token-{uuid.uuid4().hex[:12]}"
         }
     }
-    return web.json_response(response_data)
+    return web.json_response(response_data, headers={'Access-Control-Allow-Origin': '*'})
 
 async def handle_ota_activate(request):
-    return web.Response(text="success", status=200)
+    return web.Response(text="success", status=200, headers={'Access-Control-Allow-Origin': '*'})
 
 async def handle_vision_explain(request):
     return web.json_response({
@@ -91,10 +94,40 @@ async def handle_vision_explain(request):
             "description": "Hình ảnh nhận dạng từ Robot Xiaozhi Gehihi",
             "text": "Tôi đã nhìn thấy hình ảnh bạn gửi."
         }
-    })
+    }, headers={'Access-Control-Allow-Origin': '*'})
 
 # ----------------- WEB DASHBOARD API HANDLERS -----------------
+async def handle_pub_config(request):
+    """Cấu hình dùng chung cho Web Dashboard"""
+    return web.json_response({
+        "code": 0,
+        "msg": "success",
+        "data": {
+            "version": "1.0.0",
+            "name": "Gehihi Server",
+            "year": "2026",
+            "allowUserRegister": False,
+            "enableMobileRegister": False,
+            "mobileAreaList": [],
+            "beianIcpNum": None,
+            "beianGaNum": None,
+            "sm2PublicKey": None,
+            "systemWebMenu": {
+                "features": {
+                    "voiceClone": {"enabled": True},
+                    "knowledgeBase": {"enabled": True},
+                    "addressBook": {"enabled": True}
+                }
+            }
+        }
+    }, headers={'Access-Control-Allow-Origin': '*'})
+
+async def handle_captcha(request):
+    """Phục vụ ảnh captcha rỗng nếu có component nào gọi tới"""
+    return web.Response(body=TRANSPARENT_GIF, content_type='image/gif', headers={'Access-Control-Allow-Origin': '*'})
+
 async def handle_login(request):
+    """Đăng nhập Web Dashboard (hỗ trợ không cần captcha)"""
     return web.json_response({
         "code": 0,
         "msg": "Đăng nhập thành công!",
@@ -102,9 +135,10 @@ async def handle_login(request):
             "token": "gehihi-jwt-admin-token-2026",
             "expire": 86400
         }
-    })
+    }, headers={'Access-Control-Allow-Origin': '*'})
 
 async def handle_user_info(request):
+    """Thông tin tài khoản quản trị"""
     return web.json_response({
         "code": 0,
         "data": {
@@ -114,7 +148,7 @@ async def handle_user_info(request):
             "superAdmin": 1,
             "roleIdList": [1]
         }
-    })
+    }, headers={'Access-Control-Allow-Origin': '*'})
 
 async def handle_device_page(request):
     return web.json_response({
@@ -134,7 +168,7 @@ async def handle_device_page(request):
                 }
             ]
         }
-    })
+    }, headers={'Access-Control-Allow-Origin': '*'})
 
 async def handle_agent_page(request):
     return web.json_response({
@@ -152,7 +186,26 @@ async def handle_agent_page(request):
                 }
             ]
         }
-    })
+    }, headers={'Access-Control-Allow-Origin': '*'})
+
+async def handle_dict_data(request):
+    return web.json_response({
+        "code": 0,
+        "data": []
+    }, headers={'Access-Control-Allow-Origin': '*'})
+
+async def handle_menu_nav(request):
+    return web.json_response({
+        "code": 0,
+        "data": []
+    }, headers={'Access-Control-Allow-Origin': '*'})
+
+async def handle_generic_success(request):
+    return web.json_response({
+        "code": 0,
+        "msg": "success",
+        "data": {}
+    }, headers={'Access-Control-Allow-Origin': '*'})
 
 async def handle_cors_options(request):
     response = web.Response(status=204)
@@ -238,11 +291,19 @@ async def run_http_server():
     app.router.add_options("/mcp/vision/explain", handle_cors_options)
     
     # Dashboard API
+    app.router.add_get("/xiaozhi/user/pub-config", handle_pub_config)
+    app.router.add_get("/xiaozhi/user/captcha", handle_captcha)
     app.router.add_post("/xiaozhi/user/login", handle_login)
     app.router.add_get("/xiaozhi/user/info", handle_user_info)
+    app.router.add_get("/xiaozhi/admin/users/info", handle_user_info)
     app.router.add_get("/xiaozhi/device/page", handle_device_page)
     app.router.add_get("/xiaozhi/agent/page", handle_agent_page)
-    app.router.add_options("/xiaozhi/{tail:.*}", handle_cors_options)
+    app.router.add_get("/xiaozhi/sys/dict/type/{tail:.*}", handle_dict_data)
+    app.router.add_get("/xiaozhi/sys/menu/nav", handle_menu_nav)
+    
+    # Generic fallback for any other GET/POST under /xiaozhi/
+    app.router.add_route("*", "/xiaozhi/{tail:.*}", handle_generic_success)
+    app.router.add_options("/{tail:.*}", handle_cors_options)
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -275,4 +336,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Gehihi Server stopped.")
-
