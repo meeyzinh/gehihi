@@ -78,3 +78,4 @@ idf.py build
 idf.py -p COMx flash monitor
 ```
 Khi robot khởi động và kết nối Wi-Fi, nó sẽ tự động gửi request đến `https://gehihi.onrender.com/xiaozhi/ota/`, nhận link WebSocket `wss://gehihi.onrender.com/xiaozhi/v1/` và bắt đầu đàm thoại AI bằng tiếng Việt!
+

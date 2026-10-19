@@ -3,11 +3,14 @@
 # Tích hợp Web Dashboard (Tiếng Việt) + Dynamic Engine (OTA & WebSocket)
 # ===================================================
 
-# Giai đoạn 1: Build Vue Web Dashboard
-FROM node:18-alpine AS web-builder
+# Giai đoạn 1: Build Vue Web Dashboard (dùng node:18 Debian glibc tiêu chuẩn)
+FROM node:18 AS web-builder
 WORKDIR /app
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+
 COPY main/manager-web/package*.json ./
 RUN npm install --legacy-peer-deps
+
 COPY main/manager-web .
 RUN npm run build
 
@@ -33,7 +36,7 @@ RUN pip3 install --no-cache-dir --break-system-packages aiohttp websockets pyjwt
 # Cấu hình Nginx
 COPY docs/docker/nginx.conf /etc/nginx/nginx.conf
 
-# Sao chép Frontend Web Dashboard
+# Sao chép Frontend Web Dashboard đã build
 COPY --from=web-builder /app/dist /usr/share/nginx/html
 
 # Sao chép Dynamic Backend (OTA + WebSocket + Fallback Dashboard API)

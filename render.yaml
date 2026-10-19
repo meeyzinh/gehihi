@@ -15,3 +15,4 @@ services:
         value: https://gehihi.onrender.com
       - key: WEBSOCKET_URL
         value: wss://gehihi.onrender.com/xiaozhi/v1/
+

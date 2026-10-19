@@ -2,10 +2,13 @@
 # Gehihi Server - Dockerfile cho Render.com & Production
 # ===================================================
 
-FROM node:18-alpine AS web-builder
+FROM node:18 AS web-builder
 WORKDIR /app
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+
 COPY main/manager-web/package*.json ./
 RUN npm install --legacy-peer-deps
+
 COPY main/manager-web .
 RUN npm run build
 

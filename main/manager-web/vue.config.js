@@ -1,7 +1,16 @@
 const { defineConfig } = require('@vue/cli-service');
 const dotenv = require('dotenv');
-// TerserPlugin 用于压缩 JavaScript
-const TerserPlugin = require('terser-webpack-plugin');
+// TerserPlugin 用于压缩 JavaScript (an toàn chống lỗi thiếu module)
+let TerserPlugin;
+try {
+  TerserPlugin = require('terser-webpack-plugin');
+} catch (e) {
+  try {
+    TerserPlugin = require('@vue/cli-service/node_modules/terser-webpack-plugin');
+  } catch (err) {
+    TerserPlugin = null;
+  }
+}
 // CompressionPlugin 开启 Gzip 压缩
 const CompressionPlugin = require('compression-webpack-plugin')
 // BundleAnalyzerPlugin 用于分析打包后的文件
@@ -94,10 +103,12 @@ module.exports = defineConfig({
   },
   configureWebpack: config => {
     if (process.env.NODE_ENV === 'production') {
-      // 开启多线程编译
+      // 开启编译优化
       config.optimization = {
-        minimize: true,
-        minimizer: [
+        minimize: true
+      };
+      if (TerserPlugin) {
+        config.optimization.minimizer = [
           new TerserPlugin({
             parallel: true,
             terserOptions: {
@@ -108,8 +119,8 @@ module.exports = defineConfig({
               }
             }
           })
-        ]
-      };
+        ];
+      }
       config.plugins.push(
         new CompressionPlugin({
           algorithm: 'gzip',
