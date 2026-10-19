@@ -18,6 +18,7 @@ import time
 import uuid
 import asyncio
 import logging
+import base64
 from aiohttp import web
 import websockets
 

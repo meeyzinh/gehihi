@@ -17,7 +17,7 @@ sed -i "s/listen 8002;/listen ${PORT};/g" /etc/nginx/nginx.conf || true
 
 # Khởi động Dynamic Server (OTA + WebSocket + Fallback Dashboard API)
 if [ -f "/app/dynamic_server.py" ]; then
-    python3 /app/dynamic_server.py &
+    (while true; do python3 /app/dynamic_server.py; sleep 2; done) &
     echo "[Gehihi Server] Dynamic Engine đã khởi động nền trên port 8003 (HTTP/OTA) và 8000 (WS)."
 fi
 
