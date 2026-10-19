@@ -234,23 +234,23 @@ export default {
     fetchAgentList() {
       this.isLoading = true;
       Api.agent.getAgentList(({ data }) => {
-        if (data?.data) {
-          this.originalDevices = data.data.map(item => ({
-            ...item,
-            agentId: item.id
-          }));
+        const list = (data && Array.isArray(data.data)) ? data.data : ((data && data.data && typeof data.data === 'object') ? [data.data] : []);
+        this.originalDevices = list.map(item => ({
+          ...item,
+          agentId: item.id || item.agentId || 'AGT_01'
+        }));
 
-          // 动态设置骨架屏数量（可选）
-          this.skeletonCount = Math.min(
-            Math.max(this.originalDevices.length, 3), // 最少3个
-            10 // 最多10个
-          );
+        this.skeletonCount = Math.min(
+          Math.max(this.originalDevices.length, 3),
+          10
+        );
 
-          this.handleSearchReset();
-        }
+        this.handleSearchReset();
         this.isLoading = false;
       }, (error) => {
         console.error('Failed to fetch agent list:', error);
+        this.originalDevices = [];
+        this.devices = [];
         this.isLoading = false;
       });
     },

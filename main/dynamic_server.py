@@ -200,7 +200,163 @@ async def handle_menu_nav(request):
         "data": []
     }, headers={'Access-Control-Allow-Origin': '*'})
 
+async def handle_agent_list(request):
+    """Danh sách Agent / Tác nhân AI cho Web Dashboard (Tiếng Việt)"""
+    return web.json_response({
+        "code": 0,
+        "msg": "success",
+        "data": [
+            {
+                "id": "AGT_001",
+                "agentName": "Robot AI Xiaozhi (Tiếng Việt)",
+                "ttsModelName": "EdgeTTS",
+                "ttsVoiceName": "vi-VN-HoaiMyNeural",
+                "llmModelName": "Gemini 1.5 Flash",
+                "vllmModelName": "Qwen-VL",
+                "memModelId": "mem_local_short",
+                "systemPrompt": "Bạn là robot Xiaozhi thông minh, hỗ trợ người dùng bằng tiếng Việt thân thiện, tự nhiên và tận tâm.",
+                "summaryMemory": "Ghi nhớ ngữ cảnh đối thoại tiếng Việt",
+                "lastConnectedAt": "2026-10-19 12:00:00",
+                "deviceCount": 1,
+                "tags": [
+                    {"id": "TAG_01", "tagName": "Tiếng Việt"},
+                    {"id": "TAG_02", "tagName": "Mặc định"}
+                ]
+            }
+        ]
+    }, headers={'Access-Control-Allow-Origin': '*'})
+
+async def handle_agent_template_list(request):
+    """Danh sách mẫu tác nhân (Agent Templates)"""
+    return web.json_response({
+        "code": 0,
+        "msg": "success",
+        "data": [
+            {
+                "id": "TPL_01",
+                "templateName": "Trợ lý tiếng Việt thông minh",
+                "ttsModelName": "EdgeTTS",
+                "ttsVoiceName": "vi-VN-HoaiMyNeural",
+                "llmModelName": "Gemini 1.5 Flash",
+                "systemPrompt": "Bạn là robot Xiaozhi thông minh, hỗ trợ người dùng bằng tiếng Việt."
+            }
+        ]
+    }, headers={'Access-Control-Allow-Origin': '*'})
+
+async def handle_device_bind_list(request):
+    """Danh sách thiết bị đã gán cho Agent"""
+    return web.json_response({
+        "code": 0,
+        "msg": "success",
+        "data": [
+            {
+                "id": "DEV_001",
+                "macAddress": "E0:5A:1B:A1:B2:C3",
+                "name": "Robot Xiaozhi AI ESP32-S3 (Gehihi)",
+                "boardType": "ESP32-S3",
+                "version": "1.0.0",
+                "status": 1,
+                "online": True,
+                "lastActiveTime": int(time.time() * 1000)
+            }
+        ]
+    }, headers={'Access-Control-Allow-Origin': '*'})
+
+async def handle_device_list(request):
+    """Danh sách thiết bị kết nối"""
+    return web.json_response({
+        "code": 0,
+        "msg": "success",
+        "data": [
+            {
+                "id": "DEV_001",
+                "macAddress": "E0:5A:1B:A1:B2:C3",
+                "name": "Robot Xiaozhi AI ESP32-S3 (Gehihi)",
+                "boardType": "ESP32-S3",
+                "version": "1.0.0",
+                "status": 1,
+                "online": True,
+                "lastActiveTime": int(time.time() * 1000)
+            }
+        ]
+    }, headers={'Access-Control-Allow-Origin': '*'})
+
+async def handle_model_list(request):
+    """Danh sách Model AI (LLM, TTS, VLLM)"""
+    return web.json_response({
+        "code": 0,
+        "msg": "success",
+        "data": {
+            "total": 3,
+            "list": [
+                {
+                    "id": "MOD_01",
+                    "modelName": "Gemini 1.5 Flash",
+                    "modelType": "llm",
+                    "provider": "google",
+                    "isDefault": True
+                },
+                {
+                    "id": "MOD_02",
+                    "modelName": "EdgeTTS (vi-VN-HoaiMy)",
+                    "modelType": "tts",
+                    "provider": "microsoft",
+                    "isDefault": True
+                },
+                {
+                    "id": "MOD_03",
+                    "modelName": "Qwen-VL",
+                    "modelType": "vllm",
+                    "provider": "dashscope",
+                    "isDefault": True
+                }
+            ]
+        }
+    }, headers={'Access-Control-Allow-Origin': '*'})
+
+async def handle_tts_voice_list(request):
+    """Danh sách giọng đọc TTS Tiếng Việt"""
+    return web.json_response({
+        "code": 0,
+        "msg": "success",
+        "data": {
+            "total": 2,
+            "list": [
+                {
+                    "id": "VOICE_01",
+                    "name": "Hoài My (Nữ - Tiếng Việt)",
+                    "voiceCode": "vi-VN-HoaiMyNeural",
+                    "ttsModelId": "MOD_02",
+                    "languages": "vi-VN"
+                },
+                {
+                    "id": "VOICE_02",
+                    "name": "Nam Minh (Nam - Tiếng Việt)",
+                    "voiceCode": "vi-VN-NamMinhNeural",
+                    "ttsModelId": "MOD_02",
+                    "languages": "vi-VN"
+                }
+            ]
+        }
+    }, headers={'Access-Control-Allow-Origin': '*'})
+
 async def handle_generic_success(request):
+    path = request.path
+    if any(k in path for k in ["/list", "/bind", "/tags", "/provideTypes"]):
+        return web.json_response({
+            "code": 0,
+            "msg": "success",
+            "data": []
+        }, headers={'Access-Control-Allow-Origin': '*'})
+    if "/page" in path:
+        return web.json_response({
+            "code": 0,
+            "msg": "success",
+            "data": {
+                "total": 0,
+                "list": []
+            }
+        }, headers={'Access-Control-Allow-Origin': '*'})
     return web.json_response({
         "code": 0,
         "msg": "success",
@@ -296,8 +452,15 @@ async def run_http_server():
     app.router.add_post("/xiaozhi/user/login", handle_login)
     app.router.add_get("/xiaozhi/user/info", handle_user_info)
     app.router.add_get("/xiaozhi/admin/users/info", handle_user_info)
-    app.router.add_get("/xiaozhi/device/page", handle_device_page)
+    app.router.add_get("/xiaozhi/agent/list", handle_agent_list)
+    app.router.add_get("/xiaozhi/agent/template/list", handle_agent_template_list)
     app.router.add_get("/xiaozhi/agent/page", handle_agent_page)
+    app.router.add_get("/xiaozhi/device/list", handle_device_list)
+    app.router.add_get("/xiaozhi/device/page", handle_device_page)
+    app.router.add_get("/xiaozhi/device/bind/{tail:.*}", handle_device_bind_list)
+    app.router.add_post("/xiaozhi/device/bind/{tail:.*}", handle_device_bind_list)
+    app.router.add_get("/xiaozhi/models/list", handle_model_list)
+    app.router.add_get("/xiaozhi/ttsVoice", handle_tts_voice_list)
     app.router.add_get("/xiaozhi/sys/dict/type/{tail:.*}", handle_dict_data)
     app.router.add_get("/xiaozhi/sys/menu/nav", handle_menu_nav)
     
