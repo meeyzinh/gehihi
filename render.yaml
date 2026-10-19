@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: gehihi
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: RENDER_EXTERNAL_HOSTNAME
+        value: gehihi.onrender.com
+      - key: RENDER_EXTERNAL_URL
+        value: https://gehihi.onrender.com
+      - key: WEBSOCKET_URL
+        value: wss://gehihi.onrender.com/xiaozhi/v1/
