@@ -92,7 +92,7 @@
               ></el-table-column>
               <el-table-column :label="$t('modelConfig.provider')" align="center">
                 <template slot-scope="scope">
-                  {{ scope.row.configJson.type || $t("modelConfig.unknown") }}
+                  {{ (scope.row.configJson && scope.row.configJson.type) || scope.row.provider || $t("modelConfig.unknown") }}
                 </template>
               </el-table-column>
               <el-table-column :label="$t('modelConfig.isEnabled')" align="center">
@@ -513,12 +513,29 @@ export default {
       };
 
       Api.model.getModelList(params, ({ data }) => {
-        this.loading = false; // 结束加载
-        if (data.code === 0) {
-          this.modelList = data.data.list;
-          this.total = data.data.total;
+        this.loading = false;
+        if (data && data.code === 0 && data.data) {
+          const rawList = Array.isArray(data.data.list) ? data.data.list : (Array.isArray(data.data) ? data.data : []);
+          this.modelList = rawList.map(item => {
+            let parsedConfig = item.configJson;
+            if (typeof parsedConfig === 'string') {
+              try { parsedConfig = JSON.parse(parsedConfig); } catch (e) { parsedConfig = {}; }
+            }
+            if (!parsedConfig || typeof parsedConfig !== 'object') {
+              parsedConfig = { type: item.provider || item.modelType || 'Standard' };
+            }
+            return {
+              ...item,
+              isEnabled: (item.isEnabled === 1 || item.isEnabled === true) ? 1 : 0,
+              isDefault: (item.isDefault === 1 || item.isDefault === true) ? 1 : 0,
+              configJson: parsedConfig
+            };
+          });
+          this.total = typeof data.data.total === 'number' ? data.data.total : this.modelList.length;
         } else {
-          this.$message.error(data.msg || this.$t("modelConfig.fetchModelsFailed"));
+          this.modelList = [];
+          this.total = 0;
+          this.$message.error((data && data.msg) || this.$t("modelConfig.fetchModelsFailed"));
         }
       });
     },

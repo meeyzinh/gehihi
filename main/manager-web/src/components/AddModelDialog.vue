@@ -162,7 +162,7 @@ export default {
             label: f.label,
             prop: f.key,
             type: f.type === 'password' ? 'password' : 'text',
-            placeholder: `请输入${f.key}`
+            placeholder: `Vui lòng nhập ${f.label || f.key}`
           }))
         }))
         this.providersLoaded = true

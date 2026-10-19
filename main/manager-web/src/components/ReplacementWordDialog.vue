@@ -65,7 +65,7 @@ export default {
   props: {
     title: {
       type: String,
-      default: '新增替换词'
+      default: 'Thêm từ thay thế mới'
     },
     visible: {
       type: Boolean,

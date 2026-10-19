@@ -150,7 +150,7 @@ export default {
       confirmLoading: false,
       form: {
         id: null,
-        agentCode: "小智",
+        agentCode: "xiaozhi",
         agentName: "",
         systemPrompt: "",
         sort: 0,
@@ -158,10 +158,10 @@ export default {
       },
       formRules: {
         agentName: [
-          { required: true, message: "请输入助手昵称", trigger: "blur" }
+          { required: true, message: "Vui lòng nhập tên trợ lý", trigger: "blur" }
         ],
         systemPrompt: [
-          { required: true, message: "请输入角色介绍", trigger: "blur" }
+          { required: true, message: "Vui lòng nhập giới thiệu vai trò", trigger: "blur" }
         ]
       },
       originalForm: null
@@ -231,7 +231,7 @@ export default {
       this.dialogTitle = this.$t("templateQuickConfig.addTemplate");
       this.form = {
         id: null,
-        agentCode: "小智",
+        agentCode: "xiaozhi",
         agentName: this.$t("templateQuickConfig.newTemplate"),
         systemPrompt: "",
         sort: 1,
@@ -250,7 +250,7 @@ export default {
           const template = res.data.data;
           this.form = {
             id: template.id,
-            agentCode: template.agentCode || "小智",
+            agentCode: template.agentCode || "xiaozhi",
             agentName: template.agentName || "",
             systemPrompt: template.systemPrompt || "",
             sort: template.sort || 0,

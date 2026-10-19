@@ -64,7 +64,7 @@ export default {
   props: {
     title: {
       type: String,
-      default: '新增参数'
+      default: 'Thêm tham số mới'
     },
     visible: {
       type: Boolean,
@@ -121,7 +121,7 @@ export default {
             // 检查除最后一行外的每行是否以分号结尾
             for (let i = 0; i < lines.length - 1; i++) {
               if (!lines[i].trim().endsWith(';')) {
-                this.$message.error('数组格式错误，需要使用英文分号结尾');
+                this.$message.error('Định dạng mảng không hợp lệ, mỗi dòng cần kết thúc bằng dấu chấm phẩy (;)!');
                 return;
               }
             }

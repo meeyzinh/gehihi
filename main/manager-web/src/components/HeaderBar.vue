@@ -158,7 +158,7 @@
       <div class="header-right">
         <img loading="lazy" alt="" src="@/assets/home/avatar.png" class="avatar-img" @click="handleAvatarClick" />
         <span class="el-user-dropdown" @click="handleAvatarClick">
-          {{ userInfo.username || "加载中..." }}
+          {{ userInfo.username || "Đang tải..." }}
           <i class="el-icon-arrow-down el-icon--right" :class="{ 'rotate-down': userMenuVisible }"></i>
         </span>
         <el-cascader :options="userMenuOptions" trigger="click" :props="cascaderProps"

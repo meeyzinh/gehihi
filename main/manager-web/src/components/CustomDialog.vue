@@ -23,11 +23,11 @@
     <slot></slot>
     <template slot="footer">
       <div v-if="footer" class="dialog-footer">
-        <CustomButton @click="handleCancel">{{ cancelText }}</CustomButton>
+        <CustomButton @click="handleCancel">{{ cancelText === '取消' ? ($t('common.cancel') || 'Hủy') : cancelText }}</CustomButton>
         <CustomButton :loading="confirmLoading" type="confirm" @click="handleConfirm">
           <span class="confirm-inner">
             <img src="@/assets/knowledge-base/star.png" class="confirm-icon" />
-            {{ confirmText }}
+            {{ confirmText === '确认保存' ? ($t('common.confirm') || 'Xác nhận lưu') : confirmText }}
           </span>
         </CustomButton>
       </div>
@@ -87,11 +87,11 @@ export default {
     },
     cancelText: {
       type: String,
-      default: "取消"
+      default: "Hủy"
     },
     confirmText: {
       type: String,
-      default: "确认保存"
+      default: "Xác nhận lưu"
     }
   },
   data() {

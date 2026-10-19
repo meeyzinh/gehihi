@@ -51,10 +51,10 @@
           <h3>{{ $t('cache.cssResources').replace('{count}', cacheData.css.length) }}</h3>
           <el-table :data="cacheData.css" stripe style="width: 100%">
             <el-table-column prop="url" label="URL" width="auto" show-overflow-tooltip />
-            <el-table-column prop="cached" label="状态" width="100">
+            <el-table-column prop="cached" :label="$t('cache.status') || 'Trạng thái'" width="100">
               <template slot-scope="scope">
-                <el-tag type="success" v-if="scope.row.cached">已缓存</el-tag>
-                <el-tag type="danger" v-else>未缓存</el-tag>
+                <el-tag type="success" v-if="scope.row.cached">{{ $t('cache.cached') }}</el-tag>
+                <el-tag type="danger" v-else>{{ $t('cache.notCached') }}</el-tag>
               </template>
             </el-table-column>
           </el-table>
@@ -129,8 +129,8 @@ export default {
           await logCacheStatus();
         }
       } catch (error) {
-        console.error('加载缓存数据失败:', error);
-        this.$message.error('加载缓存数据失败');
+        console.error('Tải dữ liệu bộ nhớ đệm thất bại:', error);
+        this.$message.error('Tải dữ liệu bộ nhớ đệm thất bại');
       } finally {
         this.isLoading = false;
       }

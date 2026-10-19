@@ -20,7 +20,7 @@
           v-if="showSelection"
           width="55"
           align="center"
-          label="选择"
+          :label="$t('common.select') || 'Chọn'"
         >
           <template slot-scope="scope">
             <slot
@@ -125,7 +125,7 @@ export default {
     },
     operationsLabel: {
       type: String,
-      default: '操作'
+      default: 'Thao tác'
     },
     operationsWidth: {
       type: [String, Number],
