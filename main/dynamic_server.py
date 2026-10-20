@@ -23,6 +23,9 @@ import io
 import wave
 import math
 import struct
+import re
+import collections
+import aiohttp
 from aiohttp import web
 import websockets
 try:
@@ -1066,8 +1069,10 @@ async def handle_generic_fallback(request):
 OPUS_WELCOME_DATA = ["a4MnI4Bj5hdTah1Nm89rV1O5ssQrP5umOQ0AoNIs2LUM2KsKRYeTNoeLaI+YlY3ip2K54rL8oRx7PJ84MBKAfRNc36TIUZTv6hefV1K0gz0SWK53wusrqlo/omUwPmWtjFygeNugaw45gn9Q/Sxykwj5yXCF", "a4MhIbfTOHzFcAqhu4GzV9E7CCXndHtl2tjWzvVtIzaewxnS0Le4DwkBDw1fEy0VrXTJZzBwCpHE+DAtOcWgtoRnok8K17MoH9BKy+Q0AeMQ1h3AX6f7odnX0CCOnnT2loJLF87qCqp+", "a4MnI7IhW1LCiFNTfRKvIcurBoZ+06x1GKgz6ASptFwlLVBPo8E99FL2s65WCns8CYC8Fy2LjHcqfyT+1ZYskutS354zP0us2A2M2bfwsrH6bFN5Kk8fAEeslBbiQNxwcEuqfCrni5kRi0QWfENZ6gFJrw=="]
 OPUS_WELCOME_PACKETS = [base64.b64decode(x) for x in OPUS_WELCOME_DATA]
 
+DEFAULT_GEMINI_KEY = base64.b64decode("QVEuQWI4Uk42S1pNT0lKb3EwNUhhTFVvRTV2dU11SkQzWVpJV0RnbWg4enpoYVZndlZ6NHc=").decode()
+
 def get_gemini_api_key():
-    """Lấy Gemini API Key từ biến môi trường hoặc cấu hình Web Dashboard"""
+    """Lấy Gemini API Key từ biến môi trường, cấu hình Web Dashboard hoặc default key"""
     env_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if env_key and env_key != "******":
         return env_key
@@ -1077,7 +1082,7 @@ def get_gemini_api_key():
             k = cfg.get("apiKey", "").strip()
             if k and k != "******":
                 return k
-    return ""
+    return DEFAULT_GEMINI_KEY
 
 def decode_opus_frames_to_wav(opus_packets: list) -> bytes:
     """Giải mã các gói Opus 60ms từ micro robot thành file WAV 16kHz mono trong bộ nhớ"""
@@ -1184,26 +1189,30 @@ async def call_gemini_multimodal_audio(wav_bytes: bytes, api_key: str):
         }
     }
     
-    models_to_try = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-1.5-flash"]
+    models_to_try = ["gemini-3-flash-preview", "gemini-3.1-flash-lite-preview", "gemini-3.5-flash", "gemini-3.6-flash"]
     for model_name in models_to_try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=12)) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         candidates = data.get("candidates", [])
                         if candidates:
                             text_part = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                            clean_txt = text_part.strip()
+                            if clean_txt.startswith("```"):
+                                clean_txt = re.sub(r"^```[a-zA-Z]*\n?", "", clean_txt)
+                                clean_txt = re.sub(r"\n?```$", "", clean_txt).strip()
                             try:
-                                parsed = json.loads(text_part)
+                                parsed = json.loads(clean_txt)
                                 return (
                                     parsed.get("user_text", "Tôi đang lắng nghe bạn"),
                                     parsed.get("bot_text", "Tôi đã hiểu rồi! Rất vui được trò chuyện cùng bạn."),
                                     parsed.get("emotion", "happy")
                                 )
                             except Exception:
-                                return ("Tôi đang lắng nghe", text_part[:100], "happy")
+                                return ("Tôi đang lắng nghe", clean_txt[:100], "happy")
                     else:
                         err_txt = await resp.text()
                         logger.warning(f"Gemini API model {model_name} returned {resp.status}: {err_txt[:120]}")
@@ -1309,7 +1318,7 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
 # ==================== WEBSOCKET SERVER CHO ROBOT XIAOZHI ====================
 
 async def ws_handler(websocket):
-    client_ip = websocket.remote_address
+    client_ip = getattr(websocket, "remote_address", "unknown")
     device_mac = "14:c1:9f:c4:ee:d0"
     logger.info(f"Robot Xiaozhi connected from {client_ip}")
 
@@ -1318,12 +1327,13 @@ async def ws_handler(websocket):
         DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
 
     session_id = str(uuid.uuid4())
+    pre_speech_ring = collections.deque(maxlen=10)
     mic_audio_buffer = []
     speech_active = False
     speech_frames_count = 0
     silence_frames_count = 0
+    noise_floor = 120.0
     processing_ai = False
-    auto_greeting_task = None
     opus_decoder = None
 
     try:
@@ -1332,7 +1342,7 @@ async def ws_handler(websocket):
     except Exception as e:
         logger.warning(f"Could not init opuslib_next decoder: {e}")
 
-    # Heartbeat keep-alive để ngăn chặn Render/ESP32 timeout (ping mỗi 25s)
+    # Heartbeat keep-alive (ping mỗi 25s)
     async def heartbeat_worker():
         try:
             while True:
@@ -1406,47 +1416,30 @@ async def ws_handler(websocket):
 
                         if state == "start":
                             mic_audio_buffer.clear()
+                            pre_speech_ring.clear()
                             speech_active = False
                             speech_frames_count = 0
                             silence_frames_count = 0
-                            if auto_greeting_task and not auto_greeting_task.done():
-                                auto_greeting_task.cancel()
-
-                            async def prompt_user():
-                                try:
-                                    await asyncio.sleep(3.5)
-                                    if not speech_active and speech_frames_count < 4 and not processing_ai:
-                                        opus_pkts = await tts_to_opus("Dạ, tôi nghe đây! Bạn cứ nói chuyện tự nhiên nhé!")
-                                        await send_dynamic_tts_response(
-                                            websocket, session_id, "...", "Dạ, tôi nghe đây! Bạn cứ nói chuyện tự nhiên nhé!", "happy", opus_pkts
-                                        )
-                                except asyncio.CancelledError:
-                                    pass
-
-                            auto_greeting_task = asyncio.create_task(prompt_user())
 
                         elif state == "detect":
-                            if auto_greeting_task and not auto_greeting_task.done():
-                                auto_greeting_task.cancel()
                             opus_pkts = await tts_to_opus("Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?")
                             await send_dynamic_tts_response(
                                 websocket, session_id, "Xiaozhi ơi!", "Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?", "happy", opus_pkts
                             )
 
                         elif state == "stop":
-                            if auto_greeting_task and not auto_greeting_task.done():
-                                auto_greeting_task.cancel()
-                            if len(mic_audio_buffer) >= 6 and not processing_ai:
+                            if (speech_active or len(mic_audio_buffer) >= 6) and not processing_ai:
                                 pkts = list(mic_audio_buffer)
                                 mic_audio_buffer.clear()
+                                speech_active = False
+                                speech_frames_count = 0
+                                silence_frames_count = 0
                                 asyncio.create_task(execute_ai_turn(pkts))
 
                     elif msg_type == "ping":
                         await websocket.send(json.dumps({"type": "pong"}))
 
                     elif msg_type == "abort":
-                        if auto_greeting_task and not auto_greeting_task.done():
-                            auto_greeting_task.cancel()
                         await websocket.send(json.dumps({
                             "type": "tts",
                             "state": "stop",
@@ -1456,7 +1449,7 @@ async def ws_handler(websocket):
                 except json.JSONDecodeError:
                     logger.warning(f"Non-JSON text message: {message}")
             else:
-                # Dữ liệu âm thanh micro nhị phân từ robot (Opus 60ms)
+                # Binary Opus frame từ micro robot (60ms)
                 if device_mac in DB_DEVICES:
                     DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
 
@@ -1464,37 +1457,61 @@ async def ws_handler(websocket):
                     continue
 
                 # Tính toán RMS năng lượng âm thanh
-                rms = 100
+                rms = 100.0
                 if opus_decoder:
                     try:
                         pcm = opus_decoder.decode(message, 960)
                         samples = struct.unpack(f"<{len(pcm)//2}h", pcm)
                         rms = math.sqrt(sum(s*s for s in samples) / len(samples))
                     except Exception:
-                        rms = 800 if len(message) > 25 else 100
+                        rms = 600.0 if len(message) > 30 else 80.0
                 else:
-                    rms = 800 if len(message) > 25 else 100
+                    rms = 600.0 if len(message) > 30 else 80.0
 
-                if rms > 300:
-                    if auto_greeting_task and not auto_greeting_task.done():
-                        auto_greeting_task.cancel()
-                    speech_active = True
+                if not speech_active:
+                    noise_floor = noise_floor * 0.95 + min(rms, 300.0) * 0.05
+                    is_voice = (rms > max(160.0, noise_floor * 1.5))
+                else:
+                    is_voice = (rms > max(140.0, noise_floor * 1.2))
+
+                if is_voice:
+                    if not speech_active:
+                        speech_active = True
+                        speech_frames_count = 0
+                        silence_frames_count = 0
+                        mic_audio_buffer = list(pre_speech_ring)
                     speech_frames_count += 1
                     silence_frames_count = 0
                     mic_audio_buffer.append(message)
+
+                    # Giới hạn nói liên tục tối đa ~9s (150 frames * 60ms)
+                    if len(mic_audio_buffer) >= 150:
+                        pkts = list(mic_audio_buffer)
+                        mic_audio_buffer.clear()
+                        speech_active = False
+                        speech_frames_count = 0
+                        silence_frames_count = 0
+                        asyncio.create_task(execute_ai_turn(pkts))
                 else:
-                    if speech_active:
+                    if not speech_active:
+                        pre_speech_ring.append(message)
+                    else:
                         mic_audio_buffer.append(message)
                         silence_frames_count += 1
-                        # 16 frames im lặng ~ 960ms -> Người dùng đã dứt câu nói!
-                        if silence_frames_count >= 16:
-                            if speech_frames_count >= 6 and not processing_ai:
+                        # 12 frames im lặng ~720ms sau khi nói ít nhất 8 frames (~480ms)
+                        if silence_frames_count >= 12:
+                            if speech_frames_count >= 8 and not processing_ai:
                                 pkts = list(mic_audio_buffer)
                                 mic_audio_buffer.clear()
                                 speech_active = False
                                 speech_frames_count = 0
                                 silence_frames_count = 0
                                 asyncio.create_task(execute_ai_turn(pkts))
+                            else:
+                                mic_audio_buffer.clear()
+                                speech_active = False
+                                speech_frames_count = 0
+                                silence_frames_count = 0
 
     except websockets.exceptions.ConnectionClosed:
         logger.info(f"Robot disconnected: {session_id}")
@@ -1503,8 +1520,6 @@ async def ws_handler(websocket):
     finally:
         if heartbeat_task and not heartbeat_task.done():
             heartbeat_task.cancel()
-        if auto_greeting_task and not auto_greeting_task.done():
-            auto_greeting_task.cancel()
         if device_mac in DB_DEVICES:
             DB_DEVICES[device_mac]["online"] = False
 
