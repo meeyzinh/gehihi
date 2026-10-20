@@ -1160,7 +1160,6 @@ async def call_gemini_multimodal_audio(wav_bytes: bytes, api_key: str):
             "happy"
         )
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     prompt = (
         "Bạn là robot Xiaozhi tiếng Việt thông minh, đáng yêu và tận tình. Hãy nghe đoạn ghi âm giọng nói của người dùng và:\n"
         "1. Nhận diện chính xác câu nói của người dùng bằng tiếng Việt.\n"
@@ -1185,28 +1184,31 @@ async def call_gemini_multimodal_audio(wav_bytes: bytes, api_key: str):
         }
     }
     
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=8)) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    candidates = data.get("candidates", [])
-                    if candidates:
-                        text_part = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                        try:
-                            parsed = json.loads(text_part)
-                            return (
-                                parsed.get("user_text", "Tôi đang lắng nghe bạn"),
-                                parsed.get("bot_text", "Tôi đã hiểu rồi! Rất vui được trò chuyện cùng bạn."),
-                                parsed.get("emotion", "happy")
-                            )
-                        except Exception:
-                            return ("Tôi đang lắng nghe", text_part[:100], "happy")
-                else:
-                    err_txt = await resp.text()
-                    logger.error(f"Gemini API error {resp.status}: {err_txt}")
-    except Exception as e:
-        logger.error(f"Error calling Gemini: {e}")
+    models_to_try = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-1.5-flash"]
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        candidates = data.get("candidates", [])
+                        if candidates:
+                            text_part = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                            try:
+                                parsed = json.loads(text_part)
+                                return (
+                                    parsed.get("user_text", "Tôi đang lắng nghe bạn"),
+                                    parsed.get("bot_text", "Tôi đã hiểu rồi! Rất vui được trò chuyện cùng bạn."),
+                                    parsed.get("emotion", "happy")
+                                )
+                            except Exception:
+                                return ("Tôi đang lắng nghe", text_part[:100], "happy")
+                    else:
+                        err_txt = await resp.text()
+                        logger.warning(f"Gemini API model {model_name} returned {resp.status}: {err_txt[:120]}")
+        except Exception as e:
+            logger.warning(f"Error calling Gemini model {model_name}: {e}")
         
     return (
         "Chào Xiaozhi",

@@ -15,4 +15,6 @@ services:
         value: https://gehihi.onrender.com
       - key: WEBSOCKET_URL
         value: wss://gehihi.onrender.com/xiaozhi/v1/
+      - key: GEMINI_API_KEY
+        sync: false
 
