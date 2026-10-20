@@ -14,27 +14,22 @@ RUN npm install
 COPY main/manager-web .
 RUN npm run build
 
-# Giai đoạn 2: Runtime Container
-FROM bellsoft/liberica-runtime-container:jre-21-glibc
+# Giai đoạn 2: Runtime Container (Debian Bookworm với Python 3.11, Nginx, FFmpeg, Libopus đầy đủ)
+FROM python:3.11-slim-bookworm
 
-# Cài đặt Nginx, Python3, bash, curl, font, ffmpeg, opus
-RUN apk update && \
-    apk add --no-cache --no-scripts \
+# Cài đặt Nginx, FFmpeg, Libopus
+RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
         bash \
-        python3 \
-        py3-pip \
         curl \
-        fontconfig \
-        ttf-dejavu \
         ffmpeg \
-        opus \
-        opus-dev \
-    && rm -rf /var/cache/apk/* \
+        libopus0 \
+        libopus-dev \
+    && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /run/nginx /var/log/nginx /var/tmp/nginx /etc/nginx/conf.d /app
 
 # Cài đặt dependencies cho Dynamic Engine (Hỗ trợ AI Gemini, EdgeTTS, Opus)
-RUN pip3 install --no-cache-dir --break-system-packages \
+RUN pip install --no-cache-dir \
     aiohttp \
     websockets \
     pyjwt \
