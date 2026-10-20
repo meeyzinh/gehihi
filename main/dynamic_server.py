@@ -1082,6 +1082,8 @@ async def send_tts_response(websocket, session_id, user_text, bot_text, opus_chu
             "state": "start",
             "session_id": session_id
         }))
+        # Cho 200ms de ESP32 FreeRTOS schedule chuyen sang trang thai kDeviceStateSpeaking
+        await asyncio.sleep(0.2)
 
         # 4. Gui cau tra loi
         await websocket.send(json.dumps({
@@ -1095,6 +1097,9 @@ async def send_tts_response(websocket, session_id, user_text, bot_text, opus_chu
         for chunk in opus_chunks:
             await websocket.send(chunk)
             await asyncio.sleep(0.06)
+
+        # Cho ESP32 phat xong audio queue truoc khi bao stop
+        await asyncio.sleep(0.3)
 
         # 6. Ket thuc TTS
         await websocket.send(json.dumps({
@@ -1158,14 +1163,31 @@ async def ws_handler(websocket):
 
     session_id = str(uuid.uuid4())
     current_response_task = None
+    speech_silence_task = None
     mic_audio_count = 0
     dialogue_ctx = {"round": 0}
 
     RESPONSES = [
         ("Xin chào Xiaozhi!", "Xin chào, bạn của tôi! Tôi là Xiaozhi tiếng Việt, rất vui được trò chuyện cùng bạn!", OPUS_WELCOME_PACKETS),
         ("Tôi muốn tìm hiểu về hệ thống.", "Chào bạn, thiết bị đã được kích hoạt thành công và kết nối thông suốt với máy chủ Gehihi!", OPUS_ACTIVATION_PACKETS),
-        ("Hôm nay thế nào?", "Hệ thống hoạt động rất tốt, chúc bạn một ngày tràn đầy năng lượng và niềm vui!", OPUS_WELCOME_PACKETS)
+        ("Hôm nay thế nào?", "Hệ thống hoạt động rất tốt, chúc bạn một ngày tràn đầy năng lượng và niềm vui!", OPUS_WELCOME_PACKETS),
+        ("Robot có thể làm gì?", "Tôi có thể lắng nghe bạn nói, hiển thị biểu cảm vui vẻ trên màn hình và phản hồi bằng giọng nói tiếng Việt!", OPUS_ACTIVATION_PACKETS),
+        ("Cảm ơn Xiaozhi nhé!", "Rất hân hạnh được hỗ trợ bạn. Bạn cứ tự nhiên nói chuyện bất cứ lúc nào nhé!", OPUS_WELCOME_PACKETS)
     ]
+
+    # Heartbeat keep-alive de ngan chan Render/ESP32 timeout (ping moi 25s)
+    async def heartbeat_worker():
+        try:
+            while True:
+                await asyncio.sleep(25)
+                try:
+                    await websocket.send(json.dumps({"type": "ping"}))
+                except Exception:
+                    break
+        except asyncio.CancelledError:
+            pass
+
+    heartbeat_task = asyncio.create_task(heartbeat_worker())
 
     try:
         async for message in websocket:
@@ -1212,20 +1234,23 @@ async def ws_handler(websocket):
 
                         if state == "start":
                             # Khi bấm nút BOOT: Robot chuyển sang chế độ Lắng nghe
-                            # Khởi động tác vụ tự động phản hồi sau 2 giây lắng nghe
+                            # Nếu người dùng không nói trong 2.5 giây, tự động chào mở đầu
                             if current_response_task and not current_response_task.done():
                                 current_response_task.cancel()
+                            if speech_silence_task and not speech_silence_task.done():
+                                speech_silence_task.cancel()
                             mic_audio_count = 0
 
                             async def auto_speech_worker():
                                 try:
-                                    # Chờ 2.2 giây để người dùng nói xong
-                                    await asyncio.sleep(2.2)
-                                    idx = dialogue_ctx["round"] % len(RESPONSES)
-                                    dialogue_ctx["round"] += 1
-                                    u_text, b_text, audio_pkts = RESPONSES[idx]
-                                    logger.info(f"Auto-turn triggered: replying with '{b_text[:30]}...'")
-                                    await send_tts_response(websocket, session_id, u_text, b_text, audio_pkts)
+                                    # Chờ 2.5 giây nếu người dùng không nói thì chào
+                                    await asyncio.sleep(2.5)
+                                    if mic_audio_count < 6:
+                                        idx = dialogue_ctx["round"] % len(RESPONSES)
+                                        dialogue_ctx["round"] += 1
+                                        u_text, b_text, audio_pkts = RESPONSES[idx]
+                                        logger.info(f"Auto-turn triggered: replying with '{b_text[:30]}...'")
+                                        await send_tts_response(websocket, session_id, u_text, b_text, audio_pkts)
                                 except asyncio.CancelledError:
                                     pass
 
@@ -1246,9 +1271,11 @@ async def ws_handler(websocket):
                             )
 
                         elif state == "stop":
-                            # Người dùng chủ động ngắt tiếng hoặc kết thúc lượt nói
+                            # Người dùng chủ động ngắt tiếng hoặc bấm nút kết thúc lượt nói
                             if current_response_task and not current_response_task.done():
                                 current_response_task.cancel()
+                            if speech_silence_task and not speech_silence_task.done():
+                                speech_silence_task.cancel()
                             idx = dialogue_ctx["round"] % len(RESPONSES)
                             dialogue_ctx["round"] += 1
                             u_text, b_text, audio_pkts = RESPONSES[idx]
@@ -1262,6 +1289,8 @@ async def ws_handler(websocket):
                     elif msg_type == "abort":
                         if current_response_task and not current_response_task.done():
                             current_response_task.cancel()
+                        if speech_silence_task and not speech_silence_task.done():
+                            speech_silence_task.cancel()
                         await websocket.send(json.dumps({
                             "type": "tts",
                             "state": "stop",
@@ -1276,13 +1305,42 @@ async def ws_handler(websocket):
                 if device_mac in DB_DEVICES:
                     DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
 
+                # Khi người dùng đang nói, huỷ auto chào
+                if current_response_task and not current_response_task.done():
+                    current_response_task.cancel()
+
+                # Tự động phát hiện khoảng lặng (silence detection):
+                # Khi người dùng nói ít nhất 6 frames (~360ms) và sau đó im lặng 1.1s -> phản hồi ngay!
+                if mic_audio_count >= 6:
+                    if speech_silence_task and not speech_silence_task.done():
+                        speech_silence_task.cancel()
+
+                    async def on_user_speech_finished():
+                        try:
+                            await asyncio.sleep(1.1)
+                            nonlocal mic_audio_count
+                            mic_audio_count = 0
+                            idx = dialogue_ctx["round"] % len(RESPONSES)
+                            dialogue_ctx["round"] += 1
+                            u_text, b_text, audio_pkts = RESPONSES[idx]
+                            logger.info(f"User speech turn finished: replying with '{b_text[:30]}...'")
+                            await send_tts_response(websocket, session_id, u_text, b_text, audio_pkts)
+                        except asyncio.CancelledError:
+                            pass
+
+                    speech_silence_task = asyncio.create_task(on_user_speech_finished())
+
     except websockets.exceptions.ConnectionClosed:
         logger.info(f"Robot disconnected: {session_id}")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:
+        if heartbeat_task and not heartbeat_task.done():
+            heartbeat_task.cancel()
         if current_response_task and not current_response_task.done():
             current_response_task.cancel()
+        if speech_silence_task and not speech_silence_task.done():
+            speech_silence_task.cancel()
         if device_mac in DB_DEVICES:
             DB_DEVICES[device_mac]["online"] = False
 
