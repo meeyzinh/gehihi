@@ -17,7 +17,7 @@ RUN npm run build
 # Giai đoạn 2: Runtime Container
 FROM bellsoft/liberica-runtime-container:jre-21-glibc
 
-# Cài đặt Nginx, Python3, bash, curl, font
+# Cài đặt Nginx, Python3, bash, curl, font, ffmpeg, opus
 RUN apk update && \
     apk add --no-cache --no-scripts \
         nginx \
@@ -27,11 +27,20 @@ RUN apk update && \
         curl \
         fontconfig \
         ttf-dejavu \
+        ffmpeg \
+        opus \
+        opus-dev \
     && rm -rf /var/cache/apk/* \
     && mkdir -p /run/nginx /var/log/nginx /var/tmp/nginx /etc/nginx/conf.d /app
 
-# Cài đặt dependencies cho Dynamic Engine
-RUN pip3 install --no-cache-dir --break-system-packages aiohttp websockets pyjwt
+# Cài đặt dependencies cho Dynamic Engine (Hỗ trợ AI Gemini, EdgeTTS, Opus)
+RUN pip3 install --no-cache-dir --break-system-packages \
+    aiohttp \
+    websockets \
+    pyjwt \
+    edge-tts \
+    opuslib-next \
+    requests
 
 # Cấu hình Nginx
 COPY docs/docker/nginx.conf /etc/nginx/nginx.conf

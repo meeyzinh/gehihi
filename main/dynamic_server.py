@@ -19,8 +19,16 @@ import uuid
 import asyncio
 import logging
 import base64
+import io
+import wave
+import math
+import struct
 from aiohttp import web
 import websockets
+try:
+    import edge_tts
+except ImportError:
+    edge_tts = None
 
 # Setup Logging
 logging.basicConfig(
@@ -1052,16 +1060,163 @@ async def handle_generic_fallback(request):
         return cors_response({"code": 0, "msg": "success", "data": []})
     return cors_response({"code": 0, "msg": "success", "data": {}})
 
-# ==================== VIETNAMESE OPUS AUDIO DATA ====================
-OPUS_WELCOME_DATA = ["a4MnI4Bj5hdTah1Nm89rV1O5ssQrP5umOQ0AoNIs2LUM2KsKRYeTNoeLaI+YlY3ip2K54rL8oRx7PJ84MBKAfRNc36TIUZTv6hefV1K0gz0SWK53wusrqlo/omUwPmWtjFygeNugaw45gn9Q/Sxykwj5yXCF", "a4MhIbfTOHzFcAqhu4GzV9E7CCXndHtl2tjWzvVtIzaewxnS0Le4DwkBDw1fEy0VrXTJZzBwCpHE+DAtOcWgtoRnok8K17MoH9BKy+Q0AeMQ1h3AX6f7odnX0CCOnnT2loJLF87qCqp+", "a4MnI7IhW1LCiFNTfRKvIcurBoZ+06x1GKgz6ASptFwlLVBPo8E99FL2s65WCns8CYC8Fy2LjHcqfyT+1ZYskutS354zP0us2A2M2bfwsrH6bFN5Kk8fAEeslBbiQNxwcEuqfCrni5kRi0QWfENZ6gFJrw==", "a4MmIbgauHfiEbsOiortt/l5L2Hz71dSr4NfttfRL+mmEHLOJ9lCS7MvlurKR8xjywkjmLtWdl1XU2Rjsiimkxxn9iR4KByjXWsilqPTKYh5n3lfdV+Q2gzpGDoeE6Zn2+Dph9BKDgECmsrsy32I", "a4MlIrv6A3XhGqDzFqE1ycIu8cqCEVtpvuBE4eW5fchU4WzLMYEtgXS7/LZUxnVGfiFvtQEBRdkVY1v4HyQI+5mD87nXYxDv6s6zvAwV6gGjWJREPen3dHS142Mv0t2vWoNMZePyfjNKABO9lUU+zpNi", "a4MkJbyhHtiSVEl+gukENqZtHPy4g8unaeRqm0YY4cyNSRyWytjTeLydQAv644CZpbrpQ9FNUjHeFWxfftbVra6tWB/7E9qbe9XNnuC8Tz1+h5iPo5OXKAq3HN/0UyW0PoXmoSmVd3KB8Mmlog==", "a4MnJbsjJbzLXRGmPvTuH/eOoF4jqDLy9Y5igfTA+QqwSh9pPIj8CLDb47lUqIn9I+HUGrZtBwOqUjhpYJimXAl1YrWUnhzDDoFSr2zv66q4j4Tr8cRq95YIziM4gMpiUl6Io+0m3+uVIr1Y9OzjV1wYYHk=", "a4MlJbbX+eUaRwNejLVm1rxwTV3OFiKR+k6fexZ1wUG5WTp3N8DXLUi2mIxaalUSa9FUKK7WKA99i/BF6QeKaVA6391dQWd4LTR2ECditdIwm5TSSkJZUGNVSBVISBpyUd6hYlplSwecaXIYkg==", "a4MnIq35v+b1HJORkzT+QFmEViYhl8VXaz87QjRRBThq9BKIssLW590s/Kr5ew1G9177jO7N/wlV+uh6dghySZS/DMK+xvd13vSB0jOxAGjCPTZUmOkSqZl1vZynYoFLU0du1igBujQIHiIuHgItZ8qi", "a4MjH7xet1Ub89pnmQ5OFzdAMX7R9TT7qAoGWeQHV0OV7mgAmnSGvMKv1k/qgNcJ5keFtQ6JUi8K8kaNe694ASga+7R3ibv8C6EX6LOdKnuqzccyu4Fqn4DuZ7XlO0rMQ1cFT34H7IO+2w==", "a4MkJL/koHQJxNzuEsYWBQeKjZSDYvMZil6UFAzCb6JEmlCzslDsE7gMDwETO200X7fFkKP9bYEVlIRyq1jrfbYIZkWz7y1QWwRAwYQOckwsIFt3O4dB8MSvcDSKffLrQU0eX3dXpFoYr13YVA==", "a4MgIoOIX+gL8V3xIUs4ZuIj0fm0k5AB/pbpVAsfZT/rzEaXBimjuLnwPgtqm9gnCf9X/+iyaI2Dd77HykCLc/1UaigltTvlnti/47gSfg3+osup294CN5mcCU6JLDdsyajSbtFnBgQWwA==", "a4MjJAWzqqxoO3pYPoH85+k21836ENNtOhqaFaJZ7Yg6uL0aUSnPgrLerY3mQOGyrW+2WSqmWRY/oxrbrbcDgmvu0KANhoTxaZlJq+36Fph2xPOqYlaDDWTCPWSDFWdnsEGwOrM3uc4f+3xA04lC", "a4MiIbJN5As1KP40uSMmuTQW5Pq3w7NrosrvTc+VqlCCzgT2yoGzj2QkpD9oD3NlX/zQrmCoLApISgoTv0+mBJN2Mxp+b6evqsCm/NossJJA3CJhZw8sn2+ik31XOswfCFS/yow5mWXIxZs=", "a4MnIqXuzNIYCnTWPl3zNMjkYllB6OqXomh8evSdu7WyPKjsqIeGgM0JjTcH+wY8xQfVMrsX7vmUHc6HPoirTuXojRcKxVG/FU4hww4zULY/JMnFRhvqVeAm4dMyN9AuS+w6hBPrknRky8La0I0=", "a4MnIoP5PtTWf8dUhWtitizeDtc2jyCJqi3HJxEb1gfg81Qgw4UHUVw+fLwm60K/j7ubLd38siH/e9X+YXGvMjEQ0PBSXNm471P1SLG7cQdO1s15JmCHOIYcU7t01k/LauS0B8FRTQHFUJc9WFsB", "a4MjIru0k13eqlgdAhFJHwYYZ0ocOMUANGyyFRv8KsAnMUqBC+OGvCYdsMIzkz1/Jue3wZv1Nma9v/QQip+NmGNayWhHROfx9rwYwTBxIP589713Z8HRdJTKW4EylW7cegEpYxkkHshj7Q==", "a4MmJLv46Hx/f5e+Wt5xzSqPGHlViuGxlk6tXu850Co1NbCO/zTpDa6ru/hzcyCUOJbsq28WdUJvNIdfUEJJf20/lPgzTuyRbzlo1qaPu/zv53GfGqieT7btG5De6IDzMEovrvbgbf2iljZh", "a4MlJ7v5LAkytedPporkoJiA/R4D8PQDUJeSLRZ4+jkoxIqbSg0arGC7+KO5nJCldjTpORM7zj/ZGOGrWElYetxksBRGmz0+UCP8IDIP09m785/anIG8u0TKLMMSVpbnJxACTIbPp+k+6i1hkptaqVPIlBNf", "a4MkI7hjvi4Tj2QMHXeGltcl44vuhw3rqoosqYsyyqPz1SIudgzeFbemzRaxWLdO3LSYcWMNwLAozvkskYqMJXwDwHBY36ZnGivAtdJcCh2MKTCqFl24vRbFYlV0W7zz8mQG/R82eQLQ5qsCAsYEGQ==", "a4MnJaxi5bIiZztWopL/ihfxPHF40SOauJIx5ChV+HZqNwJIfJYdxg0yI6dGcKZFJVMGgh4G4DA1chG/EOSoCjV4Uf2MkME1vYzb/Cc0f3s8AXJiAU24YKnFJiZamvO+GrCoQFiF6lJQFDmLnCgj", "a4MjHjfUcMd7cCmj0d5x6lojlQo0RW6pLhXSaYDic8cNp8dfR66FBWyTiep1qh1d1zYnIRYAojQOP7JJu3OZkwJR2q6yLnsAAuooRrdfsVfD8ecqAQ==", "a4MWEAoz+BKii3TM1ESYBQEKVwFM9KQVM4EIoPVrxO1xTcfNDGe+8eCVCLsTueSC8bxeCUWgYBsauyzB", "a4MVFQi2pMUoy3QNjV1cu55CiBaMGGHGAwiflsiDV7K7ZftmffX3sMJ4QR5gPQfQpMVS7d7tMEXxUqRiDSj/oM5jvYM+", "a4MXGgfQpMU+OGguKXujULY4iOlUFnq2qhc4B9CkxSSmfZqE2v9prmRZrNxZmZ1xBoUUFeQH0KTFJeOzunyPPRXOIt9KIupUi3l9aqMV4A==", "a4MSDwfVGdlfLYJu0AIrMhO9xhs8PAfJedE5EDYjPTvXf/WswAfJecjJV8CiEiOA1Dg8", "awMHyXnIyVfAohIjivQ6PAfJecjJV8CiEiOK9Do4B8l5yMlXwKISI5UUOjw="]
-OPUS_ACTIVATION_DATA = ["a4MiHxN7ftOHVwlnPoRI9kK9k9WH2zLzqXiZzGXocxsQJwi61QYcQBGeDmTSYBR59dGLDYkkLGZaaDhEIB0izCCXFSXdHuBaTZr18b6dupCGAylZZMG22wmdsyqMCzha", "a4MkIh7eVLcQ8dGLFTvqQPlrjPEMGnTnfi6R4JTFP20lm9tq2KcR9R7eVZqP+/746mdVMQvBn50KrzdRQnW+ZtgF29Q58hTZUwsfTtPbtF5DEtD3kKtRW+KSLTI4ZajbClexmn/AJA==", "a4MiIiI7cwvVEA+UCBdTLF1a5a0kTInyeooiuzxrsgO05fdMKpeIGAS03pkHmj+NMlcIxb7n/LRYxmr0qalM7HvzdNy+sOAijCtI2rtS8K/+WoIpoldzKO3VUen4E1wSZ/7oa97jGw==", "a4MmJIM9EczsSNsfAP+eM2bMbolKXvZPZLOHCoIflFvLkc2/4lC4PQXas+CNAjLJh+Ar1ExK5hlOzucNhfTKMOvxuyGFj2m+UNDmAlS6tAahnKK0Tqu5KtlYALxAlDel9cYnrkMYms2C3PNbA4T8O6hdKnU=", "a4MjIrX+V7vGDA69Zg0cic0lI4V5JztFeuPDgUHXEXbFk6b+8OBntwsWhhxp1/gnpmdE4mouFC3WAcs8cBpbdW5ewzeRqMj7/LpzAJU0P3OCbNGnQiFl/lCB2xXhIM/kkKOggRoTmBJhdM4GSQm2", "a4MfJ7wyhai1O5wogDDz2vQUVxdTjXPKrmlUGgtVfRoW99e789Q9HJ8xaOKf6SJzv4VWreHscULwDiC9jW6a5R6bl573splQL966V7z2J5yIKcDMfLBf70HUEbKK/udIHWW+c/zwvDqyTDcR8QAs8XQ=", "a4MgJLtfz1dpsHByJboHHmdTV+o0gyZV8vWC1JDuwg4G/bw6unEkOlYfK7yzBIBMeP5c8eJr8NKOl9Alesih+Gndz0Xtc+g3uXHlFB/fba+yPKvGcQZ6vo2uUrk7xuYqLpRZsQzKWKbS1A==", "a4MkIrhqLeNCytL+33E+iugsY8I2f2BwAWKpb3WMT7qSxFZ4qDDouLfb+0PDki2YxegU+Xulo+1SuMEdet4mMtQtAlhiU6QcbkC8X3TllpSwDnAN/A5+kKHNxhl1/uedtdh9g/A8VeVpzYfAqi5wk70=", "a4MnIbzORouLiEwhGwpWR+4DwtPLwNj8anre7fl2jGMAyIWFv1oDwbQ7vrzEyEqSI44/UgGVWNLwuHfLACLVfdbFlln/d9ohuLqEBrxQrOJftAEdszfM4OF3lO1D3sDMOBL1P/WMV1pILfQUzfqOLIA=", "a4MlH7xPPV2AQ0YYf10Ai0MKcI4qYU3EIz1kz2mYMBNlY2Hs3aWYUj+8oa5zG6s38yVEBr2xPA0BMUgTcWsQBcKNhZCH/PGSu+sI/hEbF5YUhYdsozrx2Kn5emQmtOv2f/iLCf3acPkIeWl7koI=", "a4MkJrbtMT07xhgSSp7pf8cruVHU4KC+ocEXAcRL0GR9lgTuWGa4k7YF76JgRxxDf3K6XOwK8udjWw3bIvPt39Ce7ZbQJmKxGCgzC0GatdTFCuS041NDZeqlbOHRIixqaLuyp34WuQua+GH/DR6W7KONQQ==", "a4MmJrF8tv0FyzA3zh/LRUDsjty2drtG8/crAceiNE7B+yVCEOJakemTrp39v3mdisTRhdG8w6qEtAQga2l5uhrhDLgqog/dFtfKtcQA896uU749Q7IykAzWCaSWUNUh2MFLN58YofOxUZXiAXj41ITwDb16b4k=", "a4MjJ6yiJiFcTqjqVDWtwYTiAwO0CHg2rhfwIPKaySHNB7cjArGKqPbTQTJG70FZarf8s/oSScYXIHlw/UfdEP9Few6ymuZwwBJl9jwNo2zNACDzmlkqGWkPQ5K5YIebIL1ApGDxo8koT6A191bchg==", "a4MiIL3rlAt265XynVcVxuIilkFhRKxAgNoCWUxMx0SCEZ3EXJa965QIeq3YsIBauiPiQ9/OWCJ8pycgqDPc2P7d8rU/zJ7uriMPoJqbiNYCBrSvTYl5DHJEEiBqNBJIuaZdJcodlwdmQj2Ihw==", "a4MjJqRQR/LDEQ4Kr3rcmR7EVVgxqMFe61127l8XBg+RhxTztOl4vLNc8zIaRnXSEJLUuO8aCPeY/Bx0bcu8A01T5/MUy4eHtsJSX6u9Ny0EXkT/WQaxYrvhXNCYu0AKyPeRgyWKh6AcKnbc+anbSsv8Xg==", "a4MlI71JZtfu+QYBxUdZsFcLj646g6EVif3PNZcjrWN90pX/V0VlDhC8aBcPT0SsOdXoQPebSUtA4moh6vljN8C+5YyNzpvPpYY8NrolxySldkIUSrjolV6a5IlbCbK7QZTRBFeIItYx4BfIw76BpA==", "a4MnI7eb8s1JK5MdVh+sUTOXFXBjuMCJlDOQCwIH/XMKhvTIRrSoW+5057XxiwEZAzmCUx6spCiomDG1byUU5cMQgPi3B33F83N4le8DtufyQTYB6ym+Nj00GSnnFlYMmbPHVTtUwOQigRQEdh7K", "a4MhJbeC0ckqXK3jhqjGuHmjI3/iou2DNxhI6YHyIm8YLKCiG7W2FU2z0Iss71TdX3s3E6WaCm/pusGQ/eIGb2I6khjmNzypGPyztftIwePUHMLRA7Y8keHV5I7txq+nEIpcVYnXHRERBfS8NRUcjQ==", "a4MmI7N10Vrt14dWSRH2C8iBn0ojCuhxwW0k7OOvpgrVd9Ei+iUCslVLtUQYFrR8sKcCHQD6FYpzJAQCUFE9MUS7IayoJFsfNQfCaYq56iDFBbqCN8lAn5F7B0cpnr5q23XnQIDoCExv5yg+7onA", "a4MnI7x/VQukcG6quJR0uiwvjAtPrG6Ql9wvDbEz+dkBk9wHSn3+lRg7abz1TysKlT2ZZqvz/ccLt3Hz9tDcCDl+HNs/wvAGmMYgwsn7vOZyOd2FgEXF8Uj5JWX+iIgxVsNki1ppTY+Q0MzWGJkART+H", "a4MlJbd/TOMU0FmQI5bskRF4BLROEa96yUUBiY+xd4iE85urKymE2vq0tmcUdGXwet9qhaFdvBt+Ib25e9O7tW9DQBXHyieAMn/l5WQwrEHunFXlBzQ7a2yyfP8Srm4GA8PesQvqwgxhfTx1kY50F7+JlUlh", "a4MfJAYpphCl2csekdbXAGe1OZaB60dYBdkwkyp0gw+A3QE8JYSzWQffPwVBKquyddIfhKIr+VSYskwKheYUZhzbJ+szH/WPMPuUo5xIGxkGkoupbbF8XODDMXETSM6betN2oV4N9YSRgiM5sw==", "a4MjJYMPRFStQe97IHzNPp6yfH7XyDaFUcnVY5KwuXwd2jmA6qQ6g5kvlMt0pOdb/6UiXlcw9mOL6/a9kU7XfKRtnKDF0ilAZQ/6abYns5CmTtSugR6syiPuTKY/BafbdaQRMpKhHHVdlQ9ltjdNNlsMtA==", "a4MnH7tj+x/Ji6wFHi9Uk2M/Q+77znIDmZq/M0zLUuC2GPk9VD7MrhgXurvqF0tBC3Z8Slz/ggcAta5QG71ICFF4BYLFl5Cyh4u2nKUOPsstBU6CeINs2k63U6gJLrenUW+cMgkbPJzgdfWGUg==", "a4MkJbbJ4ykiIZoEu5C9k/j+U4picaGtEc3RZtW9zFadsrMBC5V9LbOU3zMvkbWHm12C6wJFffB5mdTbd3xy1I8ZJmDCMC1PMoKR3mmx6FTutRGmfSiSY90PF7XpgTzRzKZusOz+sF2ut6aWEZ6B1kNzi7w=", "a4MjJ7OapJhQgVr7vfX2IXzfIHa5zAn9vnkONj4H7UZgas4m9Cp2sa6osEMMQYKZESKzHIq7zS7n4hw5V6HIK6XoOWB36RNaSflNPMpip0b4vmR66hmQsndzWu/YX8hKOZu9sS1rg7WJ72rgHLspK/TsRnWa", "a4MjIqSojSmNkrTBCNKKTGNdfxdZQVlbZksAVPLOV23NOVTl4Bh8o/DhQKEl4WQqCGhqj+Oj7oiAajkZ1VXP4mmWTFDGGyBAEachxNTJ/WUu36ChQOiMEZVLMeZTPltBy4SQYZEvsmCP5ZmQDe+ydg==", "a4MnIqgk/xe5rZCj77KDXuBMqtZlSSWm7uFnE6kdQOXhUrfPqSWAALhaGLyKD14V9/9vwpwHCgm3geUuaje3J86HlfxL5LLuofh1caG8w9eVQPjS7ee9l/zpGKiVpgzq0/xKNnsErqoW0lnOKQ==", "a4MnILxAXoq/06qRTz3Eqxgr/ZIm0+g/PpGPiimRpA2hlhTiSRswQTTpxbxb+5rM/ItPBLIgD3bJUmbg9qm7K1WO2F67mA5uZZVYvGe+8R2QssKC/XrfcfVZSRwu8lD3iBrMvdZuc0BfhOaR", "a4MhI7iPhLrbhhOJg3KxUDx3iZvtGS2cuLEiRjy/bQwAhrJRSbdxbgFuTEcw2Kbb2XdaPLasqvZOaFSkrSbVqYbIFTECFdOMsyot+Er2n7bpdYdDy+vC7OgGPX7kYahaX2sbLIPbmtG9NKITzjA=", "a4MkI78Tku6FD/ROE6glpFc56G0+2FdWxuPU+Q6ga91LgWY+vETXfI8bdHxh+g4Bz2UkHLYnICKU9SL1ilOjlkS9DDJij4JbITshOYDw8vowWtmcvE7eYoazomleOum5FkE2SaZADhK04QfTV2Mi", "a4MeIAWT1zANBngtKX39Nh9B/Wgtba9nHSlB52B1QFN9fQVDjYyb5qIYLUS7hngjUqIjtJPlMlGHE91CfuWnmLw1ovU6JbKQcOmFAxwlh+DiLJG2L8uhhYqZnDGTS4KDoULT0MWIEy3L", "a4MnJ6QI6NGCliu9bb7Dh8a0D53U3IgnEKfbTNso+kI197ccF4K2EHwyG621URECoqYqQIFKd4ylT+WA1PA/SNDiwa6/EjpcngB9Cq7XKMAKc7iOD6nDbbFegBk3tI75Zqm4o/a61O175VPzjedG/IY=", "a4MfI7iuBwUh2NrsbtHoLCA195pDL0ep6thqB088999so6K5m7ecGPSlgkIGg5coeZepEjGrmrNdpqMlphU+IeyJ8Z1/frhSKG6GZpP2TcSdLImeniI8u2+sYAbf6baN5OWu2BC6hWJOanM=", "a4MjI7TqjnQ4FYDgEm/z025Kd9fGDsTpcMeuvp9Rh+Q0oH8rqpgisXsOLnV2pDgs6VdjzDPmahd7ZR9FUBNGBe0uamr/UzM2uNGzBPq56hiOeuJMnuuxZshbXNmR4x+dZIKnIXMARG7W/smLz4vPg20=", "a4MhJ6xyRxBsSqstjsN0bYxEUvWU6hH1mU1n8maW3ka6pf9X7qrAtrx6/bDmRLRpzu14pIAhdoYclloY3nULOs/2XOLF8LJJ12Fqh6pI+Ud2qEIJwoVyr9dh+fZkZ0lIXBmiDmqFglDJXJ/3pTwarA==", "a4MmJrUoYkj54X7BIKDaQpOOZBJMVJZpRdrfAZFxAYp5P4KLmYkYTGIMv6JfJDNBHWmt33pBKIGS9oShSEH95YIKpY18hhbDL6sUK1x/9ROVdtSBWJRYaLUgFQZCjGMiDtcZGnhJyHVD0U+J9ew/wd338w==", "a4MkIpXH3pFGEuWlHPi6aerc9MSp5+wEs0jBCIwKeZAOZkOIVJam6YT1OL46adVs7Y5S2JgR9l1t1iMiE8TzNq5Zj9WXjmgWi9mE+/+fa67+zLztYVPW75E+VyCRJXsDCVA65wZ3NJcA62zKQ0wV5MI=", "a4MkI7ttsDP9Rp5CFZOpBZ6c7H0TuH6gnzWSJvTf6Z29UodSbom2HbvBaAzAkP9SLv5JSxsLxYTIffCp+yer3G8dFwtWjwa+QFSvvIXKvAVWk/wGQ0GL3XLUf4hi0cJqWhtuUGtnJf36htnM4H1WLjwd", "a4MjILyVTf69O60BnKjZTyJyvjkMnR1IaOEaN5a7egM46zF9kwTivG9xkQcbvVUXj6Sf5cQnYsndukaFrSPgljbgpjwMBdq6MWcCKj+y7BXkUUKP9xyLLoKGCr+oUr+YtMURQz78GEX5OT4p", "a4MlJ7aLjXeyD2ufPPd5uGT+7s3Xgl1uwqbakkX9P58SjBPJoTyhxNu/S4RGKbZkTIzWv3lbSGkvozwJabZbkdYJxxGEW1bgKqErjy/LDc6QtKnm8fzwmho3lmupAOwazeKrxtW4Db9I2dyPMun8Dg7kWdE=", "a4MiIzl4eKtUrxZnoc7nqXEp5vlGPT8qpAG1Ry7TcVFm3qI9nsE3Uluo8B/A+6j5t1+dlmLGbNAeNIQ5JJAJ1cOrirfU5nMvtjcDCr1O5VRtQsEEM91I6HS30QJ8FqWz9lcuen7kzCpQPY8Z", "a4MfIDL6LYsle4uy9Qw+H998fMD3wHf39R5KtjW8/n1hD8AvBU7VwrwdsOmesytrD33Bjamo8r47Lfe53j8/1AZ7bC0emQYeT2LUEYIX3lPsovwSMikX2ymlVj/7NOOPmhw5", "a4MfHSuNMILehmeW7aOkK6MSu6OkG2HGimWA1+2tFDtS1j0ppJ7xTy6jgLF6EnsAjWkEfMh2hlVoc5K+RvDgrYhvrDN+tsetTCCCu+JiAP8j2m4umUD9bfhg2szeqgszAk0zmGA=", "a4MnH6WK+HAJQU4KECKMeMQuyPAABCenNMUmYNUHPWL0Me7cEn4KFWRxdrb2j1FipQruMpCQaBqTsXyz6JwaghKZCqI6uSKBEqu22T3hF4YEYVyXJ37zMa5sX9r2a7H3IPBvhpUilt8autsr", "a4MhJrctV1qdqa1YSnaes6tcX/mtH/OyS915x9jHkAWquqEVZLeBt5dEmjdB/gRaJwO1XwRCUQ+3Q0bdEd6kBaiR5YxK0zYitP+Eta5kck4Q38r5gItcwSA1tqZgMtBrFFOFS68CYczxTRV2JfH+", "a4MkJ7F8Azb/lRsVn+aymlYXrPlSt4fJHmDgVw60/41ccILlD1R8s6xZP+UHqUIFv7hUIodQ2z7xcVXJ8ALDHZeJ8E4F/KWYIQ4p4quB6Ixktxnv2tNT0cg+BCgUZ7xcOKTVr3mRg5GFeRN4CRN3XsA61Q==", "a4MiHTYrsFyEEPT9eIeXluFUUyXFiam6JxJbza5odsSrNcggWL2BQer78lLfZEVgPgTXQRHlMXngiiKTPvTnWxUa/oPKrDy0JR40QLM4iDIY5C+brWJpt63dH11IdIsYOoo0S7NUoQ==", "a4MjI5N8mX1s31Y1cq08CXNUVgMEMuI4Z8Vq0FaXklHVn8bBLyJuk1J/GHUpvPJzagXFGtA0PnHSmT9qSNmlbruuSi+8lEAotdCVTY/kdO57WkcMPXa1rgXFnUnTEKnAU8sbQfxNSK1drkzHHHG1vg==", "a4MiJLi2UtmJ+cBdvdq13oEX0JKiFc7PAwKcaZffu38wc0AscTe2ARkJga6qpOds2tgYwQ2mkN+Za479201q7jv7PpXl//XRfqC2AR09dAIgmlVpzm0xahAla/OBHveYZCqRf7LO8cwVvNmXM0k=", "a4MjJLbOLArmsS2BBs6IImB0q3CoiPeZ7qRb7SHhC8PO1y3ObLWQtNGGIr6WxRD97iFRI1Omko2Vxu2SIvi7s03oBrsdobAEUFE4sXwlj3LvDtKPoCYxfIgj+l5XTL3j3u9MLosoAd87ePz1SBU=", "a4MmJ6eW/S999nLLeVid8euCGp4P4lIWxC7vaZQ4FrAoHs1wbhF4v2dopj5ehojZK2KOhyHhtlM/Jg21TxWAakhwDwKtxtR+2PEtaHFgkt+RpEsyzsuxz5hLcZ9gy5sT2MMy9iGXws6zQniqvR4qCsTk8H2b1w==", "a4MhI7LI1RZqI3rpPLxtw+hi7Qs731kmyp91XhY2mGmfwYEZmJWgJtbtfyh7lSm2air7I5qpsdSnicjHrr4jFlPJnG1PV1G0lNrFmo3OJXfEETwewCRHtw72rtoNg16opLNheKj9Xw==", "a4MnJrgb92c/p0Vq3+nwDqoLRcD5REon5dV1BaYGnNjGqc9/n4RMD70I9btjBM+Ugvbr0C1S0reypeWil9r1+Srx5CI23gDPItLV10ggEuiPux17+ShVIA9zFaAAX6tviLOs/js1PzS5L9aYkUjMIavuZnGBkg==", "a4MnJLlH3s6HF3nSSqBasYJIYEh1q5ur3OOJiKrVVMNLxMYM6NMWFIR1ILF+P52rInhgNxo3Q4SWSB/vpxIU+HhnAX/fuCda0EoBwMJe+634srIIV2Vr0W7oXVqX4AM0ahRA9ZKzVWdpT449KBYr/GhiQFPisw==", "a4MkIqJFB1rkE79hPJzLZGknTzI7qO8VNByZilqL27vNguVeoqwNAaEiK2uwfTbjnYe46x7KrgSlkrAyYcLyhvAawLJQFbDjPR02MyJcK/fSCP1/l3Mcnoj2Gz4DAnippCSH259IgCC8yx1IlR4=", "a4MiJzEp21XGDAHRpiFAF8VEc4t3wDQaeMeQQ9ynQAzRBMuUEmelmMBE2whTtPb10HwnnQDeWl22FeiY80I3yBYE0VsLnbxzhi7BQSWr6G41nVEoDsFBw7bcYeqwWZV0rea8sDjHVIKPx7doA2kCCg==", "a4MlI7uyyx/3MiSndSI8SvjzOthSXjw5u5T2xdUK/CgkAsn1s7BQkAq7UWPTDWuIgmovOqq6ITWhWEPwPXbor/A7xds2msyk8lAwBLqHR9qA7QY6JvkfcMJTqc8/aZcjDXG9eFdkaJATFj/AZEwIPg==", "a4MkJ7pXBgfFvRBbUlZFUg0sZiLgeoXuotUWXp2RykTZe1XBl9S2DLXRrB0OvkfiRApkl2fCLoO/Yfk0Z62A+jSf651CU42p7qNXMT8BUL8vgtloPvqkzLQmI2j9Z275M5bSFomIPtcrEKy6/OIqEBpat5gb", "a4MkIb7XjTxczQGQGKig8XKTFUBq7xMFMusUMBr6EyCvhgYIhlQqpL6AEHEvCqmSCJ9chMaLzbZHNhP6pA1CFzGPkfGVovoNBYzZGSbRRNUSrbQg8WsRbONY3VBTghcV9TiaaFWkrLlNiIYs2VpN4g==", "a4MfITcH1fOsDcTB1uhSJ9ROUFOtPz2luRobxKcFhMeO7DU0TPfzBRVuUvpFE/vESrWkzIxTBJmoG2Bi9LCNR4fEuf8umoRrWiOzkJ6QnUAo1UdygBXR1zmz90D2wlCKtnoX+uWYqzs=", "a4MfIilM+smC5b/rSmA55Sdlu+En949/FZ7aObY6wrgG06snu2eJv/nt1UN2Zu3GFMudf12dqLqn7JTtZvpBD+85/c59J7u9Zb8G7z+NFLXcvY4OFBnK6nL94tts2Gj25IM=", "a4MbICUp+9IzVn1E1aIoUYmy1a4vi+jWYyhz0B15dCUqUOtJ7ZZbgHyRd8PUYnieoTu9GkddrA/aOLi3VCEkA223SkQhZy0ZUQi7A+kisxUSDmaq/LXL", "a4McICIEj0rt/iEIO8ej9HZp/s7A1qlktw4pGCtt7HoiMbBsDvSqrWAGMn60Z9L97gTtTjSFNqxAJ6VaG4WYDCRjhri0xN/GZeCwtcEbEWQYo8o9tLiVt6MVpXCQPz7XeYk=", "a4MWDwzU+x80rFQWC9gLwxyGzy0H2koCGUkKLtz6LBO0EBTzdqE3qtcH0KTFKT+Apm/bsINu/iw2dfcB8Si9", "a4MfJwEe6ygc99ZyfDB9cvXufKfOEWdZBF5z2QOy45sYyq6a5GBRDzl3mtSNGEttUcDiiIyFY0klFGUpNhNtQ6n7iRH4Cu4gz0ulUUjRc+oZ+SFwc4oOeIv0Uc6tD/rYfJUwZRFzj1RtsyKuoQFRlg==", "a4MlJaojlzmEKgo+GRY079vcbgHVHzgyxGmWYh6vukBBw1MTLDsSRX+2TR6ljmpKjUes2Hj2b+8L9hpCIAUWIP0yeW5pADB3sqk8oSt0vAuFwTfcLorTXbAd4BHAdnU4u7oGAPBhgUXiNkcKs6rGT8Mx", "a4MmJ7x1DGELY7Tr/u1r9lPvCHE91f+I5iSyQdUvAc0R7+kt8AzFy8sfvGbe8miWWbxXLhEM2kYix3hUv5bWErZq2XyRoCSNJGVPF3MLrDtqta0AyTUSydcpsYo0yZl4nXtkVAZ0s1Om7tXkb5CMoGILckw=", "a4MkIbF9gWzdNeg2//BBgA+ghpyT64BqH7gnKoVinsZI6QzoIN+SNKxlPmNsedCh8Vkxsf4hp/YJWHxRU2NfFlxl+ai5cOfmFKYEh6MBKvjWF6/G6Ce/50yCnZRjrJELZ+cVV+9/nzQMMQPD", "a4MkIqmOUzdUbJZdhvb3bhobD06wBR+KELGgeMrZ5XyKsFojM0Gym6oVHlmMXfmQ79+K3ylblvBNDu71O52tXRusXQpZb7A57LSpkwpoR+CIAYD3sa0X5BdaMJqgNs5y5kl1eiEFT4COJEoCxIp4uw==", "a4MhI7LHKZ48RyLRc2D9k+Pd8r84P3yFUGneFtvU0Uls3me0PrwdV4W0SN9arcofUWm2sR2pphAPq/GRAzwXX0tfh7sklICGujaFaBLJ8zPSUprTfTINnUubGfXIti9oWd9GT/ZT8gkDYl3+qg==", "a4MhJ7m/0DnvS5nRDgfY5KxCh1GN9/JrXB8cOI57BRwYgLllvLo/whrTeT1u/QtTlLCHPVR3NumobRvYYoa8ut6nEZZu4rVAX3ypp7ptF4yeMbez3ZgAFFTzX3aDSDaUVYZW02oiAxUKa2s2j4pVxU3lnQ==", "a4MlIrnfmbdonoDLiy8UHk/2fQ5SL4+rP1Dh6m/+o4ezEU/WOVgEve27rYVEKVfHBFCORFFyB845loCek2TUQqFeeDVI0ifFEAykuse1leasJy62xEgdGkJ67PMBvuy+kwtVPAUYPLsvi8FdZqNyDAJI", "a4MiH5aRxczhprB+aC3tFTcAm74PgOyWhCnfUuOHgs+v+K9aWwyVthgqQjrl15LEWtLd/BQzXrA9O0p1uDItbVrcUPMElOE9dcLrRXMLSe+S7/3roQ+d2yfqn6DaSRRaC7WBIw==", "a4MjJpVaT28HPK4t+JCVi0SbM0KfVbsJlzHhdtlElUCArJehQ57bvAuZhzuVAhU7lJAnrWSMYvof2ncdVbY1zQCHf26kf5ljmHbUW2y8mm0Pbf06m5F4vDwNJAibIYWWaoBUa+XQueoGQ5UsTcaP1nAlXw==", "a4MkJ7vsvIT7bQe/woYdVqkmfpgrCdRjhvFlMiX5kIiaBzHLoUBxi7hgmhAZDdCclflE1AYkYifO6eIg9oZ9WPFlX2erZEDM+f/2AkCiTrVWoIP+V0/wdHN5OCqB170UhXhVG+ZEFWNcjQH/anjWb18l", "a4MjJ6xfQnst9PU74LFiejPX7fn34GAriW2JUdAvJ1FKfLX3XvCjre79Sl7vtuD934iQ6WDdxv1773ZAUywxzRpACxNthTTlrHB3A8bfpYI91YYvsU/U8jDZzi8dRpNgx/zuTPX6/iZZPDxCI6sWKuQ=", "a4MnJKhvazT3XCo1nh6FgPAnc6QGRTYPo4r9NW5GZC5h7ecv/Iqo1hVFg66152FSVzbyIiJEu7NatBg1wG1uRMab7K6WQHkRbwgTVRQUx60d+IhAc3Eg0vwYq80/KG2O2azSzNqmXlNAOIIqjVD1MGbpJSkY", "a4MhJrtssPlq+MouGEp5XTRnyWrXiE6rA4bljRtPjhZK1w6Zl7qHjenGOa/zOOox7E3lBRzXcDL5wSwCIOPLrWoiocZXBckBMM6Ou/gDt+iNx92YmAi9O43aU7HLvHq2nC//H2H51TQHZVQ=", "a4MnJLhnPDVBlTCHvhjaPQgLeHHr4IONe26AlxJk8m/R4qc3K9JO5WrNNrez+NHEOLeRqLb4sajjx5Y9zklZUZwzWIZsk9EhuYKfwBHcZ7a/gDI/M1x+bC3nXIXIs+WYxfuXCjTizc34q5vWRPMmKQ==", "a4MlJrIRFy1i+9ULyH4+CG9j7vFeHcnk6AS2vL1uBKt1W2Wzq/ejzjCwAEvLUYqhz/HWRcItFNWOBuWFciPD+KRP44KoHpTsHYHkuoirqq6AsxYUFO/E06m3B3AfTpugNzI1x+M3i3ikGTl0mEsH", "a4MkIKrwQvcp2t98eXKHmTFzKhXDzKtH9rKvanmMEZ6N/UvHT524AqX4eOr/HtETOefKhSPxJI/o6/QD4sejDwoSAQZE42ZzoNckDYyx4uT7JNdFsy8ubBDHdQh5aizFPEcc5GBnyjriQ5s1vns=", "a4MiG56yKushRliP3MfGitgevwZgSNOkgChoxsoeHOBOoHEASOeB2gAgKN/qL9HalLKPfarO+yiFhIR0OWIA3WcT+n3uXugMSPxvaQ+G", "a4MMFwig9h1ixLrwNIhAlAhtoL3WMFFQgLiKRmuUAcNEoyF6FuE9B9CkxVLsyKk5xcsNd0BEoS3Kxr6tmjw=", "awMH0KTFJK2fIHuMs/Nm/EP/kUKXulh+sE6V4AfQpMUnROQKK3fDG9zs1IOX5kxCyJb3MmA8B9UZeiTsFiRR6AsID9O8x1hcGjyoHG6FSjg=", "awMHyXnIyVfAohIjgNQ6PAfJecjJV8CiEiOA1Dg4B8l5yMlXwKISI4r0ODw=", "awMHyXnIyVfAohIjivQ4OAfJecjJV8CiEiOVFDg8B8l5yMlXwKISI5UUODg=", "awMHyXnIyVfAohIjnzQ6OAfJecjJV8CiEiOpVDo8B8l5yMlXwKISI6lUOjg="]
+# ==================== VIETNAMESE OPUS AUDIO & AI ENGINE ====================
 
+# Dữ liệu âm thanh chào mừng mẫu dự phòng khi chưa khởi tạo TTS
+OPUS_WELCOME_DATA = ["a4MnI4Bj5hdTah1Nm89rV1O5ssQrP5umOQ0AoNIs2LUM2KsKRYeTNoeLaI+YlY3ip2K54rL8oRx7PJ84MBKAfRNc36TIUZTv6hefV1K0gz0SWK53wusrqlo/omUwPmWtjFygeNugaw45gn9Q/Sxykwj5yXCF", "a4MhIbfTOHzFcAqhu4GzV9E7CCXndHtl2tjWzvVtIzaewxnS0Le4DwkBDw1fEy0VrXTJZzBwCpHE+DAtOcWgtoRnok8K17MoH9BKy+Q0AeMQ1h3AX6f7odnX0CCOnnT2loJLF87qCqp+", "a4MnI7IhW1LCiFNTfRKvIcurBoZ+06x1GKgz6ASptFwlLVBPo8E99FL2s65WCns8CYC8Fy2LjHcqfyT+1ZYskutS354zP0us2A2M2bfwsrH6bFN5Kk8fAEeslBbiQNxwcEuqfCrni5kRi0QWfENZ6gFJrw=="]
 OPUS_WELCOME_PACKETS = [base64.b64decode(x) for x in OPUS_WELCOME_DATA]
-OPUS_ACTIVATION_PACKETS = [base64.b64decode(x) for x in OPUS_ACTIVATION_DATA]
 
-async def send_tts_response(websocket, session_id, user_text, bot_text, opus_chunks):
+def get_gemini_api_key():
+    """Lấy Gemini API Key từ biến môi trường hoặc cấu hình Web Dashboard"""
+    env_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if env_key and env_key != "******":
+        return env_key
+    for m in DB_MODELS:
+        if m.get("modelType") == "llm" and m.get("isEnabled"):
+            cfg = m.get("configJson", {})
+            k = cfg.get("apiKey", "").strip()
+            if k and k != "******":
+                return k
+    return ""
+
+def decode_opus_frames_to_wav(opus_packets: list) -> bytes:
+    """Giải mã các gói Opus 60ms từ micro robot thành file WAV 16kHz mono trong bộ nhớ"""
+    frame_size = 960  # 60ms @ 16kHz
+    pcm_chunks = []
     try:
-        # 1. Gui STT de OLED hien thi
+        import opuslib_next
+        decoder = opuslib_next.Decoder(16000, 1)
+        for pkt in opus_packets:
+            try:
+                pcm = decoder.decode(pkt, frame_size)
+                pcm_chunks.append(pcm)
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning(f"Opus decoder error or not available: {e}")
+    
+    raw_pcm = b"".join(pcm_chunks)
+    wav_io = io.BytesIO()
+    with wave.open(wav_io, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(16000)
+        wf.writeframes(raw_pcm)
+    return wav_io.getvalue()
+
+async def tts_to_opus(text: str, voice: str = "vi-VN-HoaiMyNeural") -> list:
+    """Tổng hợp giọng nói tiếng Việt bằng EdgeTTS và mã hoá thành các gói Opus 60ms"""
+    try:
+        if not edge_tts:
+            return OPUS_WELCOME_PACKETS
+        
+        communicate = edge_tts.Communicate(text, voice=voice)
+        mp3_buffer = bytearray()
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                mp3_buffer.extend(chunk["data"])
+        
+        if not mp3_buffer:
+            return OPUS_WELCOME_PACKETS
+        
+        # Chuyển đổi MP3 sang PCM 16kHz mono 16-bit bằng ffmpeg
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-i", "pipe:0", "-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "16000", "pipe:1",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL
+        )
+        pcm_bytes, _ = await proc.communicate(input=bytes(mp3_buffer))
+        
+        if not pcm_bytes:
+            return OPUS_WELCOME_PACKETS
+        
+        frame_size = 960
+        frame_bytes = frame_size * 2
+        opus_frames = []
+        try:
+            import opuslib_next
+            encoder = opuslib_next.Encoder(16000, 1, opuslib_next.APPLICATION_AUDIO)
+            for i in range(0, len(pcm_bytes), frame_bytes):
+                chunk = pcm_bytes[i:i + frame_bytes]
+                if len(chunk) < frame_bytes:
+                    chunk += b"\x00" * (frame_bytes - len(chunk))
+                encoded = encoder.encode(chunk, frame_size)
+                opus_frames.append(encoded)
+            return opus_frames
+        except Exception as e:
+            logger.warning(f"Opus encoding failed: {e}")
+            return OPUS_WELCOME_PACKETS
+    except Exception as e:
+        logger.error(f"Error in tts_to_opus: {e}")
+        return OPUS_WELCOME_PACKETS
+
+async def call_gemini_multimodal_audio(wav_bytes: bytes, api_key: str):
+    """Gửi trực tiếp file ghi âm WAV tiếng Việt lên Gemini 1.5 Flash để nhận diện & trả lời thông minh"""
+    if not api_key:
+        return (
+            "Chào bạn",
+            "Chào bạn! Tôi là robot Gehihi Xiaozhi. Bạn hãy dán Gemini API Key trên Web Dashboard để kích hoạt trí tuệ nhân tạo toàn diện nhé!",
+            "happy"
+        )
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    prompt = (
+        "Bạn là robot Xiaozhi tiếng Việt thông minh, đáng yêu và tận tình. Hãy nghe đoạn ghi âm giọng nói của người dùng và:\n"
+        "1. Nhận diện chính xác câu nói của người dùng bằng tiếng Việt.\n"
+        "2. Trả lời trực tiếp, thông minh, ngắn gọn (1-2 câu, tối đa 30 từ, không dùng ký tự định dạng markdown).\n"
+        "3. Chọn cảm xúc phù hợp nhất từ: [happy, neutral, thinking, surprised, curious, sad].\n"
+        "Trả về kết quả duy nhất ở định dạng JSON chuẩn như sau: {\"user_text\": \"...\", \"bot_text\": \"...\", \"emotion\": \"...\"}"
+    )
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                {
+                    "inline_data": {
+                        "mime_type": "audio/wav",
+                        "data": base64.b64encode(wav_bytes).decode("ascii")
+                    }
+                }
+            ]
+        }],
+        "generationConfig": {
+            "response_mime_type": "application/json"
+        }
+    }
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        text_part = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        try:
+                            parsed = json.loads(text_part)
+                            return (
+                                parsed.get("user_text", "Tôi đang lắng nghe bạn"),
+                                parsed.get("bot_text", "Tôi đã hiểu rồi! Rất vui được trò chuyện cùng bạn."),
+                                parsed.get("emotion", "happy")
+                            )
+                        except Exception:
+                            return ("Tôi đang lắng nghe", text_part[:100], "happy")
+                else:
+                    err_txt = await resp.text()
+                    logger.error(f"Gemini API error {resp.status}: {err_txt}")
+    except Exception as e:
+        logger.error(f"Error calling Gemini: {e}")
+        
+    return (
+        "Chào Xiaozhi",
+        "Chào bạn, tôi là Xiaozhi tiếng Việt! Rất vui được gặp bạn hôm nay.",
+        "happy"
+    )
+
+async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, emotion, opus_chunks):
+    try:
+        # 1. Gửi STT để OLED hiển thị câu người dùng nói
         await websocket.send(json.dumps({
             "type": "stt",
             "text": user_text,
@@ -1069,23 +1224,22 @@ async def send_tts_response(websocket, session_id, user_text, bot_text, opus_chu
         }))
         await asyncio.sleep(0.05)
 
-        # 2. Gui bieu cam LLM (happy)
+        # 2. Gửi biểu cảm LLM
         await websocket.send(json.dumps({
             "type": "llm",
-            "emotion": "happy"
+            "emotion": emotion or "happy"
         }))
         await asyncio.sleep(0.05)
 
-        # 3. Bat dau TTS
+        # 3. Bắt đầu TTS
         await websocket.send(json.dumps({
             "type": "tts",
             "state": "start",
             "session_id": session_id
         }))
-        # Cho 200ms de ESP32 FreeRTOS schedule chuyen sang trang thai kDeviceStateSpeaking
         await asyncio.sleep(0.2)
 
-        # 4. Gui cau tra loi
+        # 4. Gửi câu trả lời
         await websocket.send(json.dumps({
             "type": "tts",
             "state": "sentence_start",
@@ -1093,23 +1247,23 @@ async def send_tts_response(websocket, session_id, user_text, bot_text, opus_chu
             "session_id": session_id
         }))
 
-        # 5. Truyen tung frame Opus nhi phan (60ms moi frame)
+        # 5. Truyền từng frame Opus nhị phân (60ms mỗi frame)
         for chunk in opus_chunks:
             await websocket.send(chunk)
-            await asyncio.sleep(0.06)
+            await asyncio.sleep(0.058)
 
-        # Cho ESP32 phat xong audio queue truoc khi bao stop
+        # Chờ ESP32 phát xong audio queue trước khi báo stop
         await asyncio.sleep(0.3)
 
-        # 6. Ket thuc TTS
+        # 6. Kết thúc TTS
         await websocket.send(json.dumps({
             "type": "tts",
             "state": "stop",
             "session_id": session_id
         }))
-        logger.info(f"TTS response finished: {len(opus_chunks)} frames sent.")
+        logger.info(f"Dynamic response finished: user='{user_text}' -> bot='{bot_text}' ({len(opus_chunks)} frames)")
 
-        # 7. Luu hoi thoai vao database de hien thi tren Dashboard Lich su
+        # 7. Lưu hội thoại vào database Web Dashboard
         now_ms = int(time.time() * 1000)
         if "AGT_001" not in DB_SESSIONS:
             DB_SESSIONS["AGT_001"] = []
@@ -1148,7 +1302,7 @@ async def send_tts_response(websocket, session_id, user_text, bot_text, opus_chu
             if a["id"] == "AGT_001":
                 a["lastConnectedAt"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     except Exception as e:
-        logger.error(f"Error in send_tts_response: {e}")
+        logger.error(f"Error in send_dynamic_tts_response: {e}")
 
 # ==================== WEBSOCKET SERVER CHO ROBOT XIAOZHI ====================
 
@@ -1162,20 +1316,21 @@ async def ws_handler(websocket):
         DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
 
     session_id = str(uuid.uuid4())
-    current_response_task = None
-    speech_silence_task = None
-    mic_audio_count = 0
-    dialogue_ctx = {"round": 0}
+    mic_audio_buffer = []
+    speech_active = False
+    speech_frames_count = 0
+    silence_frames_count = 0
+    processing_ai = False
+    auto_greeting_task = None
+    opus_decoder = None
 
-    RESPONSES = [
-        ("Xin chào Xiaozhi!", "Xin chào, bạn của tôi! Tôi là Xiaozhi tiếng Việt, rất vui được trò chuyện cùng bạn!", OPUS_WELCOME_PACKETS),
-        ("Tôi muốn tìm hiểu về hệ thống.", "Chào bạn, thiết bị đã được kích hoạt thành công và kết nối thông suốt với máy chủ Gehihi!", OPUS_ACTIVATION_PACKETS),
-        ("Hôm nay thế nào?", "Hệ thống hoạt động rất tốt, chúc bạn một ngày tràn đầy năng lượng và niềm vui!", OPUS_WELCOME_PACKETS),
-        ("Robot có thể làm gì?", "Tôi có thể lắng nghe bạn nói, hiển thị biểu cảm vui vẻ trên màn hình và phản hồi bằng giọng nói tiếng Việt!", OPUS_ACTIVATION_PACKETS),
-        ("Cảm ơn Xiaozhi nhé!", "Rất hân hạnh được hỗ trợ bạn. Bạn cứ tự nhiên nói chuyện bất cứ lúc nào nhé!", OPUS_WELCOME_PACKETS)
-    ]
+    try:
+        import opuslib_next
+        opus_decoder = opuslib_next.Decoder(16000, 1)
+    except Exception as e:
+        logger.warning(f"Could not init opuslib_next decoder: {e}")
 
-    # Heartbeat keep-alive de ngan chan Render/ESP32 timeout (ping moi 25s)
+    # Heartbeat keep-alive để ngăn chặn Render/ESP32 timeout (ping mỗi 25s)
     async def heartbeat_worker():
         try:
             while True:
@@ -1188,6 +1343,21 @@ async def ws_handler(websocket):
             pass
 
     heartbeat_task = asyncio.create_task(heartbeat_worker())
+
+    async def execute_ai_turn(audio_packets):
+        nonlocal processing_ai
+        processing_ai = True
+        try:
+            logger.info(f"Executing AI turn with {len(audio_packets)} audio packets...")
+            wav_bytes = decode_opus_frames_to_wav(audio_packets)
+            api_key = get_gemini_api_key()
+            u_text, b_text, emotion = await call_gemini_multimodal_audio(wav_bytes, api_key)
+            opus_pkts = await tts_to_opus(b_text)
+            await send_dynamic_tts_response(websocket, session_id, u_text, b_text, emotion, opus_pkts)
+        except Exception as e:
+            logger.error(f"Error executing AI turn: {e}")
+        finally:
+            processing_ai = False
 
     try:
         async for message in websocket:
@@ -1233,64 +1403,48 @@ async def ws_handler(websocket):
                         logger.info(f"Robot listen state: {state}, mode: {mode}")
 
                         if state == "start":
-                            # Khi bấm nút BOOT: Robot chuyển sang chế độ Lắng nghe
-                            # Nếu người dùng không nói trong 2.5 giây, tự động chào mở đầu
-                            if current_response_task and not current_response_task.done():
-                                current_response_task.cancel()
-                            if speech_silence_task and not speech_silence_task.done():
-                                speech_silence_task.cancel()
-                            mic_audio_count = 0
+                            mic_audio_buffer.clear()
+                            speech_active = False
+                            speech_frames_count = 0
+                            silence_frames_count = 0
+                            if auto_greeting_task and not auto_greeting_task.done():
+                                auto_greeting_task.cancel()
 
-                            async def auto_speech_worker():
+                            async def prompt_user():
                                 try:
-                                    # Chờ 2.5 giây nếu người dùng không nói thì chào
-                                    await asyncio.sleep(2.5)
-                                    if mic_audio_count < 6:
-                                        idx = dialogue_ctx["round"] % len(RESPONSES)
-                                        dialogue_ctx["round"] += 1
-                                        u_text, b_text, audio_pkts = RESPONSES[idx]
-                                        logger.info(f"Auto-turn triggered: replying with '{b_text[:30]}...'")
-                                        await send_tts_response(websocket, session_id, u_text, b_text, audio_pkts)
+                                    await asyncio.sleep(3.5)
+                                    if not speech_active and speech_frames_count < 4 and not processing_ai:
+                                        opus_pkts = await tts_to_opus("Dạ, tôi nghe đây! Bạn cứ nói chuyện tự nhiên nhé!")
+                                        await send_dynamic_tts_response(
+                                            websocket, session_id, "...", "Dạ, tôi nghe đây! Bạn cứ nói chuyện tự nhiên nhé!", "happy", opus_pkts
+                                        )
                                 except asyncio.CancelledError:
                                     pass
 
-                            current_response_task = asyncio.create_task(auto_speech_worker())
+                            auto_greeting_task = asyncio.create_task(prompt_user())
 
                         elif state == "detect":
-                            # Từ khóa đánh thức phát hiện
-                            if current_response_task and not current_response_task.done():
-                                current_response_task.cancel()
-                            current_response_task = asyncio.create_task(
-                                send_tts_response(
-                                    websocket,
-                                    session_id,
-                                    "Xiaozhi ơi!",
-                                    "Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?",
-                                    OPUS_WELCOME_PACKETS
-                                )
+                            if auto_greeting_task and not auto_greeting_task.done():
+                                auto_greeting_task.cancel()
+                            opus_pkts = await tts_to_opus("Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?")
+                            await send_dynamic_tts_response(
+                                websocket, session_id, "Xiaozhi ơi!", "Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?", "happy", opus_pkts
                             )
 
                         elif state == "stop":
-                            # Người dùng chủ động ngắt tiếng hoặc bấm nút kết thúc lượt nói
-                            if current_response_task and not current_response_task.done():
-                                current_response_task.cancel()
-                            if speech_silence_task and not speech_silence_task.done():
-                                speech_silence_task.cancel()
-                            idx = dialogue_ctx["round"] % len(RESPONSES)
-                            dialogue_ctx["round"] += 1
-                            u_text, b_text, audio_pkts = RESPONSES[idx]
-                            current_response_task = asyncio.create_task(
-                                send_tts_response(websocket, session_id, u_text, b_text, audio_pkts)
-                            )
+                            if auto_greeting_task and not auto_greeting_task.done():
+                                auto_greeting_task.cancel()
+                            if len(mic_audio_buffer) >= 6 and not processing_ai:
+                                pkts = list(mic_audio_buffer)
+                                mic_audio_buffer.clear()
+                                asyncio.create_task(execute_ai_turn(pkts))
 
                     elif msg_type == "ping":
                         await websocket.send(json.dumps({"type": "pong"}))
 
                     elif msg_type == "abort":
-                        if current_response_task and not current_response_task.done():
-                            current_response_task.cancel()
-                        if speech_silence_task and not speech_silence_task.done():
-                            speech_silence_task.cancel()
+                        if auto_greeting_task and not auto_greeting_task.done():
+                            auto_greeting_task.cancel()
                         await websocket.send(json.dumps({
                             "type": "tts",
                             "state": "stop",
@@ -1300,35 +1454,45 @@ async def ws_handler(websocket):
                 except json.JSONDecodeError:
                     logger.warning(f"Non-JSON text message: {message}")
             else:
-                # Dữ liệu âm thanh micro nhị phân từ robot
-                mic_audio_count += 1
+                # Dữ liệu âm thanh micro nhị phân từ robot (Opus 60ms)
                 if device_mac in DB_DEVICES:
                     DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
 
-                # Khi người dùng đang nói, huỷ auto chào
-                if current_response_task and not current_response_task.done():
-                    current_response_task.cancel()
+                if processing_ai:
+                    continue
 
-                # Tự động phát hiện khoảng lặng (silence detection):
-                # Khi người dùng nói ít nhất 6 frames (~360ms) và sau đó im lặng 1.1s -> phản hồi ngay!
-                if mic_audio_count >= 6:
-                    if speech_silence_task and not speech_silence_task.done():
-                        speech_silence_task.cancel()
+                # Tính toán RMS năng lượng âm thanh
+                rms = 100
+                if opus_decoder:
+                    try:
+                        pcm = opus_decoder.decode(message, 960)
+                        samples = struct.unpack(f"<{len(pcm)//2}h", pcm)
+                        rms = math.sqrt(sum(s*s for s in samples) / len(samples))
+                    except Exception:
+                        rms = 800 if len(message) > 25 else 100
+                else:
+                    rms = 800 if len(message) > 25 else 100
 
-                    async def on_user_speech_finished():
-                        try:
-                            await asyncio.sleep(1.1)
-                            nonlocal mic_audio_count
-                            mic_audio_count = 0
-                            idx = dialogue_ctx["round"] % len(RESPONSES)
-                            dialogue_ctx["round"] += 1
-                            u_text, b_text, audio_pkts = RESPONSES[idx]
-                            logger.info(f"User speech turn finished: replying with '{b_text[:30]}...'")
-                            await send_tts_response(websocket, session_id, u_text, b_text, audio_pkts)
-                        except asyncio.CancelledError:
-                            pass
-
-                    speech_silence_task = asyncio.create_task(on_user_speech_finished())
+                if rms > 300:
+                    if auto_greeting_task and not auto_greeting_task.done():
+                        auto_greeting_task.cancel()
+                    speech_active = True
+                    speech_frames_count += 1
+                    silence_frames_count = 0
+                    mic_audio_buffer.append(message)
+                else:
+                    if speech_active:
+                        mic_audio_buffer.append(message)
+                        silence_frames_count += 1
+                        # 16 frames im lặng ~ 960ms -> Người dùng đã dứt câu nói!
+                        if silence_frames_count >= 16:
+                            if speech_frames_count >= 6 and not processing_ai:
+                                pkts = list(mic_audio_buffer)
+                                mic_audio_buffer.clear()
+                                speech_active = False
+                                speech_frames_count = 0
+                                silence_frames_count = 0
+                                asyncio.create_task(execute_ai_turn(pkts))
 
     except websockets.exceptions.ConnectionClosed:
         logger.info(f"Robot disconnected: {session_id}")
@@ -1337,10 +1501,8 @@ async def ws_handler(websocket):
     finally:
         if heartbeat_task and not heartbeat_task.done():
             heartbeat_task.cancel()
-        if current_response_task and not current_response_task.done():
-            current_response_task.cancel()
-        if speech_silence_task and not speech_silence_task.done():
-            speech_silence_task.cancel()
+        if auto_greeting_task and not auto_greeting_task.done():
+            auto_greeting_task.cancel()
         if device_mac in DB_DEVICES:
             DB_DEVICES[device_mac]["online"] = False
 
