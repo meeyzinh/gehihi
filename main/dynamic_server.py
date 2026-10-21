@@ -2630,12 +2630,15 @@ async def handle_api_robot_display(request):
     emotion = data.get("emotion", "happy")
     text = data.get("text", "")
     logger.info(f"Received OLED Display command: emotion={emotion}, text={text}")
-    for mac, ws in CONNECTED_ROBOTS.items():
+    for mac, ws in list(CONNECTED_ROBOTS.items()):
         try:
-            cmd = json.dumps({"type": "oled", "emotion": emotion, "text": text})
+            cmd = json.dumps({"type": "llm", "emotion": emotion})
             await ws.send(cmd)
+            if text:
+                sub_cmd = json.dumps({"type": "tts", "state": "sentence_start", "text": text})
+                await ws.send(sub_cmd)
         except Exception as e:
-            logger.warning(f"Failed to forward oled command to robot: {e}")
+            logger.warning(f"Failed to forward oled command to robot {mac}: {e}")
     return cors_response({"status": "ok", "message": "Đã gửi hiển thị OLED"})
 
 async def handle_api_robot_speak(request):
@@ -2691,7 +2694,39 @@ async def handle_api_chat(request):
     system_prompt = "Bạn là Gehihi, trợ lý robot AI thông minh, thân thiện. Trả lời bằng tiếng Việt ngắn gọn, súc tích (1-2 câu)."
     bot_reply = await call_llm_with_fallback(text, system_prompt)
     latency = round(time.time() - t0, 3)
-    
+
+    # Detect emotion from conversation context
+    emotion = "happy"
+    lower_t = (text + " " + bot_reply).lower()
+    if any(w in lower_t for w in ["buồn", "sad", "tiếc", "xin lỗi", "khóc"]):
+        emotion = "sad"
+    elif any(w in lower_t for w in ["cười", "haha", "vui", "hài", "chuyện cười", "funny", "joke"]):
+        emotion = "happy"
+    elif any(w in lower_t for w in ["ngạc nhiên", "sao", "thật sao", "wow", "surprise"]):
+        emotion = "surprised"
+    elif any(w in lower_t for w in ["suy nghĩ", "tính", "đang nghĩ", "think"]):
+        emotion = "thinking"
+
+    # Forward emotion and speech directly to physical robot
+    logger.info(f"Web chat response: emotion={emotion}, reply='{bot_reply}'. Connected robots: {len(CONNECTED_ROBOTS)}")
+    for mac, ws in list(CONNECTED_ROBOTS.items()):
+        try:
+            await ws.send(json.dumps({"type": "llm", "emotion": emotion}))
+        except Exception as e:
+            logger.warning(f"Failed to send emotion to robot {mac}: {e}")
+
+    # Generate EdgeTTS and stream audio packets to robot speaker
+    try:
+        opus_pkts = await tts_to_opus(bot_reply)
+        for mac, ws in list(CONNECTED_ROBOTS.items()):
+            try:
+                await send_dynamic_tts_response(ws, str(uuid.uuid4()), text, bot_reply, emotion, opus_pkts)
+                logger.info(f"Successfully streamed speech to physical robot {mac}")
+            except Exception as e:
+                logger.warning(f"Failed to play audio on robot {mac}: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to synthesize TTS for web chat: {e}")
+
     # Broadcast to mic monitor
     await broadcast_mic_monitor({
         "type": "stt_result",
@@ -2701,12 +2736,14 @@ async def handle_api_chat(request):
     await broadcast_mic_monitor({
         "type": "llm_reply",
         "reply": bot_reply,
+        "emotion": emotion,
         "timestamp": time.strftime("%H:%M:%S")
     })
     
     return cors_response({
         "code": 0,
         "reply": bot_reply,
+        "emotion": emotion,
         "latency_sec": latency,
         "provider": ACTIVE_AI_PROVIDER
     })
