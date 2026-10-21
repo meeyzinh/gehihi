@@ -3851,7 +3851,7 @@ Ví dụ:
             return;
           }
           container.innerHTML = accounts.map(a => {
-            const isOnline = a.is_online === true;
+            const isOnline = Boolean(a.is_online || a.online || a.status === 1);
             return `
               <div onclick="quickSelectAccount('${a.device_code || a.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#0c1a32;border:1px solid rgba(255,255,255,0.08);border-radius:10px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='#3b82f6';this.style.background='#132747'" onmouseout="this.style.borderColor='rgba(255,255,255,0.08)';this.style.background='#0c1a32'">
                 <div style="display:flex;align-items:center;gap:10px;">
@@ -4325,7 +4325,7 @@ Ví dụ:
       if (!devices || devices.length === 0) return;
       let dev = devices.find(d => d.id === activeDeviceId || d.device_code === activeDeviceId);
       if (!dev) {
-        dev = devices.find(d => d.is_online) || devices[0];
+        dev = devices.find(d => Boolean(d.is_online || d.online || d.status === 1)) || devices[0];
         if (dev) {
           activeDeviceId = dev.id;
           localStorage.setItem("gehihi_active_robot_id", dev.id);
@@ -4341,9 +4341,11 @@ Ví dụ:
       const textEl = document.getElementById("sidebarStatusText");
 
       if (nameEl) nameEl.innerText = `${dev.name} (ESP32-S3)`;
-      if (macEl) macEl.innerText = `PIN: ${dev.device_code || '927184'} (${dev.device_mac || 'ESP32'})`;
+      const pinCode = dev.pin || dev.device_code || '927184';
+      const macAddr = dev.device_mac || dev.mac || dev.macAddress || '14:C1:9F:C4:EE:D0';
+      if (macEl) macEl.innerText = `PIN: ${pinCode} (${macAddr})`;
       
-      const isOnline = dev.is_online === true;
+      const isOnline = Boolean(dev.is_online || dev.online || dev.status === 1);
       if (dotEl) {
         dotEl.style.background = isOnline ? "#22c55e" : "#94a3b8";
         dotEl.style.boxShadow = isOnline ? "0 0 6px #22c55e" : "none";
@@ -4389,7 +4391,7 @@ Ví dụ:
         avatarEl.style.color = dev.initial_color || '#e11d48';
       }
 
-      const isOnline = dev.is_online === true;
+      const isOnline = Boolean(dev.is_online || dev.online || dev.status === 1);
       if (statusBadge) {
         statusBadge.style.background = isOnline ? 'rgba(34,197,94,0.18)' : 'rgba(148,163,184,0.12)';
         statusBadge.style.borderColor = isOnline ? '#22c55e' : '#64748b';
@@ -4512,7 +4514,7 @@ Ví dụ:
       }
 
       grid.innerHTML = devices.map(d => {
-        const isOnline = d.is_online === true;
+        const isOnline = Boolean(d.is_online || d.online || d.status === 1);
         const isSelected = d.id === activeDeviceId || d.device_code === activeDeviceId;
         const initial = d.initial || (d.name ? d.name[0] : "R").toUpperCase();
         const badgeBg = d.badge_color || "#ffe4e6";
@@ -4524,8 +4526,8 @@ Ví dụ:
           ? '0 0 20px rgba(56,189,248,0.35), 0 8px 24px rgba(0,0,0,0.5)'
           : '0 6px 18px rgba(0,0,0,0.3)';
 
-        const pinCode = d.device_code || '927184';
-        const macAddr = d.device_mac || 'ESP32';
+        const pinCode = d.pin || d.device_code || '927184';
+        const macAddr = d.device_mac || d.mac || d.macAddress || '14:C1:9F:C4:EE:D0';
         const modelName = d.model || d.model_id || 'Gemini 3.1 Flash Lite';
         const voiceShort = (d.voice_name || d.voice || 'Hoài My').split('-').pop().replace('Neural', '');
         const volumeVal = d.volume !== undefined ? d.volume : 7;
@@ -4640,7 +4642,7 @@ Ví dụ:
       
       const statusEl = document.getElementById("viewDevOnlineStatus");
       if (statusEl) {
-        const isOnline = dev.is_online === true;
+        const isOnline = Boolean(dev.is_online || dev.online || dev.status === 1);
         statusEl.innerHTML = isOnline 
           ? '<span style="color: #4ade80;">🟢 Trực tuyến (WebSocket Live)</span>'
           : '<span style="color: #94a3b8;">⚪ Ngoại tuyến (Chờ kết nối)</span>';
@@ -4861,7 +4863,7 @@ Ví dụ:
       }
 
       container.innerHTML = devices.map(d => {
-        const isOnline = d.is_online === true;
+        const isOnline = Boolean(d.is_online || d.online || d.status === 1);
         const isSelected = d.id === activeDeviceId || d.device_code === activeDeviceId;
         const initial = d.initial || (d.name ? d.name[0] : "R");
         const badgeBg = d.badge_color || "#1e3a8a";

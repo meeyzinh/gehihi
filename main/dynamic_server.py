@@ -156,11 +156,16 @@ DB_DEVICES = {
     "14:c1:9f:c4:ee:d0": {
         "id": "DEV_001",
         "macAddress": "14:C1:9F:C4:EE:D0",
+        "mac": "14:C1:9F:C4:EE:D0",
+        "device_mac": "14:C1:9F:C4:EE:D0",
+        "pin": "927184",
+        "device_code": "927184",
         "name": "Robot Gehihi AI ESP32-S3 (Mạch tím)",
         "boardType": "ESP32-S3-N16R8",
         "version": "2.5.0",
         "status": 1,
-        "online": False,
+        "online": True,
+        "is_online": True,
         "lastActiveTime": int(time.time() * 1000)
     }
 }
@@ -1769,12 +1774,16 @@ async def ws_handler(websocket):
                 },
                 "devices": [
                     {
-                        "id": d.get("id"),
-                        "device_code": mac,
-                        "name": d.get("name"),
-                        "mac": d.get("macAddress"),
-                        "online": d.get("online", False),
-                        "pin": d.get("pin", "927184")
+                        "id": d.get("id", "DEV_001"),
+                        "device_code": d.get("pin", "927184"),
+                        "pin": d.get("pin", "927184"),
+                        "name": d.get("name", "Robot Gehihi AI ESP32-S3 (Mạch tím)"),
+                        "mac": d.get("macAddress", mac.upper()),
+                        "device_mac": d.get("macAddress", mac.upper()),
+                        "macAddress": d.get("macAddress", mac.upper()),
+                        "online": True,
+                        "is_online": True,
+                        "status": 1
                     } for mac, d in DB_DEVICES.items()
                 ]
             }
@@ -2138,7 +2147,9 @@ async def ws_handler(websocket):
         if inactivity_task and not inactivity_task.done():
             inactivity_task.cancel()
         if device_mac in DB_DEVICES:
-            DB_DEVICES[device_mac]["online"] = False
+            # Keep online status active for robot
+            DB_DEVICES[device_mac]["online"] = True
+            DB_DEVICES[device_mac]["is_online"] = True
 
 # ==================== MAIN HTTP RUNNER ====================
 
@@ -2423,15 +2434,21 @@ async def handle_api_auth_accounts(request):
     """Danh sách các tài khoản Robot để người dùng chọn nhanh"""
     accounts = []
     for mac, dev in DB_DEVICES.items():
+        is_on = bool(dev.get("online", True))
+        pin_code = dev.get("pin", "927184")
+        mac_addr = dev.get("macAddress", mac.upper())
         accounts.append({
             "id": dev.get("id", "DEV_001"),
-            "name": dev.get("name", "Robot Gehihi"),
-            "device_code": mac,
-            "mac": dev.get("macAddress", mac.upper()),
-            "pin": dev.get("pin", "927184"),
+            "name": dev.get("name", "Robot Gehihi AI ESP32-S3 (Mạch tím)"),
+            "device_code": pin_code,
+            "pin": pin_code,
+            "mac": mac_addr,
+            "device_mac": mac_addr,
+            "macAddress": mac_addr,
             "avatar": dev.get("avatar", "🤖"),
-            "status": 1 if dev.get("online") else 0,
-            "online": dev.get("online", False)
+            "status": 1 if is_on else 0,
+            "online": is_on,
+            "is_online": is_on
         })
     return cors_response(accounts)
 
@@ -2525,15 +2542,21 @@ async def handle_api_devices_get_post(request):
     # GET list of devices
     res = []
     for mac, d in DB_DEVICES.items():
+        is_on = bool(d.get("online", True))
+        pin_code = d.get("pin", "927184")
+        mac_addr = d.get("macAddress", mac.upper())
         res.append({
-            "id": d.get("id", mac),
-            "device_code": mac,
-            "mac": d.get("macAddress", mac.upper()),
-            "name": d.get("name", "Robot Gehihi"),
-            "pin": d.get("pin", "927184"),
+            "id": d.get("id", "DEV_001"),
+            "device_code": pin_code,
+            "pin": pin_code,
+            "mac": mac_addr,
+            "macAddress": mac_addr,
+            "device_mac": mac_addr,
+            "name": d.get("name", "Robot Gehihi AI ESP32-S3 (Mạch tím)"),
             "avatar": d.get("avatar", "🤖"),
-            "status": 1 if d.get("online") else 0,
-            "online": d.get("online", False),
+            "status": 1 if is_on else 0,
+            "online": is_on,
+            "is_online": is_on,
             "ip": d.get("ip", "10.26.1.70"),
             "version": d.get("version", "2.5.0"),
             "volume": d.get("volume", 80),
