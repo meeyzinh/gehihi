@@ -2479,6 +2479,17 @@ async def handle_api_auth_login(request):
 async def handle_api_auth_logout(request):
     return cors_response({"code": 0, "msg": "Đã đăng xuất"})
 
+async def handle_api_admin_change_password(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    new_pwd = data.get("new_password", data.get("password", ""))
+    if new_pwd:
+        os.environ["ADMIN_PASSWORD"] = new_pwd
+        return cors_response({"code": 0, "msg": "Đổi mật khẩu Admin thành công!"})
+    return cors_response({"code": 1, "message": "Mật khẩu mới không được trống"}, status=400)
+
 async def handle_api_auth_register(request):
     try:
         data = await request.json()
