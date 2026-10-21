@@ -2632,6 +2632,29 @@ async def handle_api_robot_speak(request):
             logger.warning(f"Failed to speak on robot: {e}")
     return cors_response({"status": "ok", "message": f"Robot Gehihi đang phát: {text}"})
 
+async def call_llm_with_fallback(user_text: str, system_prompt: str = "") -> str:
+    provider = get_active_provider()
+    try:
+        if provider == "groq":
+            res, _ = await call_groq_llm(user_text)
+            return res
+        elif provider == "deepseek":
+            res, _ = await call_deepseek_llm(user_text)
+            return res
+        elif provider == "gemini":
+            res, _ = await call_gemini_llm(user_text)
+            return res
+        elif provider == "openai":
+            res, _ = await call_openai_llm(user_text)
+            return res
+    except Exception as e:
+        logger.warning(f"Error calling {provider} LLM: {e}")
+    try:
+        res, _ = await call_groq_llm(user_text)
+        return res
+    except Exception:
+        return "Chào bạn! Tôi là Gehihi, rất vui được hỗ trợ bạn!"
+
 async def handle_api_chat(request):
     try:
         data = await request.json()
