@@ -1527,13 +1527,12 @@ async def ws_handler(websocket):
 
                 if not speech_active:
                     # Cập nhật mức ồn nền khi đang yên tĩnh
-                    noise_floor = noise_floor * 0.92 + min(rms, 400.0) * 0.08
+                    noise_floor = noise_floor * 0.92 + min(rms, 350.0) * 0.08
                     # Ngưỡng bắt đầu nói: âm lượng người nói rõ ràng vượt mức ồn nền
-                    # Giọng người nói bình thường vào INMP441 RMS từ 800 - 4500, nhiễu nền 150 - 350
-                    is_voice = (rms > max(420.0, noise_floor * 1.85))
+                    is_voice = (rms > max(280.0, noise_floor * 1.5))
                 else:
                     # Ngưỡng duy trì nói
-                    is_voice = (rms > max(250.0, noise_floor * 1.35))
+                    is_voice = (rms > max(190.0, noise_floor * 1.2))
 
                 if is_voice:
                     if not speech_active:
