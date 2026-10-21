@@ -1,7 +1,7 @@
 """
 Gehihi Dynamic Server (Comprehensive Full-Featured Backend)
-- Cung cấp OTA API cho Robot Xiaozhi (https://gehihi.onrender.com/xiaozhi/ota/)
-- Cung cấp WebSocket AI Server tương tác thời gian thực hai chiều cho Robot Xiaozhi
+- Cung cấp OTA API cho Robot Gehihi (https://gehihi.onrender.com/xiaozhi/ota/)
+- Cung cấp WebSocket AI Server tương tác thời gian thực hai chiều cho Robot Gehihi
 - Cung cấp toàn bộ REST API động cho Web Dashboard (Tiếng Việt):
   + Tác nhân AI (Agents) & Cấu hình vai trò
   + Mô hình AI (LLM, TTS, ASR, VAD, VLLM, Intent, Memory, RAG)
@@ -79,7 +79,7 @@ DB_DEVICES = {
     "14:c1:9f:c4:ee:d0": {
         "id": "DEV_001",
         "macAddress": "14:C1:9F:C4:EE:D0",
-        "name": "Robot Xiaozhi AI ESP32-S3 (Mạch tím)",
+        "name": "Robot Gehihi AI ESP32-S3 (Mạch tím)",
         "boardType": "ESP32-S3-N16R8",
         "version": "2.5.0",
         "status": 1,
@@ -91,7 +91,7 @@ DB_DEVICES = {
 DB_AGENTS = [
     {
         "id": "AGT_001",
-        "agentName": "Robot AI Xiaozhi (Tiếng Việt)",
+        "agentName": "Robot AI Gehihi (Tiếng Việt)",
         "ttsModelName": "EdgeTTS Tiếng Việt",
         "ttsVoiceName": "vi-VN-HoaiMyNeural",
         "ttsModelId": "MOD_TTS_01",
@@ -104,7 +104,7 @@ DB_AGENTS = [
         "asrModelId": "MOD_ASR_01",
         "memModelId": "MOD_MEM_01",
         "intentModelId": "MOD_INT_01",
-        "systemPrompt": "Bạn là robot Xiaozhi thông minh, hỗ trợ người dùng bằng tiếng Việt thân thiện, tự nhiên và tận tâm.",
+        "systemPrompt": "Bạn là robot Gehihi thông minh, hỗ trợ người dùng bằng tiếng Việt thân thiện, tự nhiên và tận tâm.",
         "summaryMemory": "Ghi nhớ ngữ cảnh đối thoại tiếng Việt",
         "lastConnectedAt": "2026-10-19 14:30:00",
         "deviceCount": 1,
@@ -366,8 +366,8 @@ DB_VOICES = [
 DB_KNOWLEDGE = [
     {
         "id": "KB_001",
-        "name": "Kiến thức Robot Xiaozhi Tiếng Việt",
-        "description": "Tập hợp tài liệu và thông tin hướng dẫn sử dụng robot Xiaozhi",
+        "name": "Kiến thức Robot Gehihi Tiếng Việt",
+        "description": "Tập hợp tài liệu và thông tin hướng dẫn sử dụng robot Gehihi",
         "fileCount": 1,
         "createdAt": "2026-10-19 12:00:00"
     }
@@ -405,7 +405,7 @@ DB_CHAT_MESSAGES = {
             "id": "MSG_101",
             "sessionId": "SES_001",
             "chatType": 1,
-            "content": "Xin chào Xiaozhi!",
+            "content": "Xin chào Gehihi!",
             "createdAt": int((time.time() - 3600) * 1000),
             "macAddress": "14:C1:9F:C4:EE:D0"
         },
@@ -413,7 +413,7 @@ DB_CHAT_MESSAGES = {
             "id": "MSG_102",
             "sessionId": "SES_001",
             "chatType": 2,
-            "content": "Xin chào, bạn của tôi! Tôi là Xiaozhi tiếng Việt, rất vui được trò chuyện cùng bạn!",
+            "content": "Xin chào, bạn của tôi! Tôi là Gehihi tiếng Việt, rất vui được trò chuyện cùng bạn!",
             "createdAt": int((time.time() - 3595) * 1000),
             "macAddress": "14:C1:9F:C4:EE:D0"
         }
@@ -454,7 +454,7 @@ DB_TEMPLATES = [
         "asrModelId": "MOD_ASR_01",
         "memModelId": "MOD_MEM_01",
         "intentModelId": "MOD_INT_01",
-        "systemPrompt": "Bạn là robot Xiaozhi thông minh, hỗ trợ người dùng bằng tiếng Việt thân thiện và tận tâm.",
+        "systemPrompt": "Bạn là robot Gehihi thông minh, hỗ trợ người dùng bằng tiếng Việt thân thiện và tận tâm.",
         "summaryMemory": "Ghi nhớ ngữ cảnh đối thoại tiếng Việt",
         "sort": 1
     },
@@ -586,7 +586,7 @@ async def handle_debug_live(request):
     return cors_response(data)
 
 async def handle_ota(request):
-    """Xử lý yêu cầu OTA từ robot Xiaozhi"""
+    """Xử lý yêu cầu OTA từ robot Gehihi"""
     device_id = request.headers.get("Device-Id", "14:c1:9f:c4:ee:d0").lower()
     client_id = request.headers.get("Client-Id", "")
     accept_lang = request.headers.get("Accept-Language", "vi-VN")
@@ -596,7 +596,7 @@ async def handle_ota(request):
         DB_DEVICES[device_id] = {
             "id": f"DEV_{device_id[-4:].upper()}",
             "macAddress": device_id.upper(),
-            "name": f"Robot Xiaozhi ({device_id[-4:].upper()})",
+            "name": f"Robot Gehihi ({device_id[-4:].upper()})",
             "boardType": "ESP32-S3",
             "version": "2.5.0",
             "status": 1,
@@ -632,7 +632,7 @@ async def handle_vision_explain(request):
         "code": 0,
         "msg": "success",
         "data": {
-            "description": "Hình ảnh nhận diện từ camera Robot Xiaozhi",
+            "description": "Hình ảnh nhận diện từ camera Robot Gehihi",
             "text": "Tôi đã nhìn thấy hình ảnh của bạn."
         }
     })
@@ -712,11 +712,11 @@ async def handle_agent_save(request):
     new_id = f"AGT_{int(time.time())}"
     new_agent = {
         "id": new_id,
-        "agentName": body.get("agentName", "Robot Xiaozhi Mới"),
+        "agentName": body.get("agentName", "Robot Gehihi Mới"),
         "ttsModelName": "EdgeTTS Tiếng Việt",
         "ttsVoiceName": "vi-VN-HoaiMyNeural",
         "llmModelName": "Google Gemini 1.5 Flash",
-        "systemPrompt": body.get("systemPrompt", "Bạn là trợ lý ảo Xiaozhi tiếng Việt."),
+        "systemPrompt": body.get("systemPrompt", "Bạn là trợ lý ảo Gehihi tiếng Việt."),
         "deviceCount": 0,
         "tags": [{"id": "TAG_01", "tagName": "Tiếng Việt"}]
     }
@@ -1305,7 +1305,7 @@ async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
     if not api_key:
         return ""
     boundary = "GehihiBoundaryASR" + uuid.uuid4().hex[:8]
-    prompt_context = "Tôi là robot Xiaozhi tiếng Việt, hỏi đáp thông minh thân thiện."
+    prompt_context = "Tôi là robot Gehihi tiếng Việt, hỏi đáp thông minh thân thiện."
     body = (
         b"--" + boundary.encode() + b"\r\n"
         b'Content-Disposition: form-data; name="model"\r\n\r\n'
@@ -1327,7 +1327,7 @@ async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": f"multipart/form-data; boundary={boundary}",
-        "User-Agent": "Gehihi-Xiaozhi/2.5.0"
+        "User-Agent": "Gehihi/2.5.0"
     }
     try:
         async with aiohttp.ClientSession() as session:
@@ -1347,7 +1347,7 @@ async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
         logger.error(f"Error calling Groq Whisper ASR: {e}")
     return ""
 
-AI_SYSTEM_PROMPT = """Bạn là robot Xiaozhi tiếng Việt thông minh, dễ thương, phản hồi siêu nhanh.
+AI_SYSTEM_PROMPT = """Bạn là robot Gehihi tiếng Việt thông minh, dễ thương, phản hồi siêu nhanh.
 Quy tắc tối quan trọng:
 1. Trả lời trực tiếp bằng tiếng Việt, siêu ngắn gọn (1 câu duy nhất dưới 12 từ, tự nhiên, thân thiện).
 2. Tuyệt đối không dùng markdown, ký tự đặc biệt hay dấu hoa thị (*).
@@ -1363,7 +1363,7 @@ async def call_groq_llm(user_text: str, api_key: str = None) -> tuple:
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "User-Agent": "Gehihi-Xiaozhi/2.5.0"
+        "User-Agent": "Gehihi/2.5.0"
     }
     payload = {
         "model": "qwen/qwen3.8-27b",
@@ -1398,7 +1398,7 @@ async def call_deepseek_llm(user_text: str, api_key: str = None) -> tuple:
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "User-Agent": "Gehihi-Xiaozhi/2.5.0"
+        "User-Agent": "Gehihi/2.5.0"
     }
     payload = {
         "model": "deepseek-chat",
@@ -1434,7 +1434,7 @@ async def call_openai_llm(user_text: str, api_key: str = None) -> tuple:
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "User-Agent": "Gehihi-Xiaozhi/2.5.0"
+        "User-Agent": "Gehihi/2.5.0"
     }
     payload = {
         "model": "gpt-4o-mini",
@@ -1501,7 +1501,7 @@ async def call_gemini_multimodal_audio(wav_bytes: bytes, api_key: str):
     if not api_key:
         api_key = get_provider_key("gemini")
     prompt = (
-        "Bạn là robot Xiaozhi tiếng Việt thông minh, đáng yêu. Hãy nghe đoạn ghi âm giọng nói:\n"
+        "Bạn là robot Gehihi tiếng Việt thông minh, đáng yêu. Hãy nghe đoạn ghi âm giọng nói:\n"
         "1. Nếu chỉ là tạp âm, tiếng thở hoặc không rõ lời, đặt user_text là '' và bot_text là ''.\n"
         "2. Nếu có tiếng nói, nhận diện tiếng Việt và trả lời siêu ngắn gọn (1 câu duy nhất dưới 12 từ, thân thiện).\n"
         "Trả về duy nhất JSON: {\"user_text\": \"...\", \"bot_text\": \"...\", \"emotion\": \"happy\"}"
@@ -1672,7 +1672,7 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
 async def ws_handler(websocket):
     client_ip = getattr(websocket, "remote_address", "unknown")
     device_mac = "14:c1:9f:c4:ee:d0"
-    logger.info(f"Robot Xiaozhi connected from {client_ip}")
+    logger.info(f"Robot Gehihi connected from {client_ip}")
 
     if device_mac in DB_DEVICES:
         DB_DEVICES[device_mac]["online"] = True
@@ -1860,7 +1860,7 @@ async def ws_handler(websocket):
                             last_user_activity = time.time()
                             opus_pkts = await tts_to_opus("Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?")
                             await send_dynamic_tts_response(
-                                websocket, session_id, "Xiaozhi ơi!", "Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?", "happy", opus_pkts
+                                websocket, session_id, "Gehihi ơi!", "Dạ, tôi nghe đây! Bạn cần Gehihi giúp gì nào?", "happy", opus_pkts
                             )
                             cooldown_until = time.time() + 0.7
                             last_user_activity = cooldown_until
@@ -2135,7 +2135,7 @@ AI_HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </div>
     <footer>
-      <p>Gehihi Xiaozhi Dynamic Server v2.5.0 • <a href="/xiaozhi/debug/live" target="_blank">Telemetry Live</a> • <a href="/" target="_blank">Web Dashboard</a></p>
+      <p>Gehihi Dynamic Server v2.5.0 • <a href="/xiaozhi/debug/live" target="_blank">Telemetry Live</a> • <a href="/" target="_blank">Web Dashboard</a></p>
     </footer>
   </div>
   <div class="toast" id="toast"></div>
