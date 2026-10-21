@@ -1337,6 +1337,7 @@ async def ws_handler(websocket):
     processing_ai = False
     cooldown_until = time.time()
     last_user_activity = time.time()
+    last_bot_reply = ""
     session_active = True
     opus_decoder = None
 
@@ -1360,15 +1361,15 @@ async def ws_handler(websocket):
 
     heartbeat_task = asyncio.create_task(heartbeat_worker())
 
-    # Inactivity auto-standby: Nếu người dùng không nói gì trong 8s, tự động trả robot về Idle
+    # Inactivity auto-standby: Nếu người dùng không nói gì trong 15s, tự động trả robot về Idle Standby
     async def inactivity_worker():
         nonlocal session_active
         try:
             while session_active:
                 await asyncio.sleep(1.0)
                 if not speech_active and not processing_ai and time.time() > cooldown_until:
-                    if time.time() - last_user_activity >= 8.0:
-                        logger.info("Inactivity timeout (8s without speech). Returning robot to Idle Standby...")
+                    if time.time() - last_user_activity >= 15.0:
+                        logger.info("Inactivity timeout (15s without speech). Returning robot to Idle Standby...")
                         session_active = False
                         try:
                             await websocket.close()
@@ -1381,11 +1382,15 @@ async def ws_handler(websocket):
     inactivity_task = asyncio.create_task(inactivity_worker())
 
     async def execute_ai_turn(audio_packets):
-        nonlocal processing_ai, cooldown_until, last_user_activity
+        nonlocal processing_ai, cooldown_until, last_user_activity, last_bot_reply
         processing_ai = True
         try:
             logger.info(f"Executing AI turn with {len(audio_packets)} audio packets...")
             wav_bytes = decode_opus_frames_to_wav(audio_packets)
+            if len(wav_bytes) < 4000:
+                logger.info(f"Audio payload too small ({len(wav_bytes)} bytes). Skipping AI turn.")
+                return
+
             api_key = get_gemini_api_key()
             u_text, b_text, emotion = await call_gemini_multimodal_audio(wav_bytes, api_key)
 
@@ -1394,15 +1399,24 @@ async def ws_handler(websocket):
                 logger.info("Filtered out silence/noise hallucination. Skipping TTS.")
                 return
 
-            last_user_activity = time.time()
+            # Chống lặp câu trả lời (self-echo loop prevention)
+            if last_bot_reply and b_text.strip().lower() == last_bot_reply.strip().lower():
+                logger.info(f"Detected repeated bot reply: '{b_text}'. Skipping to break self-conversation loop.")
+                return
+
+            last_bot_reply = b_text
             opus_pkts = await tts_to_opus(b_text)
             await send_dynamic_tts_response(websocket, session_id, u_text, b_text, emotion, opus_pkts)
             # Khóa chống dội âm tiếng loa vào micro trong 1.5 giây sau khi phát xong
             cooldown_until = time.time() + 1.5
+            last_user_activity = cooldown_until
+            mic_audio_buffer.clear()
+            pre_speech_ring.clear()
         except Exception as e:
             logger.error(f"Error executing AI turn: {e}")
         finally:
             processing_ai = False
+            last_user_activity = max(last_user_activity, time.time())
 
     try:
         async for message in websocket:
@@ -1462,6 +1476,12 @@ async def ws_handler(websocket):
                                 websocket, session_id, "Xiaozhi ơi!", "Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?", "happy", opus_pkts
                             )
                             cooldown_until = time.time() + 1.5
+                            last_user_activity = cooldown_until
+                            mic_audio_buffer.clear()
+                            pre_speech_ring.clear()
+                            speech_active = False
+                            speech_frames_count = 0
+                            silence_frames_count = 0
 
                         elif state == "stop":
                             if (speech_active or len(mic_audio_buffer) >= 6) and not processing_ai:
@@ -1501,18 +1521,19 @@ async def ws_handler(websocket):
                         samples = struct.unpack(f"<{len(pcm)//2}h", pcm)
                         rms = math.sqrt(sum(s*s for s in samples) / len(samples))
                     except Exception:
-                        rms = 600.0 if len(message) > 30 else 80.0
+                        rms = 120.0
                 else:
-                    rms = 600.0 if len(message) > 30 else 80.0
+                    rms = 120.0
 
                 if not speech_active:
                     # Cập nhật mức ồn nền khi đang yên tĩnh
-                    noise_floor = noise_floor * 0.92 + min(rms, 350.0) * 0.08
+                    noise_floor = noise_floor * 0.92 + min(rms, 400.0) * 0.08
                     # Ngưỡng bắt đầu nói: âm lượng người nói rõ ràng vượt mức ồn nền
-                    is_voice = (rms > max(280.0, noise_floor * 1.6))
+                    # Giọng người nói bình thường vào INMP441 RMS từ 800 - 4500, nhiễu nền 150 - 350
+                    is_voice = (rms > max(420.0, noise_floor * 1.85))
                 else:
                     # Ngưỡng duy trì nói
-                    is_voice = (rms > max(200.0, noise_floor * 1.25))
+                    is_voice = (rms > max(250.0, noise_floor * 1.35))
 
                 if is_voice:
                     if not speech_active:
@@ -1536,6 +1557,11 @@ async def ws_handler(websocket):
                             speech_frames_count = 0
                             silence_frames_count = 0
                             asyncio.create_task(execute_ai_turn(pkts))
+                        else:
+                            mic_audio_buffer.clear()
+                            speech_active = False
+                            speech_frames_count = 0
+                            silence_frames_count = 0
                 else:
                     if not speech_active:
                         pre_speech_ring.append(message)
@@ -1543,7 +1569,7 @@ async def ws_handler(websocket):
                         mic_audio_buffer.append(message)
                         silence_frames_count += 1
                         # Phát hiện kết thúc câu: 8 frames im lặng (~480ms) sau khi nói ít nhất 6 frames (~360ms)
-                        if silence_frames_count >= 8:
+                        if silence_frames_count >= 7:
                             if speech_frames_count >= 6 and not processing_ai:
                                 pkts = list(mic_audio_buffer)
                                 mic_audio_buffer.clear()
