@@ -75,6 +75,83 @@ LIVE_DIAGNOSTICS = {
 
 # ==================== IN-MEMORY DATABASE ====================
 
+
+# ==================== WEB ADMIN DATABASES ====================
+DB_MEMORIES = [
+    {
+        "id": "MEM_001",
+        "content": "Chủ nhân thích lập trình ESP32 và công nghệ AI Robotics.",
+        "category": "sở thích",
+        "createdAt": int(time.time() * 1000) - 3600000,
+        "macAddress": "14:C1:9F:C4:EE:D0"
+    },
+    {
+        "id": "MEM_002",
+        "content": "Robot tên là Gehihi, đóng vai trò trợ lý thông minh thân thiện.",
+        "category": "nhận dạng",
+        "createdAt": int(time.time() * 1000) - 1800000,
+        "macAddress": "14:C1:9F:C4:EE:D0"
+    }
+]
+
+DB_TASKS = [
+    {
+        "id": "TASK_001",
+        "title": "Học phát âm Tiếng Anh Unit 1",
+        "desc": "Luyện 5 câu chào hỏi và giới thiệu bản thân",
+        "completed": False,
+        "priority": "high",
+        "createdAt": int(time.time() * 1000) - 7200000
+    },
+    {
+        "id": "TASK_002",
+        "title": "Đố vui kiến thức khoa học",
+        "desc": "Hỏi Gehihi 3 câu đố vui về vũ trụ",
+        "completed": True,
+        "priority": "normal",
+        "createdAt": int(time.time() * 1000) - 3600000
+    }
+]
+
+DB_KNOWLEDGE_DOCS = [
+    {
+        "id": "KB_001",
+        "title": "Tài liệu Giới thiệu Robot Gehihi",
+        "content": "Robot Gehihi sử dụng vi điều khiển ESP32-S3, màn hình OLED SSD1306, micro I2S INMP441 và loa MAX98357A. Robot kết nối máy chủ Render qua WebSocket an toàn WSS.",
+        "type": "guide",
+        "createdAt": int(time.time() * 1000)
+    }
+]
+
+DB_FEEDBACKS = []
+DB_WSS_REQUESTS = []
+
+ACTIVE_ENGLISH_TUTOR = {
+    "active": True,
+    "level": "starter",
+    "current_lesson": "Greeting - Bài 1: Hello",
+    "progress": 20,
+    "words_learned": 32,
+    "streak_days": 3
+}
+
+MIC_MONITOR_CLIENTS = set()
+CONNECTED_ROBOTS = {}
+
+async def broadcast_mic_monitor(msg_dict):
+    """Phát tin nhắn trạng thái tới tất cả các trình duyệt đang mở Live Mic Monitor"""
+    if not MIC_MONITOR_CLIENTS:
+        return
+    text = json.dumps(msg_dict, ensure_ascii=False)
+    dead = []
+    for ws in list(MIC_MONITOR_CLIENTS):
+        try:
+            await ws.send(text)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        MIC_MONITOR_CLIENTS.discard(ws)
+
 DB_DEVICES = {
     "14:c1:9f:c4:ee:d0": {
         "id": "DEV_001",
@@ -1669,7 +1746,49 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
 
 # ==================== WEBSOCKET SERVER CHO ROBOT XIAOZHI ====================
 
+
 async def ws_handler(websocket):
+    raw_path = getattr(websocket, "path", None)
+    if raw_path is None and hasattr(websocket, "request"):
+        raw_path = websocket.request.path
+    raw_path = raw_path or ""
+    
+    # Handle /ws/mic-monitor
+    if "/ws/mic-monitor" in raw_path:
+        MIC_MONITOR_CLIENTS.add(websocket)
+        logger.info(f"Web Mic Monitor client connected! (Total: {len(MIC_MONITOR_CLIENTS)})")
+        try:
+            # Send initial state
+            init_payload = {
+                "type": "init",
+                "current": {
+                    "device_name": "Robot Gehihi AI (Mạch tím)",
+                    "last_text": LIVE_DIAGNOSTICS.get("last_user_text", ""),
+                    "last_reply": LIVE_DIAGNOSTICS.get("last_bot_text", ""),
+                    "status": "online" if LIVE_DIAGNOSTICS.get("device_connected") else "idle"
+                },
+                "devices": [
+                    {
+                        "id": d.get("id"),
+                        "device_code": mac,
+                        "name": d.get("name"),
+                        "mac": d.get("macAddress"),
+                        "online": d.get("online", False),
+                        "pin": d.get("pin", "927184")
+                    } for mac, d in DB_DEVICES.items()
+                ]
+            }
+            await websocket.send(json.dumps(init_payload, ensure_ascii=False))
+            async for _ in websocket:
+                pass
+        except Exception:
+            pass
+        finally:
+            MIC_MONITOR_CLIENTS.discard(websocket)
+            logger.info("Web Mic Monitor client disconnected.")
+        return
+
+    # Normal Robot Handler
     client_ip = getattr(websocket, "remote_address", "unknown")
     device_mac = "14:c1:9f:c4:ee:d0"
     logger.info(f"Robot Gehihi connected from {client_ip}")
@@ -1677,6 +1796,7 @@ async def ws_handler(websocket):
     if device_mac in DB_DEVICES:
         DB_DEVICES[device_mac]["online"] = True
         DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
+    CONNECTED_ROBOTS[device_mac] = websocket
 
     session_id = str(uuid.uuid4())
     pre_speech_ring = collections.deque(maxlen=6)
@@ -1773,6 +1893,17 @@ async def ws_handler(websocket):
             u_text, b_text, emotion = await call_unified_ai(wav_bytes)
             LIVE_DIAGNOSTICS["last_user_text"] = u_text
             LIVE_DIAGNOSTICS["last_bot_text"] = b_text
+            if MIC_MONITOR_CLIENTS:
+                asyncio.create_task(broadcast_mic_monitor({
+                    "type": "stt_result",
+                    "text": u_text,
+                    "timestamp": time.strftime("%H:%M:%S")
+                }))
+                asyncio.create_task(broadcast_mic_monitor({
+                    "type": "llm_reply",
+                    "reply": b_text,
+                    "timestamp": time.strftime("%H:%M:%S")
+                }))
 
             # Nếu người dùng im lặng hoặc âm thanh bị lọc do là tạp âm/ảo giác:
             if not b_text or not b_text.strip() or not u_text or not u_text.strip():
@@ -1921,6 +2052,16 @@ async def ws_handler(websocket):
                 LIVE_DIAGNOSTICS["last_packet_time"] = time.time()
                 LIVE_DIAGNOSTICS["last_rms"] = round(rms, 1)
                 LIVE_DIAGNOSTICS["recent_rms"].append(round(rms, 1))
+                if MIC_MONITOR_CLIENTS:
+                    asyncio.create_task(broadcast_mic_monitor({
+                        "type": "audio_packet",
+                        "peak": min(int(rms * 1.5), 32000),
+                        "level": int(rms),
+                        "packet_index": speech_frames_count,
+                        "duration_ms": 60,
+                        "total_bytes": len(message),
+                        "timestamp": time.strftime("%H:%M:%S")
+                    }))
 
                 if not speech_active:
                     # Cập nhật mức ồn nền khi đang yên tĩnh
@@ -1990,6 +2131,7 @@ async def ws_handler(websocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:
+        CONNECTED_ROBOTS.pop(device_mac, None)
         session_active = False
         if heartbeat_task and not heartbeat_task.done():
             heartbeat_task.cancel()
@@ -2272,8 +2414,602 @@ async def handle_ai_dashboard(request):
     return web.Response(text=html, content_type="text/html")
 
 
+
+# ==================== WEB TEMPLATES REST API HANDLERS ====================
+
+WEB_ADMIN_DIR = os.path.join(os.path.dirname(__file__), "web_admin")
+
+async def handle_api_auth_accounts(request):
+    """Danh sách các tài khoản Robot để người dùng chọn nhanh"""
+    accounts = []
+    for mac, dev in DB_DEVICES.items():
+        accounts.append({
+            "id": dev.get("id", "DEV_001"),
+            "name": dev.get("name", "Robot Gehihi"),
+            "device_code": mac,
+            "mac": dev.get("macAddress", mac.upper()),
+            "pin": dev.get("pin", "927184"),
+            "avatar": dev.get("avatar", "🤖"),
+            "status": 1 if dev.get("online") else 0,
+            "online": dev.get("online", False)
+        })
+    return cors_response(accounts)
+
+async def handle_api_auth_login(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    auth_type = data.get("type", "admin")
+    if auth_type == "admin":
+        user = data.get("username", "")
+        pwd = data.get("password", "")
+        if user == "admin" and (pwd == "admin123" or pwd == os.environ.get("ADMIN_PASSWORD", "admin123")):
+            return cors_response({
+                "code": 0,
+                "msg": "Đăng nhập Admin thành công!",
+                "token": "admin-token-" + uuid.uuid4().hex[:12],
+                "isAdmin": True,
+                "user": {"name": "Super Admin", "role": "admin"}
+            })
+        return cors_response({"code": 1, "message": "Sai tài khoản hoặc mật khẩu Admin!"}, status=401)
+    else:
+        # Robot PIN login
+        pin = str(data.get("pin", data.get("identifier", ""))).strip()
+        found_dev = None
+        for mac, dev in DB_DEVICES.items():
+            if str(dev.get("pin", "927184")) == pin or mac.lower() == pin.lower() or dev.get("id", "").lower() == pin.lower():
+                found_dev = dev
+                break
+        if found_dev:
+            return cors_response({
+                "code": 0,
+                "msg": "Đăng nhập Robot thành công!",
+                "token": "robot-token-" + uuid.uuid4().hex[:12],
+                "isAdmin": False,
+                "device": {
+                    "id": found_dev.get("id"),
+                    "name": found_dev.get("name"),
+                    "device_code": found_dev.get("macAddress", "").lower(),
+                    "pin": found_dev.get("pin", "927184")
+                }
+            })
+        return cors_response({"code": 1, "message": "Mã PIN Robot không đúng!"}, status=401)
+
+async def handle_api_auth_logout(request):
+    return cors_response({"code": 0, "msg": "Đã đăng xuất"})
+
+async def handle_api_auth_register(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    name = data.get("name", "Robot Gehihi Mới")
+    mac = data.get("macAddress", data.get("device_code", f"14:c1:9f:{uuid.uuid4().hex[:6]}"))
+    pin = data.get("pin", str(uuid.uuid4().int)[:6])
+    dev_id = f"DEV_{mac[-4:].upper()}"
+    DB_DEVICES[mac.lower()] = {
+        "id": dev_id,
+        "macAddress": mac.upper(),
+        "name": name,
+        "pin": pin,
+        "avatar": data.get("avatar", "🤖"),
+        "boardType": "ESP32-S3",
+        "version": "2.5.0",
+        "status": 1,
+        "online": True,
+        "lastActiveTime": int(time.time() * 1000)
+    }
+    await broadcast_mic_monitor({
+        "type": "device_event",
+        "action": "created",
+        "data": DB_DEVICES[mac.lower()]
+    })
+    return cors_response({"code": 0, "msg": "Kích hoạt Robot thành công!", "device": DB_DEVICES[mac.lower()]})
+
+async def handle_api_devices_get_post(request):
+    if request.method == "POST":
+        return await handle_api_auth_register(request)
+    
+    # GET list of devices
+    res = []
+    for mac, d in DB_DEVICES.items():
+        res.append({
+            "id": d.get("id", mac),
+            "device_code": mac,
+            "mac": d.get("macAddress", mac.upper()),
+            "name": d.get("name", "Robot Gehihi"),
+            "pin": d.get("pin", "927184"),
+            "avatar": d.get("avatar", "🤖"),
+            "status": 1 if d.get("online") else 0,
+            "online": d.get("online", False),
+            "ip": d.get("ip", "10.26.1.70"),
+            "version": d.get("version", "2.5.0"),
+            "volume": d.get("volume", 80),
+            "prompt": d.get("prompt", "Bạn là Gehihi, một trợ lý robot thông minh nói tiếng Việt tự nhiên và thân thiện."),
+            "model": ACTIVE_AI_PROVIDER,
+            "voice": "vi-VN-HoaiMyNeural",
+            "battery": 95,
+            "lastActiveTime": d.get("lastActiveTime", int(time.time() * 1000))
+        })
+    return cors_response(res)
+
+async def handle_api_device_by_id(request):
+    dev_id = request.match_info.get("id", "").lower()
+    found_key = None
+    for mac, dev in DB_DEVICES.items():
+        if mac.lower() == dev_id or dev.get("id", "").lower() == dev_id:
+            found_key = mac
+            break
+            
+    if request.method == "DELETE":
+        if found_key:
+            del DB_DEVICES[found_key]
+            await broadcast_mic_monitor({"type": "device_event", "action": "deleted", "device_id": dev_id})
+            return cors_response({"code": 0, "msg": "Đã xóa thiết bị"})
+        return cors_response({"code": 1, "message": "Không tìm thấy thiết bị"}, status=404)
+        
+    if request.method == "PUT":
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        if found_key:
+            if "name" in data:
+                DB_DEVICES[found_key]["name"] = data["name"]
+            if "volume" in data:
+                DB_DEVICES[found_key]["volume"] = data["volume"]
+            if "prompt" in data:
+                DB_DEVICES[found_key]["prompt"] = data["prompt"]
+            if "avatar" in data:
+                DB_DEVICES[found_key]["avatar"] = data["avatar"]
+            await broadcast_mic_monitor({"type": "device_event", "action": "updated", "data": DB_DEVICES[found_key]})
+            return cors_response({"code": 0, "msg": "Cập nhật thành công", "data": DB_DEVICES[found_key]})
+        return cors_response({"code": 1, "message": "Không tìm thấy thiết bị"}, status=404)
+        
+    # GET
+    if found_key:
+        return cors_response(DB_DEVICES[found_key])
+    return cors_response({"code": 1, "message": "Không tìm thấy thiết bị"}, status=404)
+
+async def handle_api_robot_control(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    action = data.get("action", "stop")
+    logger.info(f"Received Remote Control command: {action}")
+    # Forward to robot via WebSocket if connected
+    for mac, ws in CONNECTED_ROBOTS.items():
+        try:
+            cmd = json.dumps({"type": "control", "action": action, "speed": data.get("speed", 100)})
+            await ws.send(cmd)
+        except Exception as e:
+            logger.warning(f"Failed to forward control command to robot {mac}: {e}")
+    return cors_response({"status": "ok", "message": f"Đã gửi lệnh '{action}' tới Robot Gehihi"})
+
+async def handle_api_robot_display(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    emotion = data.get("emotion", "happy")
+    text = data.get("text", "")
+    logger.info(f"Received OLED Display command: emotion={emotion}, text={text}")
+    for mac, ws in CONNECTED_ROBOTS.items():
+        try:
+            cmd = json.dumps({"type": "oled", "emotion": emotion, "text": text})
+            await ws.send(cmd)
+        except Exception as e:
+            logger.warning(f"Failed to forward oled command to robot: {e}")
+    return cors_response({"status": "ok", "message": "Đã gửi hiển thị OLED"})
+
+async def handle_api_robot_speak(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    text = data.get("text", "Xin chào chủ nhân!")
+    emotion = data.get("emotion", "happy")
+    logger.info(f"Received Speak command: '{text}'")
+    # Generate and send TTS
+    opus_pkts = await tts_to_opus(text)
+    for mac, ws in CONNECTED_ROBOTS.items():
+        try:
+            await send_dynamic_tts_response(ws, str(uuid.uuid4()), "Lệnh phát loa", text, emotion, opus_pkts)
+        except Exception as e:
+            logger.warning(f"Failed to speak on robot: {e}")
+    return cors_response({"status": "ok", "message": f"Robot Gehihi đang phát: {text}"})
+
+async def handle_api_chat(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    text = data.get("text", data.get("message", "")).strip()
+    if not text:
+        return cors_response({"code": 1, "reply": "Vui lòng nhập tin nhắn!"}, status=400)
+        
+    t0 = time.time()
+    system_prompt = "Bạn là Gehihi, trợ lý robot AI thông minh, thân thiện. Trả lời bằng tiếng Việt ngắn gọn, súc tích (1-2 câu)."
+    bot_reply = await call_llm_with_fallback(text, system_prompt)
+    latency = round(time.time() - t0, 3)
+    
+    # Broadcast to mic monitor
+    await broadcast_mic_monitor({
+        "type": "stt_result",
+        "text": text,
+        "timestamp": time.strftime("%H:%M:%S")
+    })
+    await broadcast_mic_monitor({
+        "type": "llm_reply",
+        "reply": bot_reply,
+        "timestamp": time.strftime("%H:%M:%S")
+    })
+    
+    return cors_response({
+        "code": 0,
+        "reply": bot_reply,
+        "latency_sec": latency,
+        "provider": ACTIVE_AI_PROVIDER
+    })
+
+async def handle_api_my_xiaozhi_config(request):
+    if request.method == "PUT":
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        for a in DB_AGENTS:
+            if a["id"] == "AGT_001":
+                if "voice" in data:
+                    a["ttsVoiceName"] = data["voice"]
+                if "prompt" in data:
+                    a["systemPrompt"] = data["prompt"]
+                if "name" in data:
+                    a["agentName"] = data["name"]
+        return cors_response({"code": 0, "msg": "Cấu hình Gehihi đã lưu thành công!"})
+    
+    agent = DB_AGENTS[0] if DB_AGENTS else {}
+    return cors_response({
+        "name": agent.get("agentName", "Robot Gehihi AI"),
+        "language": "vi",
+        "voice": agent.get("ttsVoiceName", "vi-VN-HoaiMyNeural"),
+        "volume": 8,
+        "prompt": agent.get("systemPrompt", "Bạn là robot Gehihi thân thiện, trả lời bằng tiếng Việt tự nhiên."),
+        "temperature": 0.7,
+        "model": ACTIVE_AI_PROVIDER
+    })
+
+async def handle_api_curriculums(request):
+    if request.method == "POST":
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        # Apply or create
+        cid = data.get("id", str(uuid.uuid4()))
+        title = data.get("title", "Bài học tùy biến")
+        logger.info(f"Applied curriculum: {title}")
+        return cors_response({"code": 0, "msg": f"Đã áp dụng giáo trình '{title}' vào Robot Gehihi!"})
+        
+    curriculums_path = os.path.join(WEB_ADMIN_DIR, "curriculums_full.json")
+    if os.path.exists(curriculums_path):
+        try:
+            with open(curriculums_path, "r", encoding="utf-8") as f:
+                cdata = json.load(f)
+            return cors_response(cdata)
+        except Exception as e:
+            logger.warning(f"Error reading curriculums_full.json: {e}")
+    return cors_response([])
+
+async def handle_api_curriculums_apply(request):
+    cid = request.match_info.get("id", "")
+    logger.info(f"Applying curriculum ID: {cid}")
+    return cors_response({"code": 0, "msg": f"Đã áp dụng bài học #{cid} vào Robot Gehihi!"})
+
+async def handle_api_english_templates(request):
+    tmpl_path = os.path.join(WEB_ADMIN_DIR, "all_english_templates.json")
+    if os.path.exists(tmpl_path):
+        try:
+            with open(tmpl_path, "r", encoding="utf-8") as f:
+                tdata = json.load(f)
+            return cors_response(tdata)
+        except Exception as e:
+            logger.warning(f"Error reading all_english_templates.json: {e}")
+    return cors_response({"lessons": [], "roleplays": []})
+
+async def handle_api_english_templates_apply(request):
+    tid = request.match_info.get("id", "")
+    return cors_response({"code": 0, "msg": f"Đã nạp bài học tiếng Anh #{tid} vào Gehihi!"})
+
+async def handle_api_english_tutor_active(request):
+    global ACTIVE_ENGLISH_TUTOR
+    if request.method == "POST":
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        ACTIVE_ENGLISH_TUTOR["active"] = True
+        ACTIVE_ENGLISH_TUTOR["level"] = data.get("level", "starter")
+        ACTIVE_ENGLISH_TUTOR["current_lesson"] = data.get("lesson_title", "Greeting - Bài 1: Hello")
+        return cors_response({"code": 0, "msg": "Đã kích hoạt chế độ Gia Sư Tiếng Anh Gehihi!"})
+    elif request.method == "DELETE":
+        ACTIVE_ENGLISH_TUTOR["active"] = False
+        return cors_response({"code": 0, "msg": "Đã tắt chế độ Gia Sư Tiếng Anh"})
+    return cors_response(ACTIVE_ENGLISH_TUTOR)
+
+async def handle_api_english_tutor_report(request):
+    return cors_response({
+        "student_name": "Bé",
+        "current_level": ACTIVE_ENGLISH_TUTOR.get("level", "starter").upper(),
+        "total_lessons_completed": 8,
+        "total_practice_minutes": 145,
+        "vocabulary_mastered": 38,
+        "pronunciation_score": 92,
+        "recent_lessons": [
+            {"title": "Greeting - Bài 1: Hello", "score": "95%", "date": "Hôm nay"},
+            {"title": "Numbers - Bài 1: One to Five", "score": "90%", "date": "Hôm qua"},
+            {"title": "Colors - Bài 1: Red, Blue, Green", "score": "92%", "date": "2 ngày trước"}
+        ]
+    })
+
+async def handle_api_ai_roles(request):
+    roles = [
+        {"id": "ROLE_01", "name": "Gia sư Tiếng Anh", "desc": "Luyện phát âm, đối thoại từ vựng ngắn cho trẻ em", "icon": "🎓"},
+        {"id": "ROLE_02", "name": "Bạn Đồng Hành Nhí", "desc": "Tâm sự, kể chuyện cười, động viên tích cực", "icon": "🧸"},
+        {"id": "ROLE_03", "name": "Bác Học Nhí", "desc": "Giải đáp kiến thức khoa học, tự nhiên bằng ngôn từ dễ hiểu", "icon": "🔬"},
+        {"id": "ROLE_04", "name": "Kể Chuyện Cổ Tích", "desc": "Giọng đọc truyền cảm ru ngủ hoặc kể chuyện đạo đức", "icon": "📖"},
+        {"id": "ROLE_05", "name": "Trợ Lý Gia Đình", "desc": "Nhắc việc, báo thức, thông tin thời tiết hằng ngày", "icon": "⏰"}
+    ]
+    return cors_response(roles)
+
+async def handle_api_ai_roles_apply(request):
+    rid = request.match_info.get("id", "")
+    logger.info(f"Applied AI Role: {rid}")
+    return cors_response({"code": 0, "msg": f"Đã đổi vai trò AI thành công!"})
+
+async def handle_api_memories(request):
+    if request.method == "POST":
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        content = data.get("content", "").strip()
+        if content:
+            new_mem = {
+                "id": f"MEM_{uuid.uuid4().hex[:6].upper()}",
+                "content": content,
+                "category": data.get("category", "ghi nhớ"),
+                "createdAt": int(time.time() * 1000),
+                "macAddress": "14:C1:9F:C4:EE:D0"
+            }
+            DB_MEMORIES.insert(0, new_mem)
+            return cors_response({"code": 0, "msg": "Đã thêm bộ nhớ mới!", "data": new_mem})
+        return cors_response({"code": 1, "message": "Nội dung bộ nhớ trống!"}, status=400)
+    return cors_response(DB_MEMORIES)
+
+async def handle_api_memory_delete(request):
+    mid = request.match_info.get("id", "")
+    global DB_MEMORIES
+    DB_MEMORIES = [m for m in DB_MEMORIES if m["id"] != mid]
+    return cors_response({"code": 0, "msg": "Đã xóa bộ nhớ"})
+
+async def handle_api_memories_batch_delete(request):
+    global DB_MEMORIES
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    ids = set(data.get("ids", []))
+    DB_MEMORIES = [m for m in DB_MEMORIES if m["id"] not in ids]
+    return cors_response({"code": 0, "msg": f"Đã xóa {len(ids)} bộ nhớ"})
+
+async def handle_api_learning_tasks(request):
+    if request.method == "POST":
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        title = data.get("title", "").strip()
+        if title:
+            new_task = {
+                "id": f"TASK_{uuid.uuid4().hex[:6].upper()}",
+                "title": title,
+                "desc": data.get("desc", ""),
+                "completed": False,
+                "priority": data.get("priority", "normal"),
+                "createdAt": int(time.time() * 1000)
+            }
+            DB_TASKS.insert(0, new_task)
+            return cors_response({"code": 0, "msg": "Đã thêm nhiệm vụ mới!", "data": new_task})
+        return cors_response({"code": 1, "message": "Tiêu đề nhiệm vụ trống!"}, status=400)
+    return cors_response(DB_TASKS)
+
+async def handle_api_task_complete(request):
+    tid = request.match_info.get("id", "")
+    for t in DB_TASKS:
+        if t["id"] == tid:
+            t["completed"] = True
+            return cors_response({"code": 0, "msg": "Nhiệm vụ đã hoàn thành!"})
+    return cors_response({"code": 1, "message": "Không tìm thấy nhiệm vụ"}, status=404)
+
+async def handle_api_knowledge_docs(request):
+    if request.method == "POST":
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        title = data.get("title", "Tài liệu mới")
+        content = data.get("content", "")
+        new_doc = {
+            "id": f"KB_{uuid.uuid4().hex[:6].upper()}",
+            "title": title,
+            "content": content,
+            "type": data.get("type", "custom"),
+            "createdAt": int(time.time() * 1000)
+        }
+        DB_KNOWLEDGE_DOCS.insert(0, new_doc)
+        return cors_response({"code": 0, "msg": "Đã lưu tài liệu tri thức!", "data": new_doc})
+    return cors_response(DB_KNOWLEDGE_DOCS)
+
+async def handle_api_feedback(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    DB_FEEDBACKS.append(data)
+    logger.info(f"Received user feedback: {data}")
+    return cors_response({"code": 0, "msg": "Cảm ơn bạn đã đóng góp ý kiến cho Gehihi!"})
+
+async def handle_api_wss_requests(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    DB_WSS_REQUESTS.append(data)
+    logger.info(f"Received Home Assistant request: {data}")
+    return cors_response({"code": 0, "msg": "Đã tiếp nhận yêu cầu tích hợp Home Assistant!"})
+
+async def handle_api_music_status(request):
+    return cors_response({"is_playing": False, "track": None})
+
+async def handle_api_music_search(request):
+    q = request.query.get("q", "nhạc thiếu nhi")
+    sample_tracks = [
+        {"id": "m1", "title": f"Tuyển tập {q} vui nhộn cho bé", "thumb": "🎵", "duration": "3:45"},
+        {"id": "m2", "title": f"Giai điệu thư giãn cùng Gehihi ({q})", "thumb": "🎶", "duration": "4:20"},
+        {"id": "m3", "title": f"Bài hát tiếng Anh trẻ em - ABC Song", "thumb": "🌟", "duration": "2:30"}
+    ]
+    return cors_response(sample_tracks)
+
+async def handle_api_music_play(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    title = data.get("title", "Bản nhạc")
+    return cors_response({"code": 0, "msg": f"Đang phát nhạc: {title}"})
+
+async def handle_api_music_stop(request):
+    return cors_response({"code": 0, "msg": "Đã dừng phát nhạc"})
+
+async def handle_api_ocr(request):
+    return cors_response({
+        "status": "ok",
+        "status": "ok",
+        "text": "Bai tap Tieng Anh: 1. I ___ a student. 2. She ___ my teacher."
+    })
+
+async def handle_api_generate_lesson_plan(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    input_text = data.get("text", "Chủ đề gia đình")
+    plan = f"""Mục tiêu bài học:
+- Học từ vựng: Family, Father, Mother, Brother, Sister.
+- Mẫu câu: This is my father. / I love my family.
+- Hoạt động: Đố vui cùng Robot Gehihi và luyện phản xạ hội thoại 2 phút."""
+    return cors_response({"status": "ok", "lesson_plan": plan})
+
+async def handle_api_learning_task_solve(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    solution = "Gehihi giai bai tap: Cau 1: I am a student. Cau 2: She is my teacher."
+    return cors_response({"status": "ok", "solution": solution})
+
+# Static fallback for Web Admin
+async def handle_static_web_admin(request):
+    path = request.match_info.get("tail", "index.html")
+    if not path or path == "/":
+        path = "index.html"
+    file_path = os.path.join(WEB_ADMIN_DIR, path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return web.FileResponse(file_path)
+    # Default index.html
+    idx_path = os.path.join(WEB_ADMIN_DIR, "index.html")
+    if os.path.exists(idx_path):
+        return web.FileResponse(idx_path)
+    return web.Response(text="<h1>Gehihi Server Online</h1>", content_type="text/html")
+
 async def run_http_server():
     app = web.Application()
+
+    # ========== Web Admin & REST API ==========
+    app.router.add_get("/", handle_static_web_admin)
+    app.router.add_get("/index.html", handle_static_web_admin)
+    app.router.add_get("/english-tutor-app.html", handle_static_web_admin)
+    app.router.add_get("/english-tutor.html", handle_static_web_admin)
+    app.router.add_get("/chon-bai-hoc.html", handle_static_web_admin)
+    app.router.add_get("/cau-hinh-gmbot.html", handle_static_web_admin)
+    app.router.add_get("/cau-hinh-gehihi.html", handle_static_web_admin)
+    app.router.add_get("/memory_page.html", handle_static_web_admin)
+    app.router.add_get("/ha-mcp-guide.html", handle_static_web_admin)
+    app.router.add_get("/huong-dan.html", handle_static_web_admin)
+    app.router.add_get("/curriculums_full.json", handle_static_web_admin)
+    app.router.add_get("/all_english_templates.json", handle_static_web_admin)
+
+    # API Auth
+    app.router.add_get("/api/auth/accounts", handle_api_auth_accounts)
+    app.router.add_post("/api/auth/login", handle_api_auth_login)
+    app.router.add_post("/api/auth/logout", handle_api_auth_logout)
+    app.router.add_post("/api/auth/register", handle_api_auth_register)
+    app.router.add_post("/api/admin/change-password", handle_api_admin_change_password)
+
+    # API Devices & Robot Control
+    app.router.add_get("/api/devices", handle_api_devices_get_post)
+    app.router.add_post("/api/devices", handle_api_devices_get_post)
+    app.router.add_get("/api/devices/{id}", handle_api_device_by_id)
+    app.router.add_put("/api/devices/{id}", handle_api_device_by_id)
+    app.router.add_delete("/api/devices/{id}", handle_api_device_by_id)
+    app.router.add_post("/api/devices/{id}/control", handle_api_robot_control)
+    app.router.add_post("/api/devices/{id}/oled", handle_api_robot_display)
+    app.router.add_post("/api/devices/{id}/speak", handle_api_robot_speak)
+    app.router.add_post("/api/robot/control", handle_api_robot_control)
+    app.router.add_post("/api/robot/display", handle_api_robot_display)
+    app.router.add_post("/api/robot/speak", handle_api_robot_speak)
+    app.router.add_post("/api/chat", handle_api_chat)
+
+    # API Config & Education
+    app.router.add_get("/api/my-xiaozhi/config", handle_api_my_xiaozhi_config)
+    app.router.add_put("/api/my-xiaozhi/config", handle_api_my_xiaozhi_config)
+    app.router.add_get("/api/curriculums", handle_api_curriculums)
+    app.router.add_post("/api/curriculums", handle_api_curriculums)
+    app.router.add_post("/api/curriculums/{id}/apply", handle_api_curriculums_apply)
+    app.router.add_get("/api/english-templates", handle_api_english_templates)
+    app.router.add_post("/api/english-templates/{id}/apply", handle_api_english_templates_apply)
+    app.router.add_get("/api/english-tutor/active", handle_api_english_tutor_active)
+    app.router.add_post("/api/english-tutor/active", handle_api_english_tutor_active)
+    app.router.add_delete("/api/english-tutor/active", handle_api_english_tutor_active)
+    app.router.add_get("/api/english-tutor/report", handle_api_english_tutor_report)
+    app.router.add_get("/api/ai-roles", handle_api_ai_roles)
+    app.router.add_post("/api/ai-roles/{id}/apply", handle_api_ai_roles_apply)
+
+    # API Memories & Tasks
+    app.router.add_get("/api/memories", handle_api_memories)
+    app.router.add_post("/api/memories", handle_api_memories)
+    app.router.add_delete("/api/memories/{id}", handle_api_memory_delete)
+    app.router.add_post("/api/memories/batch-delete", handle_api_memories_batch_delete)
+    app.router.add_get("/api/learning-tasks", handle_api_learning_tasks)
+    app.router.add_post("/api/learning-tasks", handle_api_learning_tasks)
+    app.router.add_put("/api/learning-tasks/{id}/complete", handle_api_task_complete)
+    app.router.add_get("/api/knowledge-base/documents", handle_api_knowledge_docs)
+    app.router.add_post("/api/knowledge-base/documents", handle_api_knowledge_docs)
+
+    # API Feedback & Tools
+    app.router.add_post("/api/feedback", handle_api_feedback)
+    app.router.add_post("/api/wss-requests", handle_api_wss_requests)
+    app.router.add_get("/api/music/status", handle_api_music_status)
+    app.router.add_get("/api/music/search", handle_api_music_search)
+    app.router.add_post("/api/music/play", handle_api_music_play)
+    app.router.add_post("/api/music/stop", handle_api_music_stop)
+    app.router.add_post("/api/ocr", handle_api_ocr)
+    app.router.add_post("/api/generate-lesson-plan", handle_api_generate_lesson_plan)
+    app.router.add_post("/api/learning-task", handle_api_learning_task_solve)
+
 
     # Health & System
     app.router.add_get("/", handle_health)

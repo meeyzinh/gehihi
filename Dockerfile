@@ -3,18 +3,7 @@
 # Tích hợp Web Dashboard (Tiếng Việt) + Dynamic Engine (OTA & WebSocket)
 # ===================================================
 
-# Giai đoạn 1: Build Vue Web Dashboard (dùng node:18 Debian glibc tiêu chuẩn)
-FROM node:18 AS web-builder
-WORKDIR /app
-ENV NODE_OPTIONS="--max-old-space-size=2048"
-
-COPY main/manager-web/package*.json ./
-RUN npm install
-
-COPY main/manager-web .
-RUN npm run build
-
-# Giai đoạn 2: Runtime Container (Debian Bookworm với Python 3.11, Nginx, FFmpeg, Libopus đầy đủ)
+# Runtime Container (Debian Bookworm với Python 3.11, Nginx, FFmpeg, Libopus đầy đủ)
 FROM python:3.11-slim-bookworm
 
 # Cài đặt Nginx, FFmpeg, Libopus
@@ -40,11 +29,12 @@ RUN pip install --no-cache-dir \
 # Cấu hình Nginx
 COPY docs/docker/nginx.conf /etc/nginx/nginx.conf
 
-# Sao chép Frontend Web Dashboard đã build
-COPY --from=web-builder /app/dist /usr/share/nginx/html
+# Sao chép Frontend Web Admin Dashboard (Giao diện Tiếng Việt hoàn chỉnh clone từ Web_templates)
+COPY main/web_admin /usr/share/nginx/html
 
-# Sao chép Dynamic Backend (OTA + WebSocket + Fallback Dashboard API)
+# Sao chép Dynamic Backend (OTA + WebSocket + REST APIs)
 COPY main/dynamic_server.py /app/dynamic_server.py
+COPY main/web_admin /app/web_admin
 
 # Sao chép và cấp quyền script khởi động
 COPY docs/docker/start.sh /start.sh
