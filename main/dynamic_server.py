@@ -1367,13 +1367,19 @@ WHISPER_HALLUCINATION_KEYWORDS = [
     "không bỏ lỡ những video", "không bỏ lỡ các video", "video hấp dẫn", "video tiếp theo",
     "cảm ơn các bạn đã theo dõi", "cảm ơn các bạn đã xem", "cảm ơn quý vị đã theo dõi",
     "chúc các bạn xem video", "like và sub", "like & sub", "fap tv", "kênh youtube",
-    "kênh của mình", "chia sẻ video", "đừng quên like"
+    "kênh của mình", "chia sẻ video", "đừng quên like",
+    "tôi là gehihi",
+    "mình là gehihi",
+    "tôi là robot gehihi",
+    "robot gehihi tiếng việt"
 ]
 
 def is_whisper_hallucination(text: str) -> bool:
     """Phát hiện các cụm từ ảo giác quảng cáo YouTube của Whisper khi gặp khoảng lặng"""
     if not text or not text.strip():
         return False
+    if len(text.strip()) <= 1:
+        return True
     t = text.lower()
     for kw in WHISPER_HALLUCINATION_KEYWORDS:
         if kw in t:
@@ -1387,7 +1393,7 @@ async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
     if not api_key:
         return ""
     boundary = "GehihiBoundaryASR" + uuid.uuid4().hex[:8]
-    prompt_context = "Tôi là robot Gehihi tiếng Việt, hỏi đáp thông minh thân thiện."
+    prompt_context = "Xin chào, bạn có khỏe không?"
     body = (
         b"--" + boundary.encode() + b"\r\n"
         b'Content-Disposition: form-data; name="model"\r\n\r\n'
@@ -1931,7 +1937,7 @@ async def ws_handler(websocket):
             await send_dynamic_tts_response(websocket, session_id, u_text, b_text, emotion, opus_pkts)
             LIVE_DIAGNOSTICS["last_turn_status"] = f"Replied: {b_text[:40]}"
             # Khóa chống dội âm tiếng loa vào micro trong 1.5 giây sau khi phát xong
-            cooldown_until = time.time() + 0.7
+            cooldown_until = time.time() + 1.2
             last_user_activity = cooldown_until
             mic_audio_buffer.clear()
             pre_speech_ring.clear()
@@ -2002,7 +2008,7 @@ async def ws_handler(websocket):
                             await send_dynamic_tts_response(
                                 websocket, session_id, "Gehihi ơi!", "Dạ, tôi nghe đây! Bạn cần Gehihi giúp gì nào?", "happy", opus_pkts
                             )
-                            cooldown_until = time.time() + 0.7
+                            cooldown_until = time.time() + 1.2
                             last_user_activity = cooldown_until
                             mic_audio_buffer.clear()
                             pre_speech_ring.clear()
