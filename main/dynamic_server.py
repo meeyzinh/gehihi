@@ -1166,11 +1166,11 @@ async def call_gemini_multimodal_audio(wav_bytes: bytes, api_key: str):
         )
     
     prompt = (
-        "Bạn là robot Xiaozhi tiếng Việt thông minh, đáng yêu. Hãy nghe đoạn ghi âm giọng nói của người dùng và:\n"
-        "1. Nhận diện chính xác câu nói của người dùng bằng tiếng Việt.\n"
-        "2. Trả lời trực tiếp, thông minh, siêu ngắn gọn (1 câu duy nhất dưới 15 từ, thân thiện, không dùng ký tự markdown hay dấu sao).\n"
+        "Bạn là robot Xiaozhi tiếng Việt thông minh, đáng yêu. Hãy nghe đoạn ghi âm giọng nói:\n"
+        "1. Nếu đoạn ghi âm CHỈ LÀ TIẾNG ỒN, TIẾNG THỞ, TẠP ÂM, TIẾNG RÈ hoặc KHÔNG CÓ TIẾNG NGƯỜI NÓI RÕ RÀNG, bạn HÃY ĐẶT user_text là '' và bot_text là ''.\n"
+        "2. Nếu có tiếng người nói rõ ràng, hãy nhận diện chính xác tiếng Việt và trả lời trực tiếp, siêu ngắn gọn (1 câu duy nhất dưới 15 từ, thân thiện, không dùng ký tự markdown hay dấu sao).\n"
         "3. Chọn cảm xúc phù hợp nhất từ: [happy, neutral, thinking, surprised, curious, sad].\n"
-        "Trả về kết quả duy nhất ở định dạng JSON chuẩn: {\"user_text\": \"...\", \"bot_text\": \"...\", \"emotion\": \"happy\"}"
+        "Trả về duy nhất JSON chuẩn: {\"user_text\": \"...\", \"bot_text\": \"...\", \"emotion\": \"happy\"}"
     )
     payload = {
         "contents": [{
@@ -1221,11 +1221,7 @@ async def call_gemini_multimodal_audio(wav_bytes: bytes, api_key: str):
         except Exception as e:
             logger.warning(f"Error calling Gemini model {model_name}: {e}")
         
-    return (
-        "Chào Xiaozhi",
-        "Chào bạn, tôi là Xiaozhi tiếng Việt! Rất vui được gặp bạn hôm nay.",
-        "happy"
-    )
+    return ("", "", "neutral")
 
 async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, emotion, opus_chunks):
     try:
@@ -1268,8 +1264,8 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             else:
                 await asyncio.sleep(0.052)
 
-        # Chờ ESP32 phát xong audio queue trước khi báo stop
-        await asyncio.sleep(0.25)
+        # Chờ ESP32 xả hết hàng đợi âm thanh qua loa I2S trước khi báo stop
+        await asyncio.sleep(0.55)
 
         # 6. Kết thúc TTS
         await websocket.send(json.dumps({
@@ -1332,13 +1328,16 @@ async def ws_handler(websocket):
         DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
 
     session_id = str(uuid.uuid4())
-    pre_speech_ring = collections.deque(maxlen=10)
+    pre_speech_ring = collections.deque(maxlen=6)
     mic_audio_buffer = []
     speech_active = False
     speech_frames_count = 0
     silence_frames_count = 0
     noise_floor = 120.0
     processing_ai = False
+    cooldown_until = time.time()
+    last_user_activity = time.time()
+    session_active = True
     opus_decoder = None
 
     try:
@@ -1350,7 +1349,7 @@ async def ws_handler(websocket):
     # Heartbeat keep-alive (ping mỗi 25s)
     async def heartbeat_worker():
         try:
-            while True:
+            while session_active:
                 await asyncio.sleep(25)
                 try:
                     await websocket.send(json.dumps({"type": "ping"}))
@@ -1361,16 +1360,45 @@ async def ws_handler(websocket):
 
     heartbeat_task = asyncio.create_task(heartbeat_worker())
 
+    # Inactivity auto-standby: Nếu người dùng không nói gì trong 8s, tự động trả robot về Idle
+    async def inactivity_worker():
+        nonlocal session_active
+        try:
+            while session_active:
+                await asyncio.sleep(1.0)
+                if not speech_active and not processing_ai and time.time() > cooldown_until:
+                    if time.time() - last_user_activity >= 8.0:
+                        logger.info("Inactivity timeout (8s without speech). Returning robot to Idle Standby...")
+                        session_active = False
+                        try:
+                            await websocket.close()
+                        except Exception:
+                            pass
+                        break
+        except asyncio.CancelledError:
+            pass
+
+    inactivity_task = asyncio.create_task(inactivity_worker())
+
     async def execute_ai_turn(audio_packets):
-        nonlocal processing_ai
+        nonlocal processing_ai, cooldown_until, last_user_activity
         processing_ai = True
         try:
             logger.info(f"Executing AI turn with {len(audio_packets)} audio packets...")
             wav_bytes = decode_opus_frames_to_wav(audio_packets)
             api_key = get_gemini_api_key()
             u_text, b_text, emotion = await call_gemini_multimodal_audio(wav_bytes, api_key)
+
+            # Chặn ảo giác AI khi chỉ có tạp âm hoặc im lặng:
+            if not b_text or not b_text.strip() or not u_text or not u_text.strip():
+                logger.info("Filtered out silence/noise hallucination. Skipping TTS.")
+                return
+
+            last_user_activity = time.time()
             opus_pkts = await tts_to_opus(b_text)
             await send_dynamic_tts_response(websocket, session_id, u_text, b_text, emotion, opus_pkts)
+            # Khóa chống dội âm tiếng loa vào micro trong 1.5 giây sau khi phát xong
+            cooldown_until = time.time() + 1.5
         except Exception as e:
             logger.error(f"Error executing AI turn: {e}")
         finally:
@@ -1425,12 +1453,15 @@ async def ws_handler(websocket):
                             speech_active = False
                             speech_frames_count = 0
                             silence_frames_count = 0
+                            last_user_activity = time.time()
 
                         elif state == "detect":
+                            last_user_activity = time.time()
                             opus_pkts = await tts_to_opus("Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?")
                             await send_dynamic_tts_response(
                                 websocket, session_id, "Xiaozhi ơi!", "Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?", "happy", opus_pkts
                             )
+                            cooldown_until = time.time() + 1.5
 
                         elif state == "stop":
                             if (speech_active or len(mic_audio_buffer) >= 6) and not processing_ai:
@@ -1458,7 +1489,8 @@ async def ws_handler(websocket):
                 if device_mac in DB_DEVICES:
                     DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
 
-                if processing_ai:
+                # Bỏ qua âm thanh khi đang xử lý AI hoặc trong thời gian Cooldown (chống dội tiếng loa vào mic)
+                if processing_ai or time.time() < cooldown_until:
                     continue
 
                 # Tính toán RMS năng lượng âm thanh
@@ -1477,10 +1509,10 @@ async def ws_handler(websocket):
                     # Cập nhật mức ồn nền khi đang yên tĩnh
                     noise_floor = noise_floor * 0.92 + min(rms, 350.0) * 0.08
                     # Ngưỡng bắt đầu nói: âm lượng người nói rõ ràng vượt mức ồn nền
-                    is_voice = (rms > max(240.0, noise_floor * 1.5))
+                    is_voice = (rms > max(280.0, noise_floor * 1.6))
                 else:
                     # Ngưỡng duy trì nói
-                    is_voice = (rms > max(190.0, noise_floor * 1.25))
+                    is_voice = (rms > max(200.0, noise_floor * 1.25))
 
                 if is_voice:
                     if not speech_active:
@@ -1489,6 +1521,7 @@ async def ws_handler(websocket):
                         silence_frames_count = 0
                         mic_audio_buffer = list(pre_speech_ring)
                     speech_frames_count += 1
+                    last_user_activity = time.time()
                     # Giảm dần silence counter thay vì reset về 0 ngay lập tức nếu bị nhiễu 1 frame
                     if silence_frames_count > 0:
                         silence_frames_count = max(0, silence_frames_count - 1)
@@ -1496,7 +1529,7 @@ async def ws_handler(websocket):
 
                     # Giới hạn nói liên tục tối đa ~4.5s (75 frames * 60ms) để phản hồi nhanh
                     if len(mic_audio_buffer) >= 75:
-                        if speech_frames_count >= 5 and not processing_ai:
+                        if speech_frames_count >= 6 and not processing_ai:
                             pkts = list(mic_audio_buffer)
                             mic_audio_buffer.clear()
                             speech_active = False
@@ -1509,9 +1542,9 @@ async def ws_handler(websocket):
                     else:
                         mic_audio_buffer.append(message)
                         silence_frames_count += 1
-                        # Phát hiện kết thúc câu nhanh: 7 frames im lặng (~420ms) sau khi nói ít nhất 5 frames (~300ms)
-                        if silence_frames_count >= 7:
-                            if speech_frames_count >= 5 and not processing_ai:
+                        # Phát hiện kết thúc câu: 8 frames im lặng (~480ms) sau khi nói ít nhất 6 frames (~360ms)
+                        if silence_frames_count >= 8:
+                            if speech_frames_count >= 6 and not processing_ai:
                                 pkts = list(mic_audio_buffer)
                                 mic_audio_buffer.clear()
                                 speech_active = False
@@ -1529,8 +1562,11 @@ async def ws_handler(websocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:
+        session_active = False
         if heartbeat_task and not heartbeat_task.done():
             heartbeat_task.cancel()
+        if inactivity_task and not inactivity_task.done():
+            inactivity_task.cancel()
         if device_mac in DB_DEVICES:
             DB_DEVICES[device_mac]["online"] = False
 
