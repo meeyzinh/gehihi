@@ -1279,6 +1279,25 @@ async def tts_to_opus(text: str, voice: str = "vi-VN-HoaiMyNeural") -> list:
         logger.error(f"Error in tts_to_opus: {e}")
         return []
 
+WHISPER_HALLUCINATION_KEYWORDS = [
+    "ghiền mì gõ", "ghien mi go", "subscribe", "subcribe", "đăng ký kênh",
+    "đăng kí kênh", "ủng hộ kênh", "theo dõi kênh", "bấm chuông", "nhấn chuông",
+    "không bỏ lỡ những video", "không bỏ lỡ các video", "video hấp dẫn", "video tiếp theo",
+    "cảm ơn các bạn đã theo dõi", "cảm ơn các bạn đã xem", "cảm ơn quý vị đã theo dõi",
+    "chúc các bạn xem video", "like và sub", "like & sub", "fap tv", "kênh youtube",
+    "kênh của mình", "chia sẻ video", "đừng quên like"
+]
+
+def is_whisper_hallucination(text: str) -> bool:
+    """Phát hiện các cụm từ ảo giác quảng cáo YouTube của Whisper khi gặp khoảng lặng"""
+    if not text or not text.strip():
+        return False
+    t = text.lower()
+    for kw in WHISPER_HALLUCINATION_KEYWORDS:
+        if kw in t:
+            return True
+    return False
+
 async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
     """Nhận diện giọng nói siêu tốc (<0.45s) qua Groq Whisper Large v3 Turbo"""
     if not api_key:
@@ -1286,6 +1305,7 @@ async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
     if not api_key:
         return ""
     boundary = "GehihiBoundaryASR" + uuid.uuid4().hex[:8]
+    prompt_context = "Tôi là robot Xiaozhi tiếng Việt, hỏi đáp thông minh thân thiện."
     body = (
         b"--" + boundary.encode() + b"\r\n"
         b'Content-Disposition: form-data; name="model"\r\n\r\n'
@@ -1293,6 +1313,11 @@ async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
         b"--" + boundary.encode() + b"\r\n"
         b'Content-Disposition: form-data; name="language"\r\n\r\n'
         b"vi\r\n"
+        b"--" + boundary.encode() + b"\r\n"
+        b'Content-Disposition: form-data; name="temperature"\r\n\r\n'
+        b"0.0\r\n"
+        b"--" + boundary.encode() + b"\r\n"
+        b'Content-Disposition: form-data; name="prompt"\r\n\r\n' + prompt_context.encode("utf-8") + b"\r\n"
         b"--" + boundary.encode() + b"\r\n"
         b'Content-Disposition: form-data; name="file"; filename="audio.wav"\r\n'
         b"Content-Type: audio/wav\r\n\r\n" + wav_bytes + b"\r\n"
@@ -1310,6 +1335,9 @@ async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
                 if resp.status == 200:
                     data = await resp.json()
                     txt = data.get("text", "").strip()
+                    if is_whisper_hallucination(txt):
+                        logger.warning(f"Filtered out Whisper YouTube hallucination: '{txt}'. Discarding.")
+                        return ""
                     logger.info(f"Groq Whisper ASR success: '{txt}'")
                     return txt
                 else:
@@ -1323,7 +1351,8 @@ AI_SYSTEM_PROMPT = """Bạn là robot Xiaozhi tiếng Việt thông minh, dễ t
 Quy tắc tối quan trọng:
 1. Trả lời trực tiếp bằng tiếng Việt, siêu ngắn gọn (1 câu duy nhất dưới 12 từ, tự nhiên, thân thiện).
 2. Tuyệt đối không dùng markdown, ký tự đặc biệt hay dấu hoa thị (*).
-3. Trả về đúng 1 JSON hợp lệ định dạng: {"bot_text": "...", "emotion": "happy"}
+3. Tuyệt đối không bao giờ nói về 'subscribe', 'đăng ký kênh', 'like', 'video', 'kênh Ghiền Mì Gõ' hay bất kỳ từ ngữ quảng cáo nào.
+4. Trả về đúng 1 JSON hợp lệ định dạng: {"bot_text": "...", "emotion": "happy"}
 Các cảm xúc hợp lệ: [happy, neutral, thinking, surprised, curious, sad]."""
 
 async def call_groq_llm(user_text: str, api_key: str = None) -> tuple:
@@ -1513,11 +1542,14 @@ async def call_unified_ai(wav_bytes: bytes):
     user_text = await transcribe_audio_groq(wav_bytes)
     t_asr = time.time() - t0_asr
     LIVE_DIAGNOSTICS["last_asr_latency"] = round(t_asr, 3)
-    if not user_text or not user_text.strip():
-        logger.info("Groq Whisper empty or failed, trying Gemini multimodal fallback...")
+    if not user_text or not user_text.strip() or is_whisper_hallucination(user_text):
+        if is_whisper_hallucination(user_text):
+            logger.warning(f"Rejecting Whisper hallucination in unified AI: '{user_text}'")
+            return ("", "", "neutral")
+        logger.info("Groq Whisper empty, trying Gemini multimodal fallback...")
         gemini_key = get_provider_key("gemini")
         u_gemini, b_gemini, emo_gemini = await call_gemini_multimodal_audio(wav_bytes, gemini_key)
-        if b_gemini and b_gemini.strip():
+        if b_gemini and b_gemini.strip() and not is_whisper_hallucination(b_gemini):
             LIVE_DIAGNOSTICS["last_total_latency"] = round(time.time() - t0_start, 3)
             return (u_gemini, b_gemini, emo_gemini)
         return ("", "", "neutral")
@@ -1534,6 +1566,9 @@ async def call_unified_ai(wav_bytes: bytes):
     else:
         bot_text, emotion = await call_groq_llm(user_text)
     t_llm = time.time() - t0_llm
+    if is_whisper_hallucination(bot_text):
+        logger.warning(f"Filtered out hallucination from bot_text: '{bot_text}'")
+        bot_text = "Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?"
     LIVE_DIAGNOSTICS["last_llm_latency"] = round(t_llm, 3)
     LIVE_DIAGNOSTICS["last_total_latency"] = round(time.time() - t0_start, 3)
     logger.info(f"AI LLM ({provider}) finished ({t_llm:.3f}s): '{bot_text}' [Total: {time.time() - t0_start:.3f}s]")
@@ -1705,17 +1740,17 @@ async def ws_handler(websocket):
                             speech_frames_count = 0
                             silence_frames_count = 0
 
-                # Watchdog 2: Tự động trả về Idle nếu không có hoạt động âm thanh trong 15s
+                # Watchdog 2: Tự động xóa hàng đợi nếu không có hoạt động âm thanh trong 15s (giữ kết nối WebSocket)
                 if not processing_ai and now > cooldown_until:
                     last_active = max(last_user_activity, LIVE_DIAGNOSTICS.get("last_packet_time", 0))
                     if now - last_active >= 15.0:
-                        logger.info("Inactivity timeout (15s without activity). Returning robot to Idle Standby...")
-                        session_active = False
-                        try:
-                            await websocket.close()
-                        except Exception:
-                            pass
-                        break
+                        if len(mic_audio_buffer) > 0 or speech_active:
+                            logger.info("Inactivity timeout: Clearing idle audio buffers...")
+                            mic_audio_buffer.clear()
+                            pre_speech_ring.clear()
+                            speech_active = False
+                            speech_frames_count = 0
+                            silence_frames_count = 0
         except asyncio.CancelledError:
             pass
 
@@ -1739,13 +1774,11 @@ async def ws_handler(websocket):
             LIVE_DIAGNOSTICS["last_user_text"] = u_text
             LIVE_DIAGNOSTICS["last_bot_text"] = b_text
 
-            # Nếu người dùng đã nói mà AI không nghe rõ (do tạp âm hoặc nói nhỏ):
+            # Nếu người dùng im lặng hoặc âm thanh bị lọc do là tạp âm/ảo giác:
             if not b_text or not b_text.strip() or not u_text or not u_text.strip():
-                logger.info("AI transcription empty. Replying with polite prompt to avoid hanging in Listening...")
-                u_text = "..."
-                b_text = "Tôi chưa nghe rõ, bạn có thể nói lại một lần nữa không?"
-                emotion = "thinking"
-                LIVE_DIAGNOSTICS["last_turn_status"] = "AI empty -> prompt user"
+                logger.info("Turn empty or filtered out. Robot staying silent.")
+                LIVE_DIAGNOSTICS["last_turn_status"] = "Silence/hallucination filtered"
+                return
 
             # Chống lặp câu trả lời (self-echo loop prevention)
             if last_bot_reply and b_text.strip().lower() == last_bot_reply.strip().lower():
