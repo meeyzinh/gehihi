@@ -28,12 +28,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /run/nginx /var/log/nginx /var/tmp/nginx /etc/nginx/conf.d /app
 
-# Cài đặt dependencies cho Dynamic Engine (Hỗ trợ AI Gemini, EdgeTTS, Opus)
+# Cài đặt dependencies cho Dynamic Engine (Hỗ trợ AI Gemini, Groq, DeepSeek, OpenAI, EdgeTTS, Opus)
 RUN pip install --no-cache-dir \
     aiohttp \
     websockets \
     pyjwt \
-    edge-tts \
+    "edge-tts>=7.3.1" \
     opuslib-next \
     requests
 
