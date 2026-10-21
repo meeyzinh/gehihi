@@ -1166,11 +1166,11 @@ async def call_gemini_multimodal_audio(wav_bytes: bytes, api_key: str):
         )
     
     prompt = (
-        "Bạn là robot Xiaozhi tiếng Việt thông minh, đáng yêu và tận tình. Hãy nghe đoạn ghi âm giọng nói của người dùng và:\n"
+        "Bạn là robot Xiaozhi tiếng Việt thông minh, đáng yêu. Hãy nghe đoạn ghi âm giọng nói của người dùng và:\n"
         "1. Nhận diện chính xác câu nói của người dùng bằng tiếng Việt.\n"
-        "2. Trả lời trực tiếp, thông minh, ngắn gọn (1-2 câu, tối đa 30 từ, không dùng ký tự định dạng markdown).\n"
+        "2. Trả lời trực tiếp, thông minh, siêu ngắn gọn (1 câu duy nhất dưới 15 từ, thân thiện, không dùng ký tự markdown hay dấu sao).\n"
         "3. Chọn cảm xúc phù hợp nhất từ: [happy, neutral, thinking, surprised, curious, sad].\n"
-        "Trả về kết quả duy nhất ở định dạng JSON chuẩn như sau: {\"user_text\": \"...\", \"bot_text\": \"...\", \"emotion\": \"...\"}"
+        "Trả về kết quả duy nhất ở định dạng JSON chuẩn: {\"user_text\": \"...\", \"bot_text\": \"...\", \"emotion\": \"happy\"}"
     )
     payload = {
         "contents": [{
@@ -1185,16 +1185,18 @@ async def call_gemini_multimodal_audio(wav_bytes: bytes, api_key: str):
             ]
         }],
         "generationConfig": {
-            "response_mime_type": "application/json"
+            "response_mime_type": "application/json",
+            "maxOutputTokens": 80
         }
     }
     
-    models_to_try = ["gemini-3-flash-preview", "gemini-3.1-flash-lite-preview", "gemini-3.5-flash", "gemini-3.6-flash"]
+    # Ưu tiên gemini-3.5-flash-lite siêu nhanh (1.1s) và gemini-3.5-flash, timeout ngắn 4.5s
+    models_to_try = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3-flash-preview"]
     for model_name in models_to_try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=12)) as resp:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=4.5)) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         candidates = data.get("candidates", [])
@@ -1227,20 +1229,20 @@ async def call_gemini_multimodal_audio(wav_bytes: bytes, api_key: str):
 
 async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, emotion, opus_chunks):
     try:
-        # 1. Gửi STT để OLED hiển thị câu người dùng nói
+        # 1. Gửi STT để OLED hiển thị câu người dùng nói ngay
         await websocket.send(json.dumps({
             "type": "stt",
             "text": user_text,
             "session_id": session_id
         }))
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.02)
 
         # 2. Gửi biểu cảm LLM
         await websocket.send(json.dumps({
             "type": "llm",
             "emotion": emotion or "happy"
         }))
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.02)
 
         # 3. Bắt đầu TTS
         await websocket.send(json.dumps({
@@ -1248,7 +1250,7 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             "state": "start",
             "session_id": session_id
         }))
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.04)
 
         # 4. Gửi câu trả lời
         await websocket.send(json.dumps({
@@ -1258,13 +1260,16 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             "session_id": session_id
         }))
 
-        # 5. Truyền từng frame Opus nhị phân (60ms mỗi frame)
-        for chunk in opus_chunks:
+        # 5. Truyền từng frame Opus nhị phân (Preload 4 frames đầu để loa phát tức thì)
+        for idx, chunk in enumerate(opus_chunks):
             await websocket.send(chunk)
-            await asyncio.sleep(0.058)
+            if idx < 4:
+                await asyncio.sleep(0.005)
+            else:
+                await asyncio.sleep(0.052)
 
         # Chờ ESP32 phát xong audio queue trước khi báo stop
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(0.25)
 
         # 6. Kết thúc TTS
         await websocket.send(json.dumps({
@@ -1469,10 +1474,13 @@ async def ws_handler(websocket):
                     rms = 600.0 if len(message) > 30 else 80.0
 
                 if not speech_active:
-                    noise_floor = noise_floor * 0.95 + min(rms, 300.0) * 0.05
-                    is_voice = (rms > max(160.0, noise_floor * 1.5))
+                    # Cập nhật mức ồn nền khi đang yên tĩnh
+                    noise_floor = noise_floor * 0.92 + min(rms, 350.0) * 0.08
+                    # Ngưỡng bắt đầu nói: âm lượng người nói rõ ràng vượt mức ồn nền
+                    is_voice = (rms > max(240.0, noise_floor * 1.5))
                 else:
-                    is_voice = (rms > max(140.0, noise_floor * 1.2))
+                    # Ngưỡng duy trì nói
+                    is_voice = (rms > max(190.0, noise_floor * 1.25))
 
                 if is_voice:
                     if not speech_active:
@@ -1481,26 +1489,29 @@ async def ws_handler(websocket):
                         silence_frames_count = 0
                         mic_audio_buffer = list(pre_speech_ring)
                     speech_frames_count += 1
-                    silence_frames_count = 0
+                    # Giảm dần silence counter thay vì reset về 0 ngay lập tức nếu bị nhiễu 1 frame
+                    if silence_frames_count > 0:
+                        silence_frames_count = max(0, silence_frames_count - 1)
                     mic_audio_buffer.append(message)
 
-                    # Giới hạn nói liên tục tối đa ~9s (150 frames * 60ms)
-                    if len(mic_audio_buffer) >= 150:
-                        pkts = list(mic_audio_buffer)
-                        mic_audio_buffer.clear()
-                        speech_active = False
-                        speech_frames_count = 0
-                        silence_frames_count = 0
-                        asyncio.create_task(execute_ai_turn(pkts))
+                    # Giới hạn nói liên tục tối đa ~4.5s (75 frames * 60ms) để phản hồi nhanh
+                    if len(mic_audio_buffer) >= 75:
+                        if speech_frames_count >= 5 and not processing_ai:
+                            pkts = list(mic_audio_buffer)
+                            mic_audio_buffer.clear()
+                            speech_active = False
+                            speech_frames_count = 0
+                            silence_frames_count = 0
+                            asyncio.create_task(execute_ai_turn(pkts))
                 else:
                     if not speech_active:
                         pre_speech_ring.append(message)
                     else:
                         mic_audio_buffer.append(message)
                         silence_frames_count += 1
-                        # 12 frames im lặng ~720ms sau khi nói ít nhất 8 frames (~480ms)
-                        if silence_frames_count >= 12:
-                            if speech_frames_count >= 8 and not processing_ai:
+                        # Phát hiện kết thúc câu nhanh: 7 frames im lặng (~420ms) sau khi nói ít nhất 5 frames (~300ms)
+                        if silence_frames_count >= 7:
+                            if speech_frames_count >= 5 and not processing_ai:
                                 pkts = list(mic_audio_buffer)
                                 mic_audio_buffer.clear()
                                 speech_active = False
