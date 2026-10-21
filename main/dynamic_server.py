@@ -1373,13 +1373,14 @@ async def ws_handler(websocket):
     except Exception as e:
         logger.warning(f"Could not init opuslib_next decoder: {e}")
 
-    # Heartbeat keep-alive (ping mỗi 25s)
+    # Heartbeat keep-alive (native websocket ping mỗi 25s)
     async def heartbeat_worker():
         try:
             while session_active:
                 await asyncio.sleep(25)
                 try:
-                    await websocket.send(json.dumps({"type": "ping"}))
+                    if hasattr(websocket, "ping"):
+                        await websocket.ping()
                 except Exception:
                     break
         except asyncio.CancelledError:
@@ -1387,15 +1388,38 @@ async def ws_handler(websocket):
 
     heartbeat_task = asyncio.create_task(heartbeat_worker())
 
-    # Inactivity auto-standby: Nếu người dùng không nói gì trong 15s, tự động trả robot về Idle Standby
+    # Watchdog & Inactivity auto-standby: Chống treo trạng thái và tự động về Idle sau 15s
     async def inactivity_worker():
-        nonlocal session_active
+        nonlocal session_active, speech_active, speech_frames_count, silence_frames_count
         try:
             while session_active:
-                await asyncio.sleep(1.0)
-                if not speech_active and not processing_ai and time.time() > cooldown_until:
-                    if time.time() - last_user_activity >= 15.0:
-                        logger.info("Inactivity timeout (15s without speech). Returning robot to Idle Standby...")
+                await asyncio.sleep(0.3)
+                now = time.time()
+
+                # Watchdog 1: Nếu đang ghi nhận giọng nói (speech_active) mà micro ngưng gửi gói tin > 0.6s
+                # (người dùng vừa dứt lời hoặc ngắt quãng mạng), lập tức chốt câu thoại và gọi AI!
+                if speech_active and not processing_ai and now > cooldown_until:
+                    last_pkt = LIVE_DIAGNOSTICS.get("last_packet_time", 0)
+                    if last_pkt > 0 and (now - last_pkt >= 0.6):
+                        logger.info(f"Packet gap detected ({now - last_pkt:.2f}s). Finalizing speech turn for AI...")
+                        if speech_frames_count >= 4 and len(mic_audio_buffer) >= 4:
+                            pkts = list(mic_audio_buffer)
+                            mic_audio_buffer.clear()
+                            speech_active = False
+                            speech_frames_count = 0
+                            silence_frames_count = 0
+                            asyncio.create_task(execute_ai_turn(pkts))
+                        else:
+                            mic_audio_buffer.clear()
+                            speech_active = False
+                            speech_frames_count = 0
+                            silence_frames_count = 0
+
+                # Watchdog 2: Tự động trả về Idle nếu không có hoạt động âm thanh trong 15s
+                if not processing_ai and now > cooldown_until:
+                    last_active = max(last_user_activity, LIVE_DIAGNOSTICS.get("last_packet_time", 0))
+                    if now - last_active >= 15.0:
+                        logger.info("Inactivity timeout (15s without activity). Returning robot to Idle Standby...")
                         session_active = False
                         try:
                             await websocket.close()
