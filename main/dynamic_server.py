@@ -49,6 +49,25 @@ WS_PORT = int(os.environ.get("GEHIHI_WS_PORT", 8000))
 
 TRANSPARENT_GIF = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
 
+LIVE_DIAGNOSTICS = {
+    "device_connected": False,
+    "last_packet_time": 0,
+    "last_rms": 0.0,
+    "recent_rms": collections.deque(maxlen=30),
+    "noise_floor": 100.0,
+    "speech_active": False,
+    "speech_frames_count": 0,
+    "silence_frames_count": 0,
+    "buffer_len": 0,
+    "turns_executed": 0,
+    "last_turn_time": 0,
+    "last_user_text": "",
+    "last_bot_text": "",
+    "last_turn_status": "",
+    "opus_decoder_ok": False,
+    "opus_decoder_err": ""
+}
+
 # ==================== IN-MEMORY DATABASE ====================
 
 DB_DEVICES = {
@@ -538,6 +557,13 @@ async def handle_health(request):
         "online_devices": online_count,
         "timestamp": int(time.time())
     })
+
+async def handle_debug_live(request):
+    data = dict(LIVE_DIAGNOSTICS)
+    data["recent_rms"] = list(LIVE_DIAGNOSTICS["recent_rms"])
+    data["current_time"] = time.time()
+    data["packet_age_ms"] = int((time.time() - LIVE_DIAGNOSTICS["last_packet_time"]) * 1000) if LIVE_DIAGNOSTICS["last_packet_time"] else -1
+    return cors_response(data)
 
 async def handle_ota(request):
     """Xử lý yêu cầu OTA từ robot Xiaozhi"""
@@ -1386,34 +1412,49 @@ async def ws_handler(websocket):
         processing_ai = True
         try:
             logger.info(f"Executing AI turn with {len(audio_packets)} audio packets...")
+            LIVE_DIAGNOSTICS["turns_executed"] += 1
+            LIVE_DIAGNOSTICS["last_turn_time"] = time.time()
+            LIVE_DIAGNOSTICS["last_turn_status"] = f"Processing {len(audio_packets)} packets"
             wav_bytes = decode_opus_frames_to_wav(audio_packets)
-            if len(wav_bytes) < 4000:
+            if len(wav_bytes) < 3000:
                 logger.info(f"Audio payload too small ({len(wav_bytes)} bytes). Skipping AI turn.")
+                LIVE_DIAGNOSTICS["last_turn_status"] = f"Audio too small ({len(wav_bytes)} bytes)"
                 return
 
             api_key = get_gemini_api_key()
             u_text, b_text, emotion = await call_gemini_multimodal_audio(wav_bytes, api_key)
+            LIVE_DIAGNOSTICS["last_user_text"] = u_text
+            LIVE_DIAGNOSTICS["last_bot_text"] = b_text
 
-            # Chặn ảo giác AI khi chỉ có tạp âm hoặc im lặng:
+            # Nếu người dùng đã nói mà AI không nghe rõ (do tạp âm hoặc nói nhỏ):
             if not b_text or not b_text.strip() or not u_text or not u_text.strip():
-                logger.info("Filtered out silence/noise hallucination. Skipping TTS.")
-                return
+                logger.info("AI transcription empty. Replying with polite prompt to avoid hanging in Listening...")
+                u_text = "..."
+                b_text = "Tôi chưa nghe rõ, bạn có thể nói lại một lần nữa không?"
+                emotion = "thinking"
+                LIVE_DIAGNOSTICS["last_turn_status"] = "AI empty -> prompt user"
 
             # Chống lặp câu trả lời (self-echo loop prevention)
             if last_bot_reply and b_text.strip().lower() == last_bot_reply.strip().lower():
                 logger.info(f"Detected repeated bot reply: '{b_text}'. Skipping to break self-conversation loop.")
+                LIVE_DIAGNOSTICS["last_turn_status"] = "Echo loop prevented"
                 return
 
             last_bot_reply = b_text
             opus_pkts = await tts_to_opus(b_text)
             await send_dynamic_tts_response(websocket, session_id, u_text, b_text, emotion, opus_pkts)
+            LIVE_DIAGNOSTICS["last_turn_status"] = f"Replied: {b_text[:40]}"
             # Khóa chống dội âm tiếng loa vào micro trong 1.5 giây sau khi phát xong
             cooldown_until = time.time() + 1.5
             last_user_activity = cooldown_until
             mic_audio_buffer.clear()
             pre_speech_ring.clear()
+            speech_active = False
+            speech_frames_count = 0
+            silence_frames_count = 0
         except Exception as e:
             logger.error(f"Error executing AI turn: {e}")
+            LIVE_DIAGNOSTICS["last_turn_status"] = f"Error: {e}"
         finally:
             processing_ai = False
             last_user_activity = max(last_user_activity, time.time())
@@ -1520,19 +1561,35 @@ async def ws_handler(websocket):
                         pcm = opus_decoder.decode(message, 960)
                         samples = struct.unpack(f"<{len(pcm)//2}h", pcm)
                         rms = math.sqrt(sum(s*s for s in samples) / len(samples))
-                    except Exception:
+                        LIVE_DIAGNOSTICS["opus_decoder_ok"] = True
+                    except Exception as e:
+                        LIVE_DIAGNOSTICS["opus_decoder_ok"] = False
+                        LIVE_DIAGNOSTICS["opus_decoder_err"] = str(e)
                         rms = 120.0
                 else:
+                    LIVE_DIAGNOSTICS["opus_decoder_ok"] = False
+                    LIVE_DIAGNOSTICS["opus_decoder_err"] = "opus_decoder is None"
                     rms = 120.0
+
+                LIVE_DIAGNOSTICS["device_connected"] = True
+                LIVE_DIAGNOSTICS["last_packet_time"] = time.time()
+                LIVE_DIAGNOSTICS["last_rms"] = round(rms, 1)
+                LIVE_DIAGNOSTICS["recent_rms"].append(round(rms, 1))
 
                 if not speech_active:
                     # Cập nhật mức ồn nền khi đang yên tĩnh
-                    noise_floor = noise_floor * 0.92 + min(rms, 350.0) * 0.08
-                    # Ngưỡng bắt đầu nói: âm lượng người nói rõ ràng vượt mức ồn nền
-                    is_voice = (rms > max(280.0, noise_floor * 1.5))
+                    noise_floor = noise_floor * 0.90 + min(rms, 300.0) * 0.10
+                    # Ngưỡng bắt đầu nói nhạy bén với giọng con người (160+ RMS) vượt trên nền phòng (30-80 RMS)
+                    is_voice = (rms > max(160.0, noise_floor * 1.55))
                 else:
                     # Ngưỡng duy trì nói
-                    is_voice = (rms > max(190.0, noise_floor * 1.2))
+                    is_voice = (rms > max(110.0, noise_floor * 1.25))
+
+                LIVE_DIAGNOSTICS["noise_floor"] = round(noise_floor, 1)
+                LIVE_DIAGNOSTICS["speech_active"] = speech_active
+                LIVE_DIAGNOSTICS["speech_frames_count"] = speech_frames_count
+                LIVE_DIAGNOSTICS["silence_frames_count"] = silence_frames_count
+                LIVE_DIAGNOSTICS["buffer_len"] = len(mic_audio_buffer)
 
                 if is_voice:
                     if not speech_active:
@@ -1549,7 +1606,7 @@ async def ws_handler(websocket):
 
                     # Giới hạn nói liên tục tối đa ~4.5s (75 frames * 60ms) để phản hồi nhanh
                     if len(mic_audio_buffer) >= 75:
-                        if speech_frames_count >= 6 and not processing_ai:
+                        if speech_frames_count >= 5 and not processing_ai:
                             pkts = list(mic_audio_buffer)
                             mic_audio_buffer.clear()
                             speech_active = False
@@ -1569,7 +1626,7 @@ async def ws_handler(websocket):
                         silence_frames_count += 1
                         # Phát hiện kết thúc câu: 8 frames im lặng (~480ms) sau khi nói ít nhất 6 frames (~360ms)
                         if silence_frames_count >= 7:
-                            if speech_frames_count >= 6 and not processing_ai:
+                            if speech_frames_count >= 5 and not processing_ai:
                                 pkts = list(mic_audio_buffer)
                                 mic_audio_buffer.clear()
                                 speech_active = False
@@ -1604,6 +1661,7 @@ async def run_http_server():
     app.router.add_get("/", handle_health)
     app.router.add_get("/health", handle_health)
     app.router.add_get("/api/health", handle_health)
+    app.router.add_get("/xiaozhi/debug/live", handle_debug_live)
 
     # OTA Endpoints
     app.router.add_get("/xiaozhi/ota/", handle_ota)
