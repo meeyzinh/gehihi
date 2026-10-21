@@ -3012,7 +3012,6 @@ async def run_http_server():
 
 
     # Health & System
-    app.router.add_get("/", handle_health)
     app.router.add_get("/health", handle_health)
     app.router.add_get("/api/health", handle_health)
     app.router.add_get("/xiaozhi/debug/live", handle_debug_live)
