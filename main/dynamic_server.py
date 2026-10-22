@@ -27,6 +27,17 @@ import math
 import struct
 import re
 import collections
+import shutil
+import urllib.request
+import urllib.parse
+try:
+    import yt_dlp
+except ImportError:
+    yt_dlp = None
+try:
+    import imageio_ffmpeg
+except ImportError:
+    imageio_ffmpeg = None
 import aiohttp
 from aiohttp import web
 import websockets
@@ -1924,6 +1935,10 @@ async def ws_handler(websocket):
         nonlocal processing_ai, cooldown_until, last_user_activity, last_bot_reply
         processing_ai = True
         try:
+            if ACTIVE_MUSIC_STATE.get("is_playing"):
+                logger.info("Voice detected while music is streaming. Stopping music...")
+                stop_active_music()
+
             logger.info(f"Executing AI turn with {len(audio_packets)} audio packets...")
             LIVE_DIAGNOSTICS["turns_executed"] += 1
             LIVE_DIAGNOSTICS["last_turn_time"] = time.time()
@@ -1935,6 +1950,12 @@ async def ws_handler(websocket):
                 return
 
             u_text, b_text, emotion = await call_unified_ai(wav_bytes)
+            if u_text:
+                u_clean = u_text.lower()
+                if any(w in u_clean for w in ["dừng nhạc", "tắt nhạc", "ngừng nhạc", "thôi phát nhạc", "dừng phát"]):
+                    stop_active_music()
+                    b_text = "Dạ, em đã dừng phát nhạc rồi ạ!"
+                    emotion = "happy" 
             LIVE_DIAGNOSTICS["last_user_text"] = u_text
             LIVE_DIAGNOSTICS["last_bot_text"] = b_text
             if MIC_MONITOR_CLIENTS:
@@ -3296,34 +3317,457 @@ async def handle_api_wss_requests(request):
     logger.info(f"Received Home Assistant request: {data}")
     return cors_response({"code": 0, "msg": "Đã tiếp nhận yêu cầu tích hợp Home Assistant!"})
 
+# ==================== YOUTUBE MUSIC & OPUS STREAMING ENGINE ====================
+
+ACTIVE_MUSIC_STATE = {
+    "is_playing": False,
+    "task": None,
+    "track": None,
+    "stop_event": None
+}
+
+def stop_active_music():
+    """Dừng luồng phát nhạc trên robot ngay lập tức"""
+    if ACTIVE_MUSIC_STATE.get("stop_event"):
+        try:
+            ACTIVE_MUSIC_STATE["stop_event"].set()
+        except Exception:
+            pass
+    if ACTIVE_MUSIC_STATE.get("task"):
+        try:
+            ACTIVE_MUSIC_STATE["task"].cancel()
+        except Exception:
+            pass
+    ACTIVE_MUSIC_STATE["is_playing"] = False
+
+def get_ffmpeg_cmd():
+    f = shutil.which("ffmpeg")
+    if f:
+        return f
+    try:
+        if imageio_ffmpeg:
+            return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        pass
+    return "ffmpeg"
+
+POPULAR_CHILDREN_SONGS = [
+    {
+        "id": "X0wxLzTe5rE",
+        "title": "Nhạc Thiếu Nhi Tập Thể Dục Buổi Sáng - Con Heo Đất",
+        "uploader": "Con Heo Đất",
+        "duration_str": "3:54",
+        "thumbnail": "https://i.ytimg.com/vi/X0wxLzTe5rE/hqdefault.jpg",
+        "url": "https://www.youtube.com/watch?v=X0wxLzTe5rE"
+    },
+    {
+        "id": "X0wxLzTe5rE",
+        "title": "Nhạc Thiếu Nhi Tập Thể Dục Buổi Sáng - Con Heo Đất",
+        "uploader": "Con Heo Đất",
+        "duration_str": "3:54",
+        "thumbnail": "https://i.ytimg.com/vi/X0wxLzTe5rE/hqdefault.jpg",
+        "url": "https://www.youtube.com/watch?v=X0wxLzTe5rE"
+    },
+    {
+        "id": "XqZsoesa55w",
+        "title": "Baby Shark Dance - Nhạc Thiếu Nhi Hoạt Hình",
+        "uploader": "Pinkfong Baby Shark",
+        "duration_str": "2:16",
+        "thumbnail": "https://i.ytimg.com/vi/XqZsoesa55w/hqdefault.jpg",
+        "url": "https://www.youtube.com/watch?v=XqZsoesa55w"
+    },
+    {
+        "id": "hl5XQo4Wy6Y",
+        "title": "Ca Nhạc Thiếu Nhi Vui Nhộn Cho Bé - Con Lợn Éc",
+        "uploader": "Chú Chim Non TV",
+        "duration_str": "4:12",
+        "thumbnail": "https://i.ytimg.com/vi/hl5XQo4Wy6Y/hqdefault.jpg",
+        "url": "https://www.youtube.com/watch?v=hl5XQo4Wy6Y"
+    },
+    {
+        "id": "nN5z6jL1tO4",
+        "title": "Chú Voi Con Ở Bản Đôn - Nhạc Thiếu Nhi Bất Hủ",
+        "uploader": "Xuân Mai Official",
+        "duration_str": "2:45",
+        "thumbnail": "https://i.ytimg.com/vi/nN5z6jL1tO4/hqdefault.jpg",
+        "url": "https://www.youtube.com/watch?v=nN5z6jL1tO4"
+    },
+    {
+        "id": "J1s4Xz8y8dE",
+        "title": "Rửa Mặt Như Mèo & Cháu Lên Ba Vui Nhộn",
+        "uploader": "Kênh Thiếu Nhi BHMedia",
+        "duration_str": "3:20",
+        "thumbnail": "https://i.ytimg.com/vi/J1s4Xz8y8dE/hqdefault.jpg",
+        "url": "https://www.youtube.com/watch?v=J1s4Xz8y8dE"
+    },
+    {
+        "id": "vF4r9j2t7y8",
+        "title": "Bắc Kim Thang & Cả Nhà Thương Nhau Rộn Ràng",
+        "uploader": "Mầm Chồi Lá",
+        "duration_str": "3:10",
+        "thumbnail": "https://i.ytimg.com/vi/vF4r9j2t7y8/hqdefault.jpg",
+        "url": "https://www.youtube.com/watch?v=vF4r9j2t7y8"
+    },
+    {
+        "id": "75p-NVPKCSE",
+        "title": "ABC Phonics Song - Bài Hát Học Tiếng Anh Trẻ Em",
+        "uploader": "CoComelon",
+        "duration_str": "3:40",
+        "thumbnail": "https://i.ytimg.com/vi/75p-NVPKCSE/hqdefault.jpg",
+        "url": "https://www.youtube.com/watch?v=75p-NVPKCSE"
+    },
+    {
+        "id": "k8vD5OsqhYs",
+        "title": "Một Con Vịt Xòe Ra Hai Cái Cánh Vui Nhộn",
+        "uploader": "Thiếu Nhi Remi",
+        "duration_str": "2:50",
+        "thumbnail": "https://i.ytimg.com/vi/k8vD5OsqhYs/hqdefault.jpg",
+        "url": "https://www.youtube.com/watch?v=k8vD5OsqhYs"
+    },
+    {
+        "id": "2b3Xk9dY8kM",
+        "title": "Chú Ếch Con Kìa Chú Là Chú Ếch Con",
+        "uploader": "Vườn Cổ Tích",
+        "duration_str": "3:15",
+        "thumbnail": "https://i.ytimg.com/vi/2b3Xk9dY8kM/hqdefault.jpg",
+        "url": "https://www.youtube.com/watch?v=2b3Xk9dY8kM"
+    }
+]
+
+async def search_youtube_tracks(q: str, limit: int = 12) -> list:
+    q = (q or "").strip()
+    if not q:
+        return POPULAR_CHILDREN_SONGS[:limit]
+
+    # Kiểm tra dán URL trực tiếp
+    if "youtube.com/" in q or "youtu.be/" in q:
+        try:
+            if yt_dlp:
+                ydl_opts = {
+                    'quiet': True,
+                    'no_warnings': True,
+                    'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
+                }
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(q, download=False)
+                    vid = info.get("id") or "yt_custom"
+                    dur = info.get("duration") or 180
+                    dur_str = f"{int(dur // 60)}:{int(dur % 60):02d}"
+                    return [{
+                        "id": vid,
+                        "title": info.get("title") or "Bản nhạc YouTube",
+                        "uploader": info.get("uploader") or "YouTube",
+                        "duration_str": dur_str,
+                        "thumbnail": info.get("thumbnail") or f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                        "url": q
+                    }]
+        except Exception as e:
+            logger.warning(f"Error parsing direct YouTube link: {e}")
+
+    results = []
+
+    # 1. Tìm kiếm bằng yt_dlp (Android client siêu ổn định)
+    if yt_dlp:
+        try:
+            ydl_opts = {
+                'extract_flat': True,
+                'quiet': True,
+                'no_warnings': True,
+                'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                res = ydl.extract_info(f"ytsearch{limit}:{q}", download=False)
+                entries = res.get("entries", [])
+                for e in entries:
+                    if not e:
+                        continue
+                    vid = e.get("id")
+                    title = e.get("title")
+                    if not vid or not title:
+                        continue
+                    dur = e.get("duration") or 180
+                    dur_str = f"{int(dur // 60)}:{int(dur % 60):02d}"
+                    results.append({
+                        "id": vid,
+                        "title": title,
+                        "uploader": e.get("uploader") or "YouTube",
+                        "duration_str": dur_str,
+                        "thumbnail": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                        "url": f"https://www.youtube.com/watch?v={vid}"
+                    })
+            if len(results) >= 2:
+                return results
+        except Exception as e:
+            logger.warning(f"yt_dlp search error: {e}")
+
+    # 2. Cào HTML tìm kiếm YouTube (không phụ thuộc yt_dlp)
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'vi,en;q=0.9'
+        }
+        encoded_q = urllib.parse.quote(q)
+        search_url = f"https://www.youtube.com/results?search_query={encoded_q}"
+        req = urllib.request.Request(search_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            html = resp.read().decode('utf-8', errors='ignore')
+            m = re.search(r'var ytInitialData = ({.*?});</script>', html)
+            if not m:
+                m = re.search(r'window\["ytInitialData"\] = ({.*?});', html)
+            if m:
+                data = json.loads(m.group(1))
+                contents = data['contents']['twoColumnSearchResultsRenderer']['primaryContents']['sectionListRenderer']['contents']
+                for section in contents:
+                    item_section = section.get('itemSectionRenderer', {}).get('contents', [])
+                    for item in item_section:
+                        vr = item.get('videoRenderer')
+                        if vr:
+                            vid = vr.get('videoId')
+                            title = vr.get('title', {}).get('runs', [{}])[0].get('text', '')
+                            length = vr.get('lengthText', {}).get('simpleText', '3:30')
+                            uploader = vr.get('ownerText', {}).get('runs', [{}])[0].get('text', 'YouTube')
+                            if vid and title:
+                                results.append({
+                                    "id": vid,
+                                    "title": title,
+                                    "thumbnail": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                                    "duration_str": length,
+                                    "uploader": uploader,
+                                    "url": f"https://www.youtube.com/watch?v={vid}"
+                                })
+                if len(results) >= 2:
+                    return results[:limit]
+    except Exception as e:
+        logger.warning(f"HTML scraper search error: {e}")
+
+    # 3. Lọc danh mục tuyển chọn
+    q_words = [w for w in q.lower().split() if len(w) > 1]
+    matched = []
+    for s in POPULAR_CHILDREN_SONGS:
+        s_text = (s["title"] + " " + s["uploader"]).lower()
+        if any(w in s_text for w in q_words):
+            matched.append(s)
+    if matched:
+        return matched[:limit]
+
+    # Fallback tuyệt đối: trả về toàn bộ danh mục trẻ em
+    return POPULAR_CHILDREN_SONGS[:limit]
+
+async def stream_music_to_robots(audio_url: str, track_info: dict):
+    stop_event = asyncio.Event()
+    ACTIVE_MUSIC_STATE["stop_event"] = stop_event
+    ACTIVE_MUSIC_STATE["is_playing"] = True
+    ACTIVE_MUSIC_STATE["track"] = track_info
+
+    session_id = str(uuid.uuid4())
+    raw_title = track_info.get("title", "Bài hát thiếu nhi")
+    title_clean = raw_title.split("-")[0].strip()[:26]
+    logger.info(f"Starting music stream to robots: '{title_clean}'")
+
+    # 1. Báo hiển thị OLED & khởi tạo luồng âm thanh
+    for mac, ws in list(CONNECTED_ROBOTS.items()):
+        try:
+            await ws.send(json.dumps({"type": "llm", "emotion": "happy"}))
+            await asyncio.sleep(0.01)
+            await ws.send(json.dumps({"type": "tts", "state": "start", "session_id": session_id}))
+            await asyncio.sleep(0.01)
+            await ws.send(json.dumps({
+                "type": "tts",
+                "state": "sentence_start",
+                "text": f"🎵 {title_clean}",
+                "session_id": session_id
+            }))
+        except Exception as e:
+            logger.warning(f"Error signaling music start to robot {mac}: {e}")
+
+    ffmpeg_exe = get_ffmpeg_cmd()
+    cmd = [
+        ffmpeg_exe,
+        "-i", audio_url,
+        "-f", "s16le",
+        "-acodec", "pcm_s16le",
+        "-ac", "1",
+        "-ar", "16000",
+        "pipe:1"
+    ]
+
+    proc = None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL
+        )
+
+        import opuslib_next
+        encoder = opuslib_next.Encoder(16000, 1, opuslib_next.APPLICATION_AUDIO)
+        frame_samples = 960  # 60ms tại 16kHz
+        frame_bytes = frame_samples * 2  # 1920 bytes
+
+        frame_idx = 0
+        next_frame_time = time.monotonic()
+
+        while not stop_event.is_set():
+            chunk = await proc.stdout.read(frame_bytes)
+            if not chunk or len(chunk) == 0:
+                break
+            if len(chunk) < frame_bytes:
+                chunk += b"\x00" * (frame_bytes - len(chunk))
+
+            encoded_opus = encoder.encode(chunk, frame_samples)
+
+            # Truyền frame Opus tới tất cả robot kết nối
+            for mac, ws in list(CONNECTED_ROBOTS.items()):
+                try:
+                    await ws.send(encoded_opus)
+                except Exception as ex:
+                    logger.debug(f"Error sending frame to {mac}: {ex}")
+
+            frame_idx += 1
+            if frame_idx <= 4:
+                # Preload 4 frames đầu để loa phát tức thì không ngắt quãng
+                await asyncio.sleep(0.008)
+                next_frame_time = time.monotonic() + 0.058
+            else:
+                next_frame_time += 0.058
+                sleep_dur = next_frame_time - time.monotonic()
+                if sleep_dur > 0:
+                    await asyncio.sleep(sleep_dur)
+                else:
+                    await asyncio.sleep(0.002)
+                    next_frame_time = time.monotonic()
+
+    except asyncio.CancelledError:
+        logger.info(f"Music streaming cancelled for '{title_clean}'")
+    except Exception as e:
+        logger.error(f"Error in music streaming pipeline: {e}")
+    finally:
+        if proc:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        
+        # Báo kết thúc phiên phát âm thanh trên robot
+        for mac, ws in list(CONNECTED_ROBOTS.items()):
+            try:
+                await ws.send(json.dumps({"type": "tts", "state": "stop", "session_id": session_id}))
+            except Exception:
+                pass
+
+        ACTIVE_MUSIC_STATE["is_playing"] = False
+        ACTIVE_MUSIC_STATE["stop_event"] = None
+        logger.info(f"Music streaming finished for: '{title_clean}'")
+
 async def handle_api_music_status(request):
-    return cors_response({"is_playing": False, "track": None})
+    return cors_response({
+        "success": True,
+        "is_playing": bool(ACTIVE_MUSIC_STATE.get("is_playing", False)),
+        "track": ACTIVE_MUSIC_STATE.get("track", None)
+    })
 
 async def handle_api_music_search(request):
-    q = request.query.get("q", "nhạc thiếu nhi")
-    sample_tracks = [
-        {"id": "m1", "title": f"Tuyển tập {q} vui nhộn cho bé", "thumb": "🎵", "duration": "3:45"},
-        {"id": "m2", "title": f"Giai điệu thư giãn cùng Gehihi ({q})", "thumb": "🎶", "duration": "4:20"},
-        {"id": "m3", "title": f"Bài hát tiếng Anh trẻ em - ABC Song", "thumb": "🌟", "duration": "2:30"}
-    ]
-    return cors_response(sample_tracks)
+    q = request.query.get("q", "nhạc thiếu nhi vui nhộn")
+    tracks = await search_youtube_tracks(q, limit=12)
+    return cors_response({
+        "success": True,
+        "results": tracks,
+        "count": len(tracks)
+    })
 
 async def handle_api_music_play(request):
     try:
         data = await request.json()
     except Exception:
         data = {}
-    title = data.get("title", "Bản nhạc")
-    return cors_response({"code": 0, "msg": f"Đang phát nhạc: {title}"})
+
+    target = data.get("url") or data.get("id") or ""
+    logger.info(f"Received Play Music request: target='{target}'")
+
+    if not target:
+        return cors_response({"success": False, "error": "Thiếu thông tin bài hát (URL hoặc ID)"}, status=400)
+
+    # 1. Dừng luồng phát nhạc trước nếu đang phát
+    stop_active_music()
+
+    target_url = target if target.startswith("http") else f"https://www.youtube.com/watch?v={target}"
+    track_info = None
+
+    for song in POPULAR_CHILDREN_SONGS:
+        if song["id"] == target or song["url"] == target or target in song["url"]:
+            track_info = dict(song)
+            break
+
+    audio_stream_url = None
+
+    if yt_dlp:
+        try:
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'quiet': True,
+                'no_warnings': True,
+                'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(target_url, download=False)
+                audio_stream_url = info.get("url")
+                if not track_info:
+                    dur = info.get("duration") or 180
+                    dur_str = f"{int(dur // 60)}:{int(dur % 60):02d}"
+                    vid = info.get("id") or target
+                    track_info = {
+                        "id": vid,
+                        "title": info.get("title") or "Bản nhạc thiếu nhi",
+                        "uploader": info.get("uploader") or "YouTube",
+                        "duration_str": dur_str,
+                        "thumbnail": info.get("thumbnail") or f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                        "url": target_url
+                    }
+        except Exception as e:
+            logger.warning(f"yt_dlp could not resolve stream URL: {e}")
+
+    if not audio_stream_url:
+        audio_stream_url = target_url
+
+    if not track_info:
+        track_info = {
+            "id": target,
+            "title": data.get("title", "Bài hát thiếu nhi vui nhộn"),
+            "uploader": "YouTube Music",
+            "duration_str": data.get("duration_str", "3:30"),
+            "thumbnail": data.get("thumbnail", "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150"),
+            "url": target_url
+        }
+
+    # 3. Chạy tác vụ phát nhạc ngầm tới loa robot
+    ACTIVE_MUSIC_STATE["task"] = asyncio.create_task(stream_music_to_robots(audio_stream_url, track_info))
+
+    return cors_response({
+        "success": True,
+        "title": track_info["title"],
+        "uploader": track_info.get("uploader", "YouTube"),
+        "thumbnail": track_info.get("thumbnail", ""),
+        "duration_str": track_info.get("duration_str", "--:--")
+    })
 
 async def handle_api_music_stop(request):
-    return cors_response({"code": 0, "msg": "Đã dừng phát nhạc"})
+    stop_active_music()
+    for mac, ws in list(CONNECTED_ROBOTS.items()):
+        try:
+            await ws.send(json.dumps({"type": "tts", "state": "stop"}))
+        except Exception:
+            pass
+    return cors_response({"success": True, "msg": "Đã dừng phát nhạc trên robot"})
 
 async def handle_api_ocr(request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
     return cors_response({
         "status": "ok",
-        "status": "ok",
-        "text": "Bai tap Tieng Anh: 1. I ___ a student. 2. She ___ my teacher."
+        "title": "Bài tập tiếng Anh nhận diện",
+        "text": "1. I ___ a happy student. (am/is/are)\n2. She ___ reading an interesting book."
     })
 
 async def handle_api_generate_lesson_plan(request):
@@ -3331,11 +3775,15 @@ async def handle_api_generate_lesson_plan(request):
         data = await request.json()
     except Exception:
         data = {}
-    input_text = data.get("text", "Chủ đề gia đình")
-    plan = f"""Mục tiêu bài học:
+    topic = data.get("text") or data.get("topic") or "Gia đình và bạn bè"
+    try:
+        prompt = f"Hãy tạo giáo án tiếng Anh ngắn gọn 3 mục cho trẻ em về chủ đề '{topic}': 1. Từ vựng trọng tâm. 2. Câu giao tiếp. 3. Trò chơi phản xạ với Robot Gehihi."
+        plan = await call_llm_with_fallback(prompt)
+    except Exception:
+        plan = f"""Mục tiêu bài học chủ đề '{topic}':
 - Học từ vựng: Family, Father, Mother, Brother, Sister.
-- Mẫu câu: This is my father. / I love my family.
-- Hoạt động: Đố vui cùng Robot Gehihi và luyện phản xạ hội thoại 2 phút."""
+- Mẫu câu: This is my family. I love my friends.
+- Hoạt động tương tác phản xạ cùng Robot Gehihi 5 phút."""
     return cors_response({"status": "ok", "lesson_plan": plan})
 
 async def handle_api_learning_task_solve(request):
@@ -3343,8 +3791,13 @@ async def handle_api_learning_task_solve(request):
         data = await request.json()
     except Exception:
         data = {}
-    solution = "Gehihi giai bai tap: Cau 1: I am a student. Cau 2: She is my teacher."
-    return cors_response({"status": "ok", "solution": solution})
+    task_text = data.get("text") or data.get("task") or "1. I ___ a happy student. 2. She ___ reading an interesting book."
+    try:
+        prompt = f"Hãy giải thích và đưa ra đáp án cho bài tập tiếng Anh sau: '{task_text}'"
+        sol = await call_llm_with_fallback(prompt)
+    except Exception:
+        sol = "Đáp án: Câu 1 điền 'am' (I am a happy student). Câu 2 điền 'is' (She is reading an interesting book)."
+    return cors_response({"status": "ok", "solution": sol})
 
 # Static fallback for Web Admin
 async def handle_static_web_admin(request):

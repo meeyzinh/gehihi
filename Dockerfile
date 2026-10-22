@@ -24,7 +24,8 @@ RUN pip install --no-cache-dir \
     pyjwt \
     "edge-tts>=7.3.1" \
     opuslib-next \
-    requests
+    requests \
+    "yt-dlp>=2024.08.06"
 
 # Cấu hình Nginx
 COPY docs/docker/nginx.conf /etc/nginx/nginx.conf
