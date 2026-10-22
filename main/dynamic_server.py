@@ -3448,25 +3448,27 @@ async def search_youtube_tracks(q: str, limit: int = 12) -> list:
                     'no_warnings': True,
                     'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
                 }
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(q, download=False)
-                    vid = info.get("id") or "yt_custom"
-                    dur = info.get("duration") or 180
-                    dur_str = f"{int(dur // 60)}:{int(dur % 60):02d}"
-                    return [{
-                        "id": vid,
-                        "title": info.get("title") or "Bản nhạc YouTube",
-                        "uploader": info.get("uploader") or "YouTube",
-                        "duration_str": dur_str,
-                        "thumbnail": info.get("thumbnail") or f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
-                        "url": q
-                    }]
+                def _extract_direct():
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        return ydl.extract_info(q, download=False)
+                info = await asyncio.wait_for(asyncio.to_thread(_extract_direct), timeout=4.0)
+                vid = info.get("id") or "yt_custom"
+                dur = info.get("duration") or 180
+                dur_str = f"{int(dur // 60)}:{int(dur % 60):02d}"
+                return [{
+                    "id": vid,
+                    "title": info.get("title") or "Bản nhạc YouTube",
+                    "uploader": info.get("uploader") or "YouTube",
+                    "duration_str": dur_str,
+                    "thumbnail": info.get("thumbnail") or f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                    "url": q
+                }]
         except Exception as e:
             logger.warning(f"Error parsing direct YouTube link: {e}")
 
     results = []
 
-    # 1. Tìm kiếm bằng yt_dlp (Android client siêu ổn định)
+    # 1. Tìm kiếm bằng yt_dlp (non-blocking thread với timeout 4s)
     if yt_dlp:
         try:
             ydl_opts = {
@@ -3475,26 +3477,28 @@ async def search_youtube_tracks(q: str, limit: int = 12) -> list:
                 'no_warnings': True,
                 'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
             }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                res = ydl.extract_info(f"ytsearch{limit}:{q}", download=False)
-                entries = res.get("entries", [])
-                for e in entries:
-                    if not e:
-                        continue
-                    vid = e.get("id")
-                    title = e.get("title")
-                    if not vid or not title:
-                        continue
-                    dur = e.get("duration") or 180
-                    dur_str = f"{int(dur // 60)}:{int(dur % 60):02d}"
-                    results.append({
-                        "id": vid,
-                        "title": title,
-                        "uploader": e.get("uploader") or "YouTube",
-                        "duration_str": dur_str,
-                        "thumbnail": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
-                        "url": f"https://www.youtube.com/watch?v={vid}"
-                    })
+            def _extract_search():
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    return ydl.extract_info(f"ytsearch{limit}:{q}", download=False)
+            res = await asyncio.wait_for(asyncio.to_thread(_extract_search), timeout=4.0)
+            entries = res.get("entries", [])
+            for e in entries:
+                if not e:
+                    continue
+                vid = e.get("id")
+                title = e.get("title")
+                if not vid or not title:
+                    continue
+                dur = e.get("duration") or 180
+                dur_str = f"{int(dur // 60)}:{int(dur % 60):02d}"
+                results.append({
+                    "id": vid,
+                    "title": title,
+                    "uploader": e.get("uploader") or "YouTube",
+                    "duration_str": dur_str,
+                    "thumbnail": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                    "url": f"https://www.youtube.com/watch?v={vid}"
+                })
             if len(results) >= 2:
                 return results
         except Exception as e:
@@ -3675,6 +3679,27 @@ async def handle_api_music_search(request):
         "count": len(tracks)
     })
 
+async def resolve_and_stream_music(target_url: str, track_info: dict):
+    audio_stream_url = target_url
+    if yt_dlp:
+        try:
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'quiet': True,
+                'no_warnings': True,
+                'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
+            }
+            def _extract():
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    return ydl.extract_info(target_url, download=False)
+            info = await asyncio.wait_for(asyncio.to_thread(_extract), timeout=6.0)
+            if info and info.get("url"):
+                audio_stream_url = info.get("url")
+        except Exception as e:
+            logger.warning(f"Background stream extract fallback: {e}")
+
+    await stream_music_to_robots(audio_stream_url, track_info)
+
 async def handle_api_music_play(request):
     try:
         data = await request.json()
@@ -3698,50 +3723,20 @@ async def handle_api_music_play(request):
             track_info = dict(song)
             break
 
-    audio_stream_url = None
-
-    if yt_dlp:
-        try:
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'quiet': True,
-                'no_warnings': True,
-                'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
-            }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(target_url, download=False)
-                audio_stream_url = info.get("url")
-                if not track_info:
-                    dur = info.get("duration") or 180
-                    dur_str = f"{int(dur // 60)}:{int(dur % 60):02d}"
-                    vid = info.get("id") or target
-                    track_info = {
-                        "id": vid,
-                        "title": info.get("title") or "Bản nhạc thiếu nhi",
-                        "uploader": info.get("uploader") or "YouTube",
-                        "duration_str": dur_str,
-                        "thumbnail": info.get("thumbnail") or f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
-                        "url": target_url
-                    }
-        except Exception as e:
-            logger.warning(f"yt_dlp could not resolve stream URL: {e}")
-
-    if not audio_stream_url:
-        audio_stream_url = target_url
-
     if not track_info:
         track_info = {
             "id": target,
-            "title": data.get("title", "Bài hát thiếu nhi vui nhộn"),
-            "uploader": "YouTube Music",
-            "duration_str": data.get("duration_str", "3:30"),
-            "thumbnail": data.get("thumbnail", "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150"),
+            "title": data.get("title") or "Bản nhạc thiếu nhi",
+            "uploader": data.get("uploader") or "YouTube Music",
+            "duration_str": data.get("duration_str") or "3:30",
+            "thumbnail": data.get("thumbnail") or f"https://i.ytimg.com/vi/{target}/hqdefault.jpg",
             "url": target_url
         }
 
-    # 3. Chạy tác vụ phát nhạc ngầm tới loa robot
-    ACTIVE_MUSIC_STATE["task"] = asyncio.create_task(stream_music_to_robots(audio_stream_url, track_info))
+    # 2. Khởi chạy tác vụ phát nhạc trong background ngay lập tức
+    ACTIVE_MUSIC_STATE["task"] = asyncio.create_task(resolve_and_stream_music(target_url, track_info))
 
+    # 3. Trả về phản hồi tức thì (<50ms) cho Web UI
     return cors_response({
         "success": True,
         "title": track_info["title"],
