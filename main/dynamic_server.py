@@ -1327,11 +1327,14 @@ def decode_opus_frames_to_wav(opus_packets: list) -> tuple:
         try:
             samples = struct.unpack(f"{len(raw_pcm)//2}h", raw_pcm)
             if samples:
-                peak = max(abs(s) for s in samples)
-                step = max(1, len(samples) // 1000)
-                sub = samples[::step]
+                mean_val = int(sum(samples) / len(samples))
+                centered = [max(-32768, min(32767, s - mean_val)) for s in samples]
+                peak = max(abs(s) for s in centered)
+                step = max(1, len(centered) // 1000)
+                sub = centered[::step]
                 sum_sq = sum(s * s for s in sub)
                 rms = math.sqrt(sum_sq / len(sub))
+                raw_pcm = struct.pack(f"{len(centered)}h", *centered)
         except Exception:
             pass
     wav_io = io.BytesIO()
@@ -1402,7 +1405,7 @@ WHISPER_HALLUCINATION_KEYWORDS = [
     "chúc các bạn xem video", "like và sub", "like & sub", "fap tv", "kênh youtube",
     "kênh của mình", "chia sẻ video", "đừng quên like",
     "la la school", "lala school", "phim ca nhạc", "phim ngắn", "tập tiếp theo",
-    "xin chào, bạn có khỏe không", "bạn có khỏe không", "khỏe không",
+    "xin chào, bạn có khỏe không",
     "chúc một ngày tốt lành", "cảm ơn và hẹn gặp lại", "tạm biệt và hẹn gặp lại",
     "tôi là gehihi",
     "mình là gehihi",
@@ -2010,7 +2013,7 @@ async def ws_handler(websocket):
             await send_dynamic_tts_response(websocket, session_id, u_text, b_text, emotion, opus_pkts)
             LIVE_DIAGNOSTICS["last_turn_status"] = f"Replied: {b_text[:40]}"
             # Khóa chống dội âm tiếng loa vào micro trong 1.5 giây sau khi phát xong
-            cooldown_until = time.time() + 1.2
+            cooldown_until = time.time() + 1.5
             last_user_activity = cooldown_until
             mic_audio_buffer.clear()
             pre_speech_ring.clear()
@@ -2119,22 +2122,25 @@ async def ws_handler(websocket):
                 if processing_ai or time.time() < cooldown_until:
                     continue
 
-                # Tính toán RMS năng lượng âm thanh
-                rms = 100.0
+                # Tính toán RMS năng lượng âm thanh (đã khử DC offset micro MEMS)
+                rms = 10.0
                 if opus_decoder:
                     try:
                         pcm = opus_decoder.decode(message, 960)
                         samples = struct.unpack(f"<{len(pcm)//2}h", pcm)
-                        rms = math.sqrt(sum(s*s for s in samples) / len(samples))
+                        if samples:
+                            mean_val = sum(samples) / len(samples)
+                            variance = sum((s - mean_val) ** 2 for s in samples) / len(samples)
+                            rms = math.sqrt(variance)
                         LIVE_DIAGNOSTICS["opus_decoder_ok"] = True
                     except Exception as e:
                         LIVE_DIAGNOSTICS["opus_decoder_ok"] = False
                         LIVE_DIAGNOSTICS["opus_decoder_err"] = str(e)
-                        rms = 120.0
+                        rms = 10.0
                 else:
                     LIVE_DIAGNOSTICS["opus_decoder_ok"] = False
                     LIVE_DIAGNOSTICS["opus_decoder_err"] = "opus_decoder is None"
-                    rms = 120.0
+                    rms = 10.0
 
                 LIVE_DIAGNOSTICS["device_connected"] = True
                 LIVE_DIAGNOSTICS["last_packet_time"] = time.time()
@@ -2180,7 +2186,7 @@ async def ws_handler(websocket):
                     mic_audio_buffer.append(message)
 
                     # Giới hạn nói liên tục tối đa ~4.5s (75 frames * 60ms) để phản hồi nhanh
-                    if len(mic_audio_buffer) >= 45:
+                    if len(mic_audio_buffer) >= 75:
                         if speech_frames_count >= 5 and not processing_ai:
                             pkts = list(mic_audio_buffer)
                             mic_audio_buffer.clear()
