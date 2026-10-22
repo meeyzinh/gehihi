@@ -3727,6 +3727,12 @@ Ví dụ:
         if (PREVIEW_LESSONS.length > 0) {
           selectPreviewTemplate(PREVIEW_LESSONS[0].id, 'lesson');
         }
+        if (typeof loadActiveEnglishTutor === 'function') {
+          loadActiveEnglishTutor();
+        }
+        if (typeof loadEnglishTutorReport === 'function') {
+          loadEnglishTutorReport();
+        }
       }
     };
   </script>
@@ -5685,22 +5691,23 @@ Ví dụ:
       try {
         const all = (typeof PREVIEW_LESSONS !== 'undefined' ? PREVIEW_LESSONS : []).concat(typeof PREVIEW_ROLEPLAY !== 'undefined' ? PREVIEW_ROLEPLAY : []);
         const item = all.find(t => t.id === id);
+        showToast(`Đang nạp bài "${title}" lên Robot...`, true);
         const res = await fetch("/api/english-tutor/activate-template", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
-            deviceId: activeDeviceId, 
+            deviceId: activeDeviceId || "DEV_001", 
             templateId: id,
             title: title,
             template: item 
           })
         });
         const data = await res.json();
-        if (res.ok) {
+        if (res.ok && (data.success || data.code === 0)) {
           showToast(`✓ Đã áp dụng giáo trình "${title}" lên Robot!`);
           loadActiveEnglishTutor();
         } else {
-          showToast(`Lỗi: ${data.error || "Không thể áp dụng"}`, false);
+          showToast(`Lỗi: ${data.message || data.error || "Không thể áp dụng"}`, false);
         }
       } catch (e) {
         showToast("Lỗi kết nối máy chủ", false);

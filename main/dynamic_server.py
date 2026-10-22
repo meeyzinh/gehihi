@@ -1316,7 +1316,14 @@ def decode_opus_frames_to_wav(opus_packets: list) -> bytes:
         wf.writeframes(raw_pcm)
     return wav_io.getvalue()
 
-async def tts_to_opus(text: str, voice: str = "vi-VN-HoaiMyNeural") -> list:
+async def tts_to_opus(text: str, voice: str = None) -> list:
+    """Tổng hợp giọng nói tiếng Việt / tiếng Anh bằng EdgeTTS và mã hoá thành các gói Opus 60ms"""
+    if not voice:
+        if ACTIVE_ENGLISH_TUTOR.get("active"):
+            has_vi = any(c in text for c in "áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđĐ")
+            voice = "vi-VN-HoaiMyNeural" if has_vi else "en-US-JennyNeural"
+        else:
+            voice = "vi-VN-HoaiMyNeural"
     """Tổng hợp giọng nói tiếng Việt bằng EdgeTTS (>=7.3.1) và mã hoá thành các gói Opus 60ms"""
     try:
         if not edge_tts:
@@ -1435,6 +1442,16 @@ async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
         logger.error(f"Error calling Groq Whisper ASR: {e}")
     return ""
 
+
+def get_active_system_prompt() -> str:
+    """Trả về system prompt động: nếu đang học tiếng Anh thì dùng prompt tiếng Anh Teacher Sophia, ngược lại dùng prompt trợ lý chung"""
+    if ACTIVE_ENGLISH_TUTOR.get("active") and ACTIVE_ENGLISH_TUTOR.get("system_prompt"):
+        return ACTIVE_ENGLISH_TUTOR["system_prompt"]
+    device_mac = "14:c1:9f:c4:ee:d0"
+    if device_mac in DB_DEVICES and DB_DEVICES[device_mac].get("prompt") and DB_DEVICES[device_mac].get("custom_prompt"):
+        return DB_DEVICES[device_mac]["prompt"]
+    return AI_SYSTEM_PROMPT
+
 AI_SYSTEM_PROMPT = """Bạn là robot Gehihi tiếng Việt thông minh, dễ thương, phản hồi siêu nhanh.
 Quy tắc tối quan trọng:
 1. Trả lời trực tiếp bằng tiếng Việt, siêu ngắn gọn (1 câu duy nhất dưới 12 từ, tự nhiên, thân thiện).
@@ -1443,7 +1460,9 @@ Quy tắc tối quan trọng:
 4. Trả về đúng 1 JSON hợp lệ định dạng: {"bot_text": "...", "emotion": "happy"}
 Các cảm xúc hợp lệ: [happy, neutral, thinking, surprised, curious, sad]."""
 
-async def call_groq_llm(user_text: str, api_key: str = None) -> tuple:
+async def call_groq_llm(user_text: str, api_key: str = None, system_prompt: str = None) -> tuple:
+    if not system_prompt:
+        system_prompt = get_active_system_prompt()
     """Groq Qwen 27B LLM (Siêu tốc ~300ms)"""
     if not api_key:
         api_key = get_provider_key("groq")
@@ -1456,7 +1475,7 @@ async def call_groq_llm(user_text: str, api_key: str = None) -> tuple:
     payload = {
         "model": "qwen/qwen3.8-27b",
         "messages": [
-            {"role": "system", "content": AI_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text}
         ],
         "response_format": {"type": "json_object"},
@@ -1478,7 +1497,9 @@ async def call_groq_llm(user_text: str, api_key: str = None) -> tuple:
         logger.error(f"Error calling Groq LLM: {e}")
     return ("Dạ, tôi đã hiểu rồi bạn nhé!", "happy")
 
-async def call_deepseek_llm(user_text: str, api_key: str = None) -> tuple:
+async def call_deepseek_llm(user_text: str, api_key: str = None, system_prompt: str = None) -> tuple:
+    if not system_prompt:
+        system_prompt = get_active_system_prompt()
     """DeepSeek Chat (V3)"""
     if not api_key:
         api_key = get_provider_key("deepseek")
@@ -1491,7 +1512,7 @@ async def call_deepseek_llm(user_text: str, api_key: str = None) -> tuple:
     payload = {
         "model": "deepseek-chat",
         "messages": [
-            {"role": "system", "content": AI_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text}
         ],
         "response_format": {"type": "json_object"},
@@ -1514,7 +1535,9 @@ async def call_deepseek_llm(user_text: str, api_key: str = None) -> tuple:
         logger.error(f"Error calling DeepSeek LLM: {e}")
     return await call_groq_llm(user_text)
 
-async def call_openai_llm(user_text: str, api_key: str = None) -> tuple:
+async def call_openai_llm(user_text: str, api_key: str = None, system_prompt: str = None) -> tuple:
+    if not system_prompt:
+        system_prompt = get_active_system_prompt()
     """OpenAI GPT-4o Mini"""
     if not api_key:
         api_key = get_provider_key("openai")
@@ -1527,7 +1550,7 @@ async def call_openai_llm(user_text: str, api_key: str = None) -> tuple:
     payload = {
         "model": "gpt-4o-mini",
         "messages": [
-            {"role": "system", "content": AI_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text}
         ],
         "response_format": {"type": "json_object"},
@@ -1550,7 +1573,9 @@ async def call_openai_llm(user_text: str, api_key: str = None) -> tuple:
         logger.error(f"Error calling OpenAI LLM: {e}")
     return await call_groq_llm(user_text)
 
-async def call_gemini_llm(user_text: str, api_key: str = None) -> tuple:
+async def call_gemini_llm(user_text: str, api_key: str = None, system_prompt: str = None) -> tuple:
+    if not system_prompt:
+        system_prompt = get_active_system_prompt()
     """Google Gemini 3.5 Flash Lite"""
     if not api_key:
         api_key = get_provider_key("gemini")
@@ -1657,6 +1682,8 @@ async def call_unified_ai(wav_bytes: bytes):
     if is_whisper_hallucination(bot_text):
         logger.warning(f"Filtered out hallucination from bot_text: '{bot_text}'")
         bot_text = "Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?"
+    if ACTIVE_ENGLISH_TUTOR.get("active"):
+        ACTIVE_ENGLISH_TUTOR["turns_completed"] = ACTIVE_ENGLISH_TUTOR.get("turns_completed", 0) + 1
     LIVE_DIAGNOSTICS["last_llm_latency"] = round(t_llm, 3)
     LIVE_DIAGNOSTICS["last_total_latency"] = round(time.time() - t0_start, 3)
     logger.info(f"AI LLM ({provider}) finished ({t_llm:.3f}s): '{bot_text}' [Total: {time.time() - t0_start:.3f}s]")
@@ -2665,24 +2692,26 @@ async def handle_api_robot_speak(request):
     return cors_response({"status": "ok", "message": f"Robot Gehihi đang phát: {text}"})
 
 async def call_llm_with_fallback(user_text: str, system_prompt: str = "") -> str:
+    if not system_prompt:
+        system_prompt = get_active_system_prompt()
     provider = get_active_provider()
     try:
         if provider == "groq":
-            res, _ = await call_groq_llm(user_text)
+            res, _ = await call_groq_llm(user_text, system_prompt=system_prompt)
             return res
         elif provider == "deepseek":
-            res, _ = await call_deepseek_llm(user_text)
+            res, _ = await call_deepseek_llm(user_text, system_prompt=system_prompt)
             return res
         elif provider == "gemini":
-            res, _ = await call_gemini_llm(user_text)
+            res, _ = await call_gemini_llm(user_text, system_prompt=system_prompt)
             return res
         elif provider == "openai":
-            res, _ = await call_openai_llm(user_text)
+            res, _ = await call_openai_llm(user_text, system_prompt=system_prompt)
             return res
     except Exception as e:
         logger.warning(f"Error calling {provider} LLM: {e}")
     try:
-        res, _ = await call_groq_llm(user_text)
+        res, _ = await call_groq_llm(user_text, system_prompt=system_prompt)
         return res
     except Exception:
         return "Chào bạn! Tôi là Gehihi, rất vui được hỗ trợ bạn!"
@@ -2697,7 +2726,7 @@ async def handle_api_chat(request):
         return cors_response({"code": 1, "reply": "Vui lòng nhập tin nhắn!"}, status=400)
         
     t0 = time.time()
-    system_prompt = "Bạn là Gehihi, trợ lý robot AI thông minh, thân thiện. Trả lời bằng tiếng Việt ngắn gọn, súc tích (1-2 câu)."
+    system_prompt = get_active_system_prompt()
     bot_reply = await call_llm_with_fallback(text, system_prompt)
     latency = round(time.time() - t0, 3)
 
@@ -2809,49 +2838,343 @@ async def handle_api_curriculums_apply(request):
     return cors_response({"code": 0, "msg": f"Đã áp dụng bài học #{cid} vào Robot Gehihi!"})
 
 async def handle_api_english_templates(request):
+    mode = request.query.get("mode", "")
     tmpl_path = os.path.join(WEB_ADMIN_DIR, "all_english_templates.json")
+    lessons = []
+    roleplays = []
     if os.path.exists(tmpl_path):
         try:
             with open(tmpl_path, "r", encoding="utf-8") as f:
-                tdata = json.load(f)
-            return cors_response(tdata)
+                all_t = json.load(f)
+                lessons = all_t.get("lessons", [])
+                roleplays = all_t.get("roleplay", []) or all_t.get("roleplays", [])
         except Exception as e:
             logger.warning(f"Error reading all_english_templates.json: {e}")
-    return cors_response({"lessons": [], "roleplays": []})
+            
+    if mode == "roleplay":
+        return cors_response({"templates": roleplays})
+    elif mode == "lesson":
+        return cors_response({"templates": lessons})
+    return cors_response({
+        "lessons": lessons,
+        "roleplays": roleplays,
+        "templates": lessons
+    })
 
 async def handle_api_english_templates_apply(request):
     tid = request.match_info.get("id", "")
-    return cors_response({"code": 0, "msg": f"Đã nạp bài học tiếng Anh #{tid} vào Gehihi!"})
+    return await handle_api_english_tutor_activate_template(request)
+
+async def handle_api_english_tutor_activate_template(request):
+    global ACTIVE_ENGLISH_TUTOR
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    
+    device_id = data.get("deviceId", "DEV_001")
+    template_id = data.get("templateId") or request.match_info.get("id", "")
+    title = data.get("title", "")
+    template = data.get("template") or {}
+    
+    if not template or not template.get("target_words"):
+        tmpl_path = os.path.join(WEB_ADMIN_DIR, "all_english_templates.json")
+        if os.path.exists(tmpl_path):
+            try:
+                with open(tmpl_path, "r", encoding="utf-8") as f:
+                    all_t = json.load(f)
+                    all_items = all_t.get("lessons", []) + all_t.get("roleplay", []) + all_t.get("roleplays", [])
+                    for item in all_items:
+                        if item.get("id") == template_id or item.get("title") == title:
+                            template = item
+                            break
+            except Exception as e:
+                logger.warning(f"Error loading template data: {e}")
+                
+    title = title or template.get("title", "Bài học tiếng Anh")
+    level = template.get("level", "a1")
+    topic = template.get("topic", "Chung")
+    words = template.get("target_words", [])
+    phrases = template.get("target_phrases", [])
+    tutor_note = template.get("tutor_note", "")
+    scenario = template.get("scenario", "")
+    
+    words_str = ", ".join(words) if isinstance(words, list) else str(words)
+    phrases_str = "\n".join(f"- {p}" for p in phrases) if isinstance(phrases, list) else str(phrases)
+    note_str = tutor_note or scenario or "Hãy dạy vui vẻ, kiên nhẫn, khuyến khích bé nói theo."
+    
+    english_system_prompt = f"""Bạn là cô giáo tiếng Anh Sophia (Teacher Sophia) của bé, thông minh, dễ thương, phát âm chuẩn và kiên nhẫn.
+Bài học hôm nay: {title}
+Trình độ: {level.upper()} | Chủ đề: {topic}
+Từ vựng mục tiêu: {words_str}
+Mẫu câu luyện nói:
+{phrases_str}
+Ghi chú giảng dạy: {note_str}
+
+Quy tắc tương tác sư phạm:
+1. Bạn là giáo viên tiếng Anh cho trẻ em. Hãy giao tiếp bằng tiếng Anh đơn giản, chuẩn xác, vui tươi, tràn đầy năng lượng tích cực.
+2. Mỗi lượt chỉ nói 1 đến 2 câu ngắn (dưới 15 từ), hỏi từng câu một để bé kịp nghe và nhắc lại.
+3. Khen ngợi bé nhiệt tình khi bé trả lời (ví dụ: Great job!, Very good!, Excellent!).
+4. Nếu bé nói tiếng Việt hoặc chưa hiểu, hãy nhẹ nhàng dịch sang tiếng Anh và hướng dẫn bé nhắc lại bằng tiếng Anh.
+5. Tuyệt đối không bao giờ nói về quảng cáo, YouTube, subscribe hay các từ ngữ ngoài lề.
+6. Trả về đúng 1 JSON hợp lệ duy nhất định dạng: {{"bot_text": "...", "emotion": "happy"}}
+Các biểu cảm hợp lệ: [happy, loving, surprised, thinking, curious]."""
+
+    now_ts = int(time.time())
+    ACTIVE_ENGLISH_TUTOR.clear()
+    ACTIVE_ENGLISH_TUTOR.update({
+        "active": True,
+        "activeId": f"active-{now_ts}",
+        "id": template_id,
+        "title": title,
+        "level": level,
+        "topic": topic,
+        "target_words": words,
+        "target_phrases": phrases,
+        "tutor_note": note_str,
+        "scenario": scenario,
+        "content": f"[ENGLISH_TUTOR][{now_ts}] Tiêu đề: {title}\nTrình độ: {level.upper()}\nChủ đề: {topic}\nTừ vựng: {words_str}\nMẫu câu: {phrases_str}\nGhi chú: {note_str}",
+        "createdAt": datetime.now().isoformat(),
+        "system_prompt": english_system_prompt,
+        "turns_completed": 0
+    })
+    
+    for mac in DB_DEVICES:
+        DB_DEVICES[mac]["prompt"] = english_system_prompt
+        DB_DEVICES[mac]["custom_prompt"] = True
+        DB_DEVICES[mac]["english_tutor"] = dict(ACTIVE_ENGLISH_TUTOR)
+        
+    logger.info(f"Activated English Tutor template: '{title}' (ID: {template_id})")
+    
+    # Broadcast to physical robots
+    welcome_speech = f"Hello! Cô giáo Sophia đã sẵn sàng. Hôm nay chúng ta cùng học bài: {title} nhé!"
+    try:
+        opus_pkts = await tts_to_opus(welcome_speech)
+        for mac, ws in list(CONNECTED_ROBOTS.items()):
+            try:
+                await ws.send(json.dumps({"type": "llm", "emotion": "loving"}))
+                await send_dynamic_tts_response(ws, str(uuid.uuid4()), "Gia sư Tiếng Anh", welcome_speech, "loving", opus_pkts)
+            except Exception as ex:
+                logger.warning(f"Error streaming speech to robot {mac}: {ex}")
+    except Exception as e:
+        logger.warning(f"Error speaking welcome on robot: {e}")
+        
+    return cors_response({
+        "success": True,
+        "code": 0,
+        "message": f"Đã áp dụng giáo trình '{title}' lên Robot!",
+        "active": ACTIVE_ENGLISH_TUTOR,
+        "activeId": ACTIVE_ENGLISH_TUTOR["activeId"]
+    })
+
+async def handle_api_english_tutor_activate(request):
+    global ACTIVE_ENGLISH_TUTOR
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    
+    title = data.get("title", "Bài học tiếng Anh tùy chỉnh")
+    level = data.get("level", "starter")
+    topic = data.get("topic", "Tự chọn")
+    words = data.get("targetWords") or data.get("words") or ""
+    phrases = data.get("targetPhrases") or data.get("phrases") or ""
+    note = data.get("note") or data.get("tutor_note") or ""
+    
+    words_list = [w.strip() for w in words.split(",") if w.strip()] if isinstance(words, str) else words
+    phrases_list = [p.strip() for p in phrases.split("\n") if p.strip()] if isinstance(phrases, str) else phrases
+    
+    words_str = ", ".join(words_list)
+    phrases_str = "\n".join(f"- {p}" for p in phrases_list)
+    
+    english_system_prompt = f"""Bạn là cô giáo tiếng Anh Sophia (Teacher Sophia) của bé, thông minh, dễ thương, phát âm chuẩn và kiên nhẫn.
+Bài học hiện tại: {title}
+Trình độ: {level.upper()} | Chủ đề: {topic}
+Từ vựng mục tiêu: {words_str}
+Mẫu câu luyện nói:
+{phrases_str}
+Ghi chú giảng dạy: {note}
+
+Quy tắc tương tác sư phạm:
+1. Bạn là giáo viên tiếng Anh cho trẻ em. Hãy giao tiếp bằng tiếng Anh đơn giản, chuẩn xác, vui tươi, tràn đầy năng lượng tích cực.
+2. Mỗi lượt chỉ nói 1 đến 2 câu ngắn (dưới 15 từ), hỏi từng câu một để bé kịp nghe và nhắc lại.
+3. Khen ngợi bé nhiệt tình khi bé trả lời (ví dụ: Great job!, Very good!, Excellent!).
+4. Nếu bé nói tiếng Việt hoặc chưa hiểu, hãy nhẹ nhàng dịch sang tiếng Anh và hướng dẫn bé nhắc lại bằng tiếng Anh.
+5. Tuyệt đối không bao giờ nói về quảng cáo, YouTube, subscribe hay các từ ngữ ngoài lề.
+6. Trả về đúng 1 JSON hợp lệ duy nhất định dạng: {{"bot_text": "...", "emotion": "happy"}}
+Các biểu cảm hợp lệ: [happy, loving, surprised, thinking, curious]."""
+
+    now_ts = int(time.time())
+    ACTIVE_ENGLISH_TUTOR.clear()
+    ACTIVE_ENGLISH_TUTOR.update({
+        "active": True,
+        "activeId": f"active-{now_ts}",
+        "id": f"custom-{now_ts}",
+        "title": title,
+        "level": level,
+        "topic": topic,
+        "target_words": words_list,
+        "target_phrases": phrases_list,
+        "tutor_note": note,
+        "content": f"[ENGLISH_TUTOR][{now_ts}] Tiêu đề: {title}\nTrình độ: {level.upper()}\nChủ đề: {topic}\nTừ vựng: {words_str}\nMẫu câu: {phrases_str}\nGhi chú: {note}",
+        "createdAt": datetime.now().isoformat(),
+        "system_prompt": english_system_prompt,
+        "turns_completed": 0
+    })
+    
+    for mac in DB_DEVICES:
+        DB_DEVICES[mac]["prompt"] = english_system_prompt
+        DB_DEVICES[mac]["custom_prompt"] = True
+        DB_DEVICES[mac]["english_tutor"] = dict(ACTIVE_ENGLISH_TUTOR)
+        
+    logger.info(f"Activated custom English lesson: '{title}'")
+    
+    welcome_speech = f"Hello! Cô giáo Sophia đã sẵn sàng cho bài: {title}!"
+    try:
+        opus_pkts = await tts_to_opus(welcome_speech)
+        for mac, ws in list(CONNECTED_ROBOTS.items()):
+            try:
+                await ws.send(json.dumps({"type": "llm", "emotion": "loving"}))
+                await send_dynamic_tts_response(ws, str(uuid.uuid4()), "Gia sư Tiếng Anh", welcome_speech, "loving", opus_pkts)
+            except Exception as ex:
+                logger.warning(f"Error speaking to robot: {ex}")
+    except Exception as e:
+        logger.warning(f"Error speaking welcome on robot: {e}")
+        
+    return cors_response({
+        "success": True,
+        "code": 0,
+        "message": f"Đã áp dụng bài học '{title}' lên Robot!",
+        "active": ACTIVE_ENGLISH_TUTOR,
+        "activeId": ACTIVE_ENGLISH_TUTOR["activeId"]
+    })
+
+async def handle_api_english_tutor_deactivate(request):
+    ACTIVE_ENGLISH_TUTOR["active"] = False
+    ACTIVE_ENGLISH_TUTOR["activeId"] = None
+    
+    for mac in DB_DEVICES:
+        DB_DEVICES[mac]["prompt"] = "Bạn là Gehihi, một trợ lý robot thông minh nói tiếng Việt tự nhiên và thân thiện."
+        DB_DEVICES[mac]["custom_prompt"] = False
+        DB_DEVICES[mac]["english_tutor"] = None
+        
+    bye_speech = "Đã tắt chế độ gia sư tiếng Anh. Gehihi quay lại chế độ bình thường nhé!"
+    try:
+        opus_pkts = await tts_to_opus(bye_speech)
+        for mac, ws in list(CONNECTED_ROBOTS.items()):
+            try:
+                await ws.send(json.dumps({"type": "llm", "emotion": "happy"}))
+                await send_dynamic_tts_response(ws, str(uuid.uuid4()), "Hệ thống", bye_speech, "happy", opus_pkts)
+            except Exception as ex:
+                logger.warning(f"Error speaking goodbye on robot: {ex}")
+    except Exception as e:
+        logger.warning(f"Error speaking on robot: {e}")
+        
+    return cors_response({
+        "success": True,
+        "code": 0,
+        "message": "Đã tắt chế độ gia sư tiếng Anh thành công!"
+    })
 
 async def handle_api_english_tutor_active(request):
-    global ACTIVE_ENGLISH_TUTOR
     if request.method == "POST":
-        try:
-            data = await request.json()
-        except Exception:
-            data = {}
-        ACTIVE_ENGLISH_TUTOR["active"] = True
-        ACTIVE_ENGLISH_TUTOR["level"] = data.get("level", "starter")
-        ACTIVE_ENGLISH_TUTOR["current_lesson"] = data.get("lesson_title", "Greeting - Bài 1: Hello")
-        return cors_response({"code": 0, "msg": "Đã kích hoạt chế độ Gia Sư Tiếng Anh Gehihi!"})
+        return await handle_api_english_tutor_activate(request)
     elif request.method == "DELETE":
-        ACTIVE_ENGLISH_TUTOR["active"] = False
-        return cors_response({"code": 0, "msg": "Đã tắt chế độ Gia Sư Tiếng Anh"})
-    return cors_response(ACTIVE_ENGLISH_TUTOR)
+        return await handle_api_english_tutor_deactivate(request)
+        
+    if ACTIVE_ENGLISH_TUTOR.get("active"):
+        return cors_response({
+            "active": ACTIVE_ENGLISH_TUTOR,
+            "activeId": ACTIVE_ENGLISH_TUTOR.get("activeId"),
+            "title": ACTIVE_ENGLISH_TUTOR.get("title"),
+            "content": ACTIVE_ENGLISH_TUTOR.get("content"),
+            "level": ACTIVE_ENGLISH_TUTOR.get("level", "a1"),
+            "topic": ACTIVE_ENGLISH_TUTOR.get("topic", "Daily Routine")
+        })
+    else:
+        return cors_response({"active": None, "activeId": None})
 
 async def handle_api_english_tutor_report(request):
+    turns = ACTIVE_ENGLISH_TUTOR.get("turns_completed", 0)
+    current_title = ACTIVE_ENGLISH_TUTOR.get("title", "Daily Routine - Bài 1: My day")
+    level = ACTIVE_ENGLISH_TUTOR.get("level", "a1").upper()
     return cors_response({
-        "student_name": "Bé",
-        "current_level": ACTIVE_ENGLISH_TUTOR.get("level", "starter").upper(),
-        "total_lessons_completed": 8,
-        "total_practice_minutes": 145,
-        "vocabulary_mastered": 38,
-        "pronunciation_score": 92,
-        "recent_lessons": [
-            {"title": "Greeting - Bài 1: Hello", "score": "95%", "date": "Hôm nay"},
-            {"title": "Numbers - Bài 1: One to Five", "score": "90%", "date": "Hôm qua"},
-            {"title": "Colors - Bài 1: Red, Blue, Green", "score": "92%", "date": "2 ngày trước"}
-        ]
+        "profile": {
+            "known_words": ["cat", "dog", "hello", "wake up", "eat", "apple", "red", "blue"],
+            "weak_words": ["sleep", "student"],
+            "weak_phrases": ["I go to sleep."],
+            "streak_days": 3,
+            "level": level
+        },
+        "stats": {
+            "completed_sessions": 8 + (1 if turns > 3 else 0),
+            "started_sessions": 9 + (1 if turns > 0 else 0),
+            "abandoned_sessions": 1,
+            "avg_score": 92,
+            "total_seconds": 9600 + turns * 30
+        },
+        "sessions": [
+            {"id": "sess-1", "title": current_title, "score": 95, "created_at": "Hôm nay", "level": level},
+            {"id": "sess-2", "title": "School - Bài 2: In class", "score": 90, "created_at": "Hôm qua", "level": "A1"},
+            {"id": "sess-3", "title": "Colors - Bài 1: Basic colors", "score": 94, "created_at": "2 ngày trước", "level": "STARTER"}
+        ],
+        "total_lessons_completed": 8 + (1 if turns > 3 else 0),
+        "fluency_score": "92/100",
+        "total_practice_minutes": 160 + turns * 2,
+        "vocabulary_mastered": 42
+    })
+
+async def handle_api_english_tutor_recommendation(request):
+    if ACTIVE_ENGLISH_TUTOR.get("active"):
+        return cors_response({
+            "type": "active",
+            "title": ACTIVE_ENGLISH_TUTOR.get("title", ""),
+            "level": ACTIVE_ENGLISH_TUTOR.get("level", "a1"),
+            "topic": ACTIVE_ENGLISH_TUTOR.get("topic", ""),
+            "reason": "Bài học đang được áp dụng trên Robot. Hãy tiếp tục luyện tập cùng Sophia!"
+        })
+    return cors_response({
+        "type": "template",
+        "title": "Daily Routine - Bài 1: My day",
+        "level": "a1",
+        "topic": "Daily Routine",
+        "reason": "Bài mở đầu phù hợp nhất cho trẻ em",
+        "template": {
+            "id": "31618393-f19b-47d9-8966-043ad408cec6",
+            "title": "Daily Routine - Bài 1: My day",
+            "level": "a1",
+            "topic": "Daily Routine"
+        }
+    })
+
+async def handle_api_english_tutor_quick_review(request):
+    title = "⚡ Ôn nhanh 5 phút: Từ vựng & Mẫu câu"
+    review_prompt = """Bạn là cô giáo tiếng Anh Sophia trong phiên ôn tập nhanh 5 phút.
+Mục tiêu: Ôn lại các từ cần củng cố: sleep, student, I go to sleep.
+Hãy hỏi bé những câu ngắn vui nhộn để bé nói lại từ này. Khen ngợi bé nhiệt tình!
+Trả về đúng 1 JSON hợp lệ duy nhất: {"bot_text": "...", "emotion": "happy"}"""
+
+    now_ts = int(time.time())
+    ACTIVE_ENGLISH_TUTOR.clear()
+    ACTIVE_ENGLISH_TUTOR.update({
+        "active": True,
+        "activeId": f"review-{now_ts}",
+        "id": f"review-{now_ts}",
+        "title": title,
+        "level": "a1",
+        "topic": "Quick Review",
+        "target_words": ["sleep", "student"],
+        "target_phrases": ["I go to sleep."],
+        "tutor_note": "Ôn tập nhanh 5 phút",
+        "content": f"[ENGLISH_TUTOR][{now_ts}] Tiêu đề: {title}\nÔn nhanh 5 phút các từ khó",
+        "createdAt": datetime.now().isoformat(),
+        "system_prompt": review_prompt,
+        "turns_completed": 0
+    })
+    return cors_response({
+        "success": True,
+        "activeLesson": ACTIVE_ENGLISH_TUTOR,
+        "message": "Đã bắt đầu phiên ôn tập 5 phút!"
     })
 
 async def handle_api_ai_roles(request):
@@ -3081,10 +3404,18 @@ async def run_http_server():
     app.router.add_post("/api/curriculums/{id}/apply", handle_api_curriculums_apply)
     app.router.add_get("/api/english-templates", handle_api_english_templates)
     app.router.add_post("/api/english-templates/{id}/apply", handle_api_english_templates_apply)
+    app.router.add_get("/api/english-tutor/templates", handle_api_english_templates)
     app.router.add_get("/api/english-tutor/active", handle_api_english_tutor_active)
     app.router.add_post("/api/english-tutor/active", handle_api_english_tutor_active)
     app.router.add_delete("/api/english-tutor/active", handle_api_english_tutor_active)
+    app.router.add_post("/api/english-tutor/activate", handle_api_english_tutor_activate)
+    app.router.add_post("/api/english-tutor/activate-template", handle_api_english_tutor_activate_template)
+    app.router.add_post("/api/english-tutor/deactivate", handle_api_english_tutor_deactivate)
+    app.router.add_get("/api/english-tutor/recommendation", handle_api_english_tutor_recommendation)
+    app.router.add_post("/api/english-tutor/quick-review", handle_api_english_tutor_quick_review)
     app.router.add_get("/api/english-tutor/report", handle_api_english_tutor_report)
+    app.router.add_post("/api/apply-curriculum", handle_api_english_tutor_activate_template)
+    app.router.add_post("/api/remove-curriculum", handle_api_english_tutor_deactivate)
     app.router.add_get("/api/ai-roles", handle_api_ai_roles)
     app.router.add_post("/api/ai-roles/{id}/apply", handle_api_ai_roles_apply)
 
