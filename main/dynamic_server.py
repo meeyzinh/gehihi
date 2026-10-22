@@ -1305,8 +1305,8 @@ def get_provider_key(provider: str):
     }
     return defaults.get(provider, "")
 
-def decode_opus_frames_to_wav(opus_packets: list) -> bytes:
-    """Giải mã các gói Opus 60ms từ micro robot thành file WAV 16kHz mono trong bộ nhớ"""
+def decode_opus_frames_to_wav(opus_packets: list) -> tuple:
+    """Giải mã các gói Opus 60ms từ micro robot thành file WAV 16kHz mono trong bộ nhớ kèm tính năng lượng peak & rms"""
     frame_size = 960  # 60ms @ 16kHz
     pcm_chunks = []
     try:
@@ -1321,13 +1321,26 @@ def decode_opus_frames_to_wav(opus_packets: list) -> bytes:
     except Exception as e:
         logger.warning(f"Opus decoder error or not available: {e}")
     raw_pcm = b"".join(pcm_chunks)
+    peak = 0
+    rms = 0.0
+    if len(raw_pcm) >= 1920:
+        try:
+            samples = struct.unpack(f"{len(raw_pcm)//2}h", raw_pcm)
+            if samples:
+                peak = max(abs(s) for s in samples)
+                step = max(1, len(samples) // 1000)
+                sub = samples[::step]
+                sum_sq = sum(s * s for s in sub)
+                rms = math.sqrt(sum_sq / len(sub))
+        except Exception:
+            pass
     wav_io = io.BytesIO()
     with wave.open(wav_io, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(16000)
         wf.writeframes(raw_pcm)
-    return wav_io.getvalue()
+    return (wav_io.getvalue(), peak, rms)
 
 async def tts_to_opus(text: str, voice: str = None) -> list:
     """Tổng hợp giọng nói tiếng Việt / tiếng Anh bằng EdgeTTS và mã hoá thành các gói Opus 60ms"""
@@ -1388,6 +1401,9 @@ WHISPER_HALLUCINATION_KEYWORDS = [
     "cảm ơn các bạn đã theo dõi", "cảm ơn các bạn đã xem", "cảm ơn quý vị đã theo dõi",
     "chúc các bạn xem video", "like và sub", "like & sub", "fap tv", "kênh youtube",
     "kênh của mình", "chia sẻ video", "đừng quên like",
+    "la la school", "lala school", "phim ca nhạc", "phim ngắn", "tập tiếp theo",
+    "xin chào, bạn có khỏe không", "bạn có khỏe không", "khỏe không",
+    "chúc một ngày tốt lành", "cảm ơn và hẹn gặp lại", "tạm biệt và hẹn gặp lại",
     "tôi là gehihi",
     "mình là gehihi",
     "tôi là robot gehihi",
@@ -1413,7 +1429,6 @@ async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
     if not api_key:
         return ""
     boundary = "GehihiBoundaryASR" + uuid.uuid4().hex[:8]
-    prompt_context = "Xin chào, bạn có khỏe không?"
     body = (
         b"--" + boundary.encode() + b"\r\n"
         b'Content-Disposition: form-data; name="model"\r\n\r\n'
@@ -1424,8 +1439,6 @@ async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
         b"--" + boundary.encode() + b"\r\n"
         b'Content-Disposition: form-data; name="temperature"\r\n\r\n'
         b"0.0\r\n"
-        b"--" + boundary.encode() + b"\r\n"
-        b'Content-Disposition: form-data; name="prompt"\r\n\r\n' + prompt_context.encode("utf-8") + b"\r\n"
         b"--" + boundary.encode() + b"\r\n"
         b'Content-Disposition: form-data; name="file"; filename="audio.wav"\r\n'
         b"Content-Type: audio/wav\r\n\r\n" + wav_bytes + b"\r\n"
@@ -1654,7 +1667,11 @@ async def call_gemini_multimodal_audio(wav_bytes: bytes, api_key: str):
                             clean = re.sub(r"^```[a-zA-Z]*\n?", "", raw_t.strip())
                             clean = re.sub(r"\n?```$", "", clean).strip()
                             parsed = json.loads(clean)
-                            return (parsed.get("user_text", "Tôi đang nghe"), parsed.get("bot_text", "Dạ, tôi hiểu rồi!"), parsed.get("emotion", "happy"))
+                            u = parsed.get("user_text", "").strip()
+                            b = parsed.get("bot_text", "").strip()
+                            if not u or not b:
+                                return ("", "", "neutral")
+                            return (u, b, parsed.get("emotion", "happy"))
         except Exception:
             pass
     return ("", "", "neutral")
@@ -1943,10 +1960,16 @@ async def ws_handler(websocket):
             LIVE_DIAGNOSTICS["turns_executed"] += 1
             LIVE_DIAGNOSTICS["last_turn_time"] = time.time()
             LIVE_DIAGNOSTICS["last_turn_status"] = f"Processing {len(audio_packets)} packets"
-            wav_bytes = decode_opus_frames_to_wav(audio_packets)
+            wav_bytes, peak_amp, rms_energy = decode_opus_frames_to_wav(audio_packets)
             if len(wav_bytes) < 3000:
                 logger.info(f"Audio payload too small ({len(wav_bytes)} bytes). Skipping AI turn.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = f"Audio too small ({len(wav_bytes)} bytes)"
+                return
+
+            # Kiểm tra năng lượng thực tế: Nếu chỉ là tiếng thở, tiếng quạt hoặc tạp âm nền nhẹ thì bỏ qua ngay lập tức
+            if peak_amp < 750 or rms_energy < 180.0:
+                logger.info(f"Audio energy below human speech threshold (peak={peak_amp}, rms={rms_energy:.1f}). Discarding quiet noise.")
+                LIVE_DIAGNOSTICS["last_turn_status"] = f"Silence/Noise discarded (peak={peak_amp}, rms={rms_energy:.1f})"
                 return
 
             u_text, b_text, emotion = await call_unified_ai(wav_bytes)
@@ -2130,12 +2153,12 @@ async def ws_handler(websocket):
 
                 if not speech_active:
                     # Cập nhật mức ồn nền khi đang yên tĩnh
-                    noise_floor = noise_floor * 0.90 + min(rms, 300.0) * 0.10
-                    # Ngưỡng bắt đầu nói nhạy bén với giọng con người (160+ RMS) vượt trên nền phòng (30-80 RMS)
-                    is_voice = (rms > max(160.0, noise_floor * 1.55))
+                    noise_floor = noise_floor * 0.92 + min(rms, 250.0) * 0.08
+                    # Ngưỡng bắt đầu nói: yêu cầu âm lượng rõ ràng (260+ RMS và gấp 1.7x mức ồn nền)
+                    is_voice = (rms > max(260.0, noise_floor * 1.7))
                 else:
                     # Ngưỡng duy trì nói
-                    is_voice = (rms > max(110.0, noise_floor * 1.25))
+                    is_voice = (rms > max(150.0, noise_floor * 1.3))
 
                 LIVE_DIAGNOSTICS["noise_floor"] = round(noise_floor, 1)
                 LIVE_DIAGNOSTICS["speech_active"] = speech_active

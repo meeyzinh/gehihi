@@ -2561,7 +2561,7 @@ body {
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px;">
         <div style="background: #091322; border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 10px; padding: 14px;">
             <div style="font-size: 12px; font-weight: bold; color: #38bdf8; display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
-                <span>🗣️</span> <span>Lời người dùng nói (STT Gemini):</span>
+                <span>🗣️</span> <span>Lời người dùng nói (STT AI):</span>
             </div>
             <div id="micLastUserText" style="font-size: 14px; color: #f1f5f9; min-height: 48px; background: rgba(15,23,42,0.6); padding: 10px; border-radius: 6px; border: 1px dashed #334155; line-height: 1.5;">
                 <em>(Chưa có âm thanh được nhận diện...)</em>
@@ -6980,7 +6980,7 @@ Ví dụ:
       if (pktEl) pktEl.innerText = `${packetIdx} gói`;
 
       const durEl = document.getElementById("micDurationVal");
-      if (durEl) durEl.innerText = `${(durationMs / 1000).toFixed(2)} s`;
+      if (durEl) durEl.innerText = `${((packetIdx * 60) / 1000).toFixed(2)} s`;
 
       const bufEl = document.getElementById("micBufferSize");
       if (bufEl) {
