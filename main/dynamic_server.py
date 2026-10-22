@@ -1893,14 +1893,15 @@ async def ws_handler(websocket):
     except Exception as e:
         logger.warning(f"Could not init opuslib_next decoder: {e}")
 
-    # Heartbeat keep-alive (native websocket ping mỗi 25s)
+    # Heartbeat keep-alive (native websocket ping mỗi 20s + JSON ping giữ robot không bị timeout idle)
     async def heartbeat_worker():
         try:
             while session_active:
-                await asyncio.sleep(25)
+                await asyncio.sleep(20)
                 try:
                     if hasattr(websocket, "ping"):
                         await websocket.ping()
+                    await websocket.send(json.dumps({"type": "ping"}))
                 except Exception:
                     break
         except asyncio.CancelledError:
@@ -1940,16 +1941,12 @@ async def ws_handler(websocket):
                     last_active = max(last_user_activity, LIVE_DIAGNOSTICS.get("last_packet_time", 0))
                     if now - last_active >= 8.0:
                         if len(mic_audio_buffer) > 0 or speech_active:
-                            logger.info("Inactivity timeout: Clearing idle audio buffers and signaling robot stop...")
+                            logger.info("Inactivity timeout: Clearing idle audio buffers...")
                             mic_audio_buffer.clear()
                             pre_speech_ring.clear()
                             speech_active = False
                             speech_frames_count = 0
                             silence_frames_count = 0
-                            try:
-                                await websocket.send(json.dumps({"type": "tts", "state": "stop", "session_id": session_id}))
-                            except Exception:
-                                pass
         except asyncio.CancelledError:
             pass
 
@@ -1971,20 +1968,12 @@ async def ws_handler(websocket):
             if len(wav_bytes) < 3000:
                 logger.info(f"Audio payload too small ({len(wav_bytes)} bytes). Skipping AI turn.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = f"Audio too small ({len(wav_bytes)} bytes)"
-                try:
-                    await websocket.send(json.dumps({"type": "tts", "state": "stop", "session_id": session_id}))
-                except Exception:
-                    pass
                 return
 
             # Kiểm tra năng lượng thực tế: Nếu chỉ là tiếng thở, tiếng quạt hoặc tạp âm nền nhẹ thì bỏ qua ngay lập tức
             if peak_amp < 750 or rms_energy < 180.0:
                 logger.info(f"Audio energy below human speech threshold (peak={peak_amp}, rms={rms_energy:.1f}). Discarding quiet noise.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = f"Silence/Noise discarded (peak={peak_amp}, rms={rms_energy:.1f})"
-                try:
-                    await websocket.send(json.dumps({"type": "tts", "state": "stop", "session_id": session_id}))
-                except Exception:
-                    pass
                 return
 
             u_text, b_text, emotion = await call_unified_ai(wav_bytes)
@@ -2010,12 +1999,8 @@ async def ws_handler(websocket):
 
             # Nếu người dùng im lặng hoặc âm thanh bị lọc do là tạp âm/ảo giác:
             if not b_text or not b_text.strip() or not u_text or not u_text.strip():
-                logger.info("Turn empty or filtered out. Sending stop to return robot to idle.")
+                logger.info("Turn empty or filtered out. Skipping AI response without interrupting robot listening.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = "Silence/hallucination filtered"
-                try:
-                    await websocket.send(json.dumps({"type": "tts", "state": "stop", "session_id": session_id}))
-                except Exception:
-                    pass
                 return
 
             # Chống lặp câu trả lời (self-echo loop prevention)
