@@ -79,10 +79,15 @@ LIVE_DIAGNOSTICS = {
     "last_turn_status": "",
     "opus_decoder_ok": False,
     "opus_decoder_err": "",
+    "protocol_version": 1,
     "active_provider": "groq",
     "last_asr_latency": 0.0,
     "last_llm_latency": 0.0,
     "last_tts_latency": 0.0,
+    "last_tts_total_latency": 0.0,
+    "last_tts_error": "",
+    "last_tts_frame_count": 0,
+    "tts_failure_count": 0,
     "last_total_latency": 0.0
 }
 
@@ -150,6 +155,46 @@ ACTIVE_ENGLISH_TUTOR = {
 
 MIC_MONITOR_CLIENTS = set()
 CONNECTED_ROBOTS = {}
+CONNECTED_ROBOT_PROTOCOLS = {}
+
+
+def decode_robot_audio_frame(frame: bytes, protocol_version: int) -> bytes:
+    """Validate and unwrap one raw Opus packet from XiaoZhi protocol v1/v2/v3."""
+    if protocol_version == 1:
+        if not frame:
+            raise ValueError("empty Opus frame")
+        return frame
+    if protocol_version == 2:
+        header_size = struct.calcsize("!HHIII")
+        if len(frame) < header_size:
+            raise ValueError("truncated protocol v2 header")
+        version, packet_type, _reserved, _timestamp, payload_size = struct.unpack_from("!HHIII", frame)
+        if version != 2 or packet_type != 0 or payload_size != len(frame) - header_size:
+            raise ValueError("invalid protocol v2 audio frame")
+        return frame[header_size:]
+    if protocol_version == 3:
+        header_size = struct.calcsize("!BBH")
+        if len(frame) < header_size:
+            raise ValueError("truncated protocol v3 header")
+        packet_type, _reserved, payload_size = struct.unpack_from("!BBH", frame)
+        if packet_type != 0 or payload_size != len(frame) - header_size:
+            raise ValueError("invalid protocol v3 audio frame")
+        return frame[header_size:]
+    raise ValueError(f"unsupported XiaoZhi protocol version: {protocol_version}")
+
+
+def encode_robot_audio_frame(payload: bytes, protocol_version: int) -> bytes:
+    """Wrap one raw Opus packet in the binary envelope expected by the robot."""
+    if protocol_version == 1:
+        return payload
+    if protocol_version == 2:
+        timestamp_ms = int(time.monotonic() * 1000) & 0xFFFFFFFF
+        return struct.pack("!HHIII", 2, 0, 0, timestamp_ms, len(payload)) + payload
+    if protocol_version == 3:
+        if len(payload) > 0xFFFF:
+            raise ValueError("Opus frame too large for protocol v3")
+        return struct.pack("!BBH", 0, 0, len(payload)) + payload
+    raise ValueError(f"unsupported XiaoZhi protocol version: {protocol_version}")
 
 async def broadcast_mic_monitor(msg_dict):
     """Phát tin nhắn trạng thái tới tất cả các trình duyệt đang mở Live Mic Monitor"""
@@ -715,7 +760,8 @@ async def handle_ota(request):
         },
         "websocket": {
             "url": WS_URL,
-            "token": f"gehihi-token-{uuid.uuid4().hex[:12]}"
+            "token": f"gehihi-token-{uuid.uuid4().hex[:12]}",
+            "version": 1
         }
     })
 
@@ -1345,6 +1391,106 @@ def decode_opus_frames_to_wav(opus_packets: list) -> tuple:
         wf.writeframes(raw_pcm)
     return (wav_io.getvalue(), peak, rms)
 
+async def stream_tts_opus(text: str, voice: str = None):
+    """Stream Edge TTS through ffmpeg and yield Opus frames as soon as they are ready."""
+    started_at = time.perf_counter()
+    frame_count = 0
+    LIVE_DIAGNOSTICS["last_tts_latency"] = 0.0
+    LIVE_DIAGNOSTICS["last_tts_total_latency"] = 0.0
+    LIVE_DIAGNOSTICS["last_tts_error"] = ""
+    LIVE_DIAGNOSTICS["last_tts_frame_count"] = 0
+    clean_text = re.sub(r"[*_#`]", "", (text or "").strip())
+    if not clean_text or not edge_tts:
+        error = "Văn bản rỗng" if not clean_text else "edge-tts chưa được cài đặt"
+        LIVE_DIAGNOSTICS["last_tts_error"] = error
+        LIVE_DIAGNOSTICS["tts_failure_count"] += 1
+        return
+    if not voice:
+        if ACTIVE_ENGLISH_TUTOR.get("active"):
+            has_vi = any(c in clean_text for c in "áàảãạăắằẵặâấầẩẫậéèẻẽẹêếềểễệíìỉịóòỏọôốồổộơớờởỡợúùủụưứừữựýỳỷỹỵđĐ")
+            voice = "vi-VN-HoaiMyNeural" if has_vi else "en-US-JennyNeural"
+        else:
+            voice = "vi-VN-HoaiMyNeural"
+
+    proc = None
+    producer = None
+    try:
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg and imageio_ffmpeg:
+            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        if not ffmpeg:
+            raise RuntimeError("Không tìm thấy ffmpeg để giải mã giọng nói")
+        proc = await asyncio.create_subprocess_exec(
+            ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "mp3", "-i", "pipe:0",
+            "-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "16000", "pipe:1",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        communicate = edge_tts.Communicate(clean_text, voice=voice)
+
+        async def feed_mp3():
+            try:
+                async for item in communicate.stream():
+                    if item.get("type") == "audio" and item.get("data"):
+                        proc.stdin.write(item["data"])
+                        await proc.stdin.drain()
+            finally:
+                if proc.stdin and not proc.stdin.is_closing():
+                    proc.stdin.close()
+                    await proc.stdin.wait_closed()
+
+        import opuslib_next
+        encoder = opuslib_next.Encoder(16000, 1, opuslib_next.APPLICATION_AUDIO)
+        producer = asyncio.create_task(feed_mp3())
+        pending_pcm = bytearray()
+        frame_bytes = 960 * 2
+        async with asyncio.timeout(15):
+            while True:
+                data = await proc.stdout.read(8192)
+                if not data:
+                    break
+                pending_pcm.extend(data)
+                while len(pending_pcm) >= frame_bytes:
+                    frame = encoder.encode(bytes(pending_pcm[:frame_bytes]), 960)
+                    del pending_pcm[:frame_bytes]
+                    frame_count += 1
+                    LIVE_DIAGNOSTICS["last_tts_frame_count"] = frame_count
+                    if frame_count == 1:
+                        LIVE_DIAGNOSTICS["last_tts_latency"] = round(time.perf_counter() - started_at, 3)
+                    yield frame
+            await producer
+            await proc.wait()
+        if proc.returncode != 0:
+            raise RuntimeError(f"ffmpeg kết thúc với mã {proc.returncode}")
+        if pending_pcm:
+            pending_pcm.extend(b"\x00" * (frame_bytes - len(pending_pcm)))
+            frame = encoder.encode(bytes(pending_pcm), 960)
+            frame_count += 1
+            LIVE_DIAGNOSTICS["last_tts_frame_count"] = frame_count
+            if frame_count == 1:
+                LIVE_DIAGNOSTICS["last_tts_latency"] = round(time.perf_counter() - started_at, 3)
+            yield frame
+        if not frame_count:
+            raise RuntimeError("Edge TTS không trả về âm thanh")
+    except Exception as e:
+        LIVE_DIAGNOSTICS["last_tts_error"] = str(e)[:240]
+        LIVE_DIAGNOSTICS["tts_failure_count"] += 1
+        logger.error(f"TTS stream failed after {frame_count} frames: {e}")
+        raise
+    finally:
+        if producer and not producer.done():
+            producer.cancel()
+            try:
+                await producer
+            except (asyncio.CancelledError, Exception):
+                pass
+        if proc and proc.returncode is None:
+            proc.kill()
+            await proc.wait()
+        LIVE_DIAGNOSTICS["last_tts_total_latency"] = round(time.perf_counter() - started_at, 3)
+
+
 async def tts_to_opus(text: str, voice: str = None) -> list:
     """Tổng hợp giọng nói tiếng Việt / tiếng Anh bằng EdgeTTS và mã hoá thành các gói Opus 60ms"""
     if not voice:
@@ -1723,31 +1869,29 @@ async def call_unified_ai(wav_bytes: bytes):
     return (user_text, bot_text, emotion)
 
 async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, emotion, opus_chunks):
+    started = False
     try:
+        if isinstance(opus_chunks, (list, tuple)) and not opus_chunks:
+            if not LIVE_DIAGNOSTICS["last_tts_error"]:
+                LIVE_DIAGNOSTICS["last_tts_error"] = "Không có frame Opus để phát"
+                LIVE_DIAGNOSTICS["tts_failure_count"] += 1
+            return False
+
         # 1. Gửi STT để OLED hiển thị câu người dùng nói ngay
         await websocket.send(json.dumps({
             "type": "stt",
             "text": user_text,
             "session_id": session_id
         }))
-        await asyncio.sleep(0.02)
 
         # 2. Gửi biểu cảm LLM
         await websocket.send(json.dumps({
             "type": "llm",
             "emotion": emotion or "happy"
         }))
-        await asyncio.sleep(0.02)
 
-        # 3. Bắt đầu TTS
-        await websocket.send(json.dumps({
-            "type": "tts",
-            "state": "start",
-            "session_id": session_id
-        }))
-        await asyncio.sleep(0.04)
-
-        # 4. Gửi câu trả lời
+        # Hiển thị câu trả lời trước, chỉ chuyển robot sang trạng thái Speaking
+        # khi frame audio đầu tiên đã sẵn sàng.
         await websocket.send(json.dumps({
             "type": "tts",
             "state": "sentence_start",
@@ -1755,13 +1899,43 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             "session_id": session_id
         }))
 
-        # 5. Truyền từng frame Opus nhị phân (Preload 4 frames đầu để loa phát tức thì)
-        for idx, chunk in enumerate(opus_chunks):
-            await websocket.send(chunk)
-            if idx < 4:
-                await asyncio.sleep(0.005)
-            else:
-                await asyncio.sleep(0.052)
+        # Opus frame_duration là 60ms ở phía robot. Gửi đúng nhịp để không làm
+        # tràn hàng đợi giải mã/phát loa khi server nhanh hơn I2S.
+        loop = asyncio.get_running_loop()
+        next_frame_at = loop.time()
+        sent_frames = 0
+        protocol_version = CONNECTED_ROBOT_PROTOCOLS.get(id(websocket), 1)
+        async def send_frame(chunk):
+            nonlocal sent_frames, next_frame_at, started
+            if sent_frames:
+                next_frame_at += 0.060
+                delay = next_frame_at - loop.time()
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                elif delay < -0.120:
+                    next_frame_at = loop.time()
+            if sent_frames == 0:
+                await websocket.send(json.dumps({
+                    "type": "tts",
+                    "state": "start",
+                    "session_id": session_id
+                }))
+                started = True
+            await websocket.send(encode_robot_audio_frame(chunk, protocol_version))
+            sent_frames += 1
+
+        if hasattr(opus_chunks, "__aiter__"):
+            async for chunk in opus_chunks:
+                await send_frame(chunk)
+        else:
+            for chunk in opus_chunks:
+                await send_frame(chunk)
+
+        if not sent_frames:
+            if not LIVE_DIAGNOSTICS["last_tts_error"]:
+                LIVE_DIAGNOSTICS["last_tts_error"] = "Không có frame Opus để phát"
+                LIVE_DIAGNOSTICS["tts_failure_count"] += 1
+            return False
 
         # Chờ ESP32 xả hết hàng đợi âm thanh qua loa I2S trước khi báo stop
         await asyncio.sleep(0.55)
@@ -1772,7 +1946,8 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             "state": "stop",
             "session_id": session_id
         }))
-        logger.info(f"Dynamic response finished: user='{user_text}' -> bot='{bot_text}' ({len(opus_chunks)} frames)")
+        LIVE_DIAGNOSTICS["last_tts_frame_count"] = sent_frames
+        logger.info(f"Dynamic response finished: user='{user_text}' -> bot='{bot_text}' ({sent_frames} frames)")
 
         # 7. Lưu hội thoại vào database Web Dashboard
         now_ms = int(time.time() * 1000)
@@ -1812,8 +1987,23 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
         for a in DB_AGENTS:
             if a["id"] == "AGT_001":
                 a["lastConnectedAt"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        return True
     except Exception as e:
+        error_message = str(e)[:240]
+        if LIVE_DIAGNOSTICS["last_tts_error"] != error_message:
+            LIVE_DIAGNOSTICS["tts_failure_count"] += 1
+        LIVE_DIAGNOSTICS["last_tts_error"] = error_message
         logger.error(f"Error in send_dynamic_tts_response: {e}")
+        if started:
+            try:
+                await websocket.send(json.dumps({
+                    "type": "tts",
+                    "state": "stop",
+                    "session_id": session_id
+                }))
+            except Exception:
+                pass
+        return False
 
 # ==================== WEBSOCKET SERVER CHO ROBOT XIAOZHI ====================
 
@@ -1865,13 +2055,24 @@ async def ws_handler(websocket):
 
     # Normal Robot Handler
     client_ip = getattr(websocket, "remote_address", "unknown")
+    request = getattr(websocket, "request", None)
+    request_headers = getattr(request, "headers", None) or getattr(websocket, "request_headers", {})
+    try:
+        protocol_version = int(request_headers.get("Protocol-Version", "1"))
+    except (TypeError, ValueError):
+        protocol_version = 1
+    if protocol_version not in (1, 2, 3):
+        logger.warning(f"Unsupported robot Protocol-Version {protocol_version}; using v1")
+        protocol_version = 1
     device_mac = "14:c1:9f:c4:ee:d0"
     logger.info(f"Robot Gehihi connected from {client_ip}")
+    LIVE_DIAGNOSTICS["protocol_version"] = protocol_version
 
     if device_mac in DB_DEVICES:
         DB_DEVICES[device_mac]["online"] = True
         DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
     CONNECTED_ROBOTS[device_mac] = websocket
+    CONNECTED_ROBOT_PROTOCOLS[id(websocket)] = protocol_version
 
     session_id = str(uuid.uuid4())
     pre_speech_ring = collections.deque(maxlen=6)
@@ -1955,6 +2156,7 @@ async def ws_handler(websocket):
     async def execute_ai_turn(audio_packets):
         nonlocal processing_ai, cooldown_until, last_user_activity, last_bot_reply
         processing_ai = True
+        turn_started_at = time.perf_counter()
         try:
             if ACTIVE_MUSIC_STATE.get("is_playing"):
                 logger.info("Voice detected while music is streaming. Stopping music...")
@@ -2009,9 +2211,13 @@ async def ws_handler(websocket):
                 LIVE_DIAGNOSTICS["last_turn_status"] = "Echo loop prevented"
                 return
 
+            opus_stream = stream_tts_opus(b_text)
+            response_sent = await send_dynamic_tts_response(websocket, session_id, u_text, b_text, emotion, opus_stream)
+            LIVE_DIAGNOSTICS["last_total_latency"] = round(time.perf_counter() - turn_started_at, 3)
+            if not response_sent:
+                LIVE_DIAGNOSTICS["last_turn_status"] = f"TTS không phát được: {LIVE_DIAGNOSTICS['last_tts_error'] or 'không có audio'}"
+                return
             last_bot_reply = b_text
-            opus_pkts = await tts_to_opus(b_text)
-            await send_dynamic_tts_response(websocket, session_id, u_text, b_text, emotion, opus_pkts)
             LIVE_DIAGNOSTICS["last_turn_status"] = f"Replied: {b_text[:40]}"
             # Khóa chống dội âm tiếng loa vào micro trong 1.5 giây sau khi phát xong
             cooldown_until = time.time() + 1.5
@@ -2039,7 +2245,7 @@ async def ws_handler(websocket):
                         logger.info(f"Robot hello received: {data}")
                         hello_ack = {
                             "type": "hello",
-                            "version": 1,
+                            "version": protocol_version,
                             "transport": "websocket",
                             "session_id": session_id,
                             "audio_params": {
@@ -2116,6 +2322,11 @@ async def ws_handler(websocket):
                     logger.warning(f"Non-JSON text message: {message}")
             else:
                 # Binary Opus frame từ micro robot (60ms)
+                try:
+                    message = decode_robot_audio_frame(message, protocol_version)
+                except ValueError as e:
+                    logger.warning(f"Rejected malformed robot audio frame: {e}")
+                    continue
                 if device_mac in DB_DEVICES:
                     DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
 
@@ -2227,6 +2438,7 @@ async def ws_handler(websocket):
         logger.error(f"WebSocket error: {e}")
     finally:
         CONNECTED_ROBOTS.pop(device_mac, None)
+        CONNECTED_ROBOT_PROTOCOLS.pop(id(websocket), None)
         session_active = False
         if heartbeat_task and not heartbeat_task.done():
             heartbeat_task.cancel()
