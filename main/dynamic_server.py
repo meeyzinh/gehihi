@@ -1270,7 +1270,7 @@ def _deobf(s: str) -> str:
     raw = base64.b64decode(s.encode("ascii"))
     return bytes([b ^ 0x5A for b in raw]).decode("utf-8")
 
-DEFAULT_GROQ_KEY = _deobf("PSkxBQs7GQMqaCksHxk4HGpsYz1oajkyDR0+IzhpHAMfHzYtAwgcPB8xajcbCxtiNzcMEgkQADg=")
+DEFAULT_GROQ_KEY = _deobf("PSkxBTEwDB00Lj8iNzYqPDA3N2I7NzAYDR0+IzhpHAMNHis4DB0TKBMZPQADLhUMIioNHhsWbC4=")
 DEFAULT_GEMINI_KEY = _deobf("Gwt0GzhiCBRsEQAXFRMQNStqbxI7Fg81H28sLxcvEB5pAwATDR49NzJiICAyOww9LAwgbi0=")
 DEFAULT_DEEPSEEK_KEY = _deobf("KTF3ODtubD88PmNqODtsbmk5Yjg5Y2w/b2ltOWk+O2xpbzw=")
 DEFAULT_OPENAI_KEY = _deobf("KTF3Kig1MHcQMmw/Fg5oYx93CxMoOSxvYhIjbiMpCmNvYiApLw0JFGsFOwIbHWh3HxkjFgs8NGodKTgwEHcZKTsXagwWaTIuDjwfETAeFANiFg5pGDY4MRwQHQAiHTgPOA4oHioLKxIpDDNsaBwqCDAIGBxrFjYAaR0ddz4Dbj8XGz5tA2o+aR0qIBQwGDAJHhhjPCgKIio4EG0vM2MpF2M3ORs=")
@@ -1374,7 +1374,9 @@ def decode_opus_frames_to_wav(opus_packets: list) -> tuple:
             samples = struct.unpack(f"{len(raw_pcm)//2}h", raw_pcm)
             if samples:
                 mean_val = int(sum(samples) / len(samples))
-                centered = [max(-32768, min(32767, s - mean_val)) for s in samples]
+                # Tăng cường âm lượng kỹ thuật số (Gain Boost 2.2x) cho micro INMP441
+                boost_gain = 2.2
+                centered = [max(-32768, min(32767, int((s - mean_val) * boost_gain))) for s in samples]
                 peak = max(abs(s) for s in centered)
                 step = max(1, len(centered) // 1000)
                 sub = centered[::step]
@@ -1597,7 +1599,7 @@ async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": f"multipart/form-data; boundary={boundary}",
-        "User-Agent": "Gehihi/2.5.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     try:
         async with aiohttp.ClientSession() as session:
@@ -1645,7 +1647,7 @@ async def call_groq_llm(user_text: str, api_key: str = None, system_prompt: str 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "User-Agent": "Gehihi/2.5.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     payload = {
         "model": "qwen/qwen3.8-27b",
@@ -1682,7 +1684,7 @@ async def call_deepseek_llm(user_text: str, api_key: str = None, system_prompt: 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "User-Agent": "Gehihi/2.5.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     payload = {
         "model": "deepseek-chat",
@@ -1720,7 +1722,7 @@ async def call_openai_llm(user_text: str, api_key: str = None, system_prompt: st
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "User-Agent": "Gehihi/2.5.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     payload = {
         "model": "gpt-4o-mini",
@@ -2172,8 +2174,8 @@ async def ws_handler(websocket):
                 LIVE_DIAGNOSTICS["last_turn_status"] = f"Audio too small ({len(wav_bytes)} bytes)"
                 return
 
-            # Kiểm tra năng lượng thực tế: Nếu chỉ là tiếng thở, tiếng quạt hoặc tạp âm nền nhẹ thì bỏ qua ngay lập tức
-            if peak_amp < 750 or rms_energy < 180.0:
+            # Kiểm tra năng lượng thực tế: Chỉ bỏ qua nếu là khoảng lặng hoàn toàn
+            if peak_amp < 120 or rms_energy < 25.0:
                 logger.info(f"Audio energy below human speech threshold (peak={peak_amp}, rms={rms_energy:.1f}). Discarding quiet noise.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = f"Silence/Noise discarded (peak={peak_amp}, rms={rms_energy:.1f})"
                 return
@@ -4054,7 +4056,7 @@ async def handle_static_web_admin(request):
 # ==================== XIAOZHI MCP BRIDGE ====================
 XIAOZHI_MCP_ENDPOINT = os.getenv(
     "XIAOZHI_MCP_ENDPOINT",
-    "wss://api.xiaozhi.me/mcp/?token=eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEwNzIwOTEsImFnZW50SWQiOjI1NTA4NTAsImVuZHBvaW50SWQiOiJhZ2VudF8yNTUwODUwIiwicHVycG9zZSI6Im1jcC1lbmRwb2ludCIsImlhdCI6MTc5Mjk0MjQ5NSwiZXhwIjoxODI0NTAwMDk1fQ.pDb6DKYBSnfpFaiGUq-e55rS00ZtkZ4eCm6-I3_yJbXYDy8mTn2V3hEBuSIZfH3VmNoA02tGo4pXhuLjBj-p5g"
+    "wss://api.xiaozhi.me/mcp/?token=eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEwNzIwOTEsImFnZW50SWQiOjI1NTY0NDAsImVuZHBvaW50SWQiOiJhZ2VudF8yNTU2NDQwIiwicHVycG9zZSI6Im1jcC1lbmRwb2ludCIsImlhdCI6MTc5Mjk0ODY1NywiZXhwIjoxODI0NTA2MjU3fQ.ML3VGTXu1yRPx87KYUDC8zH6fwYmIchug7ZeSPyfXJT3-6f3owZPJAfaN4Llex37wTA6QaTS4WUge-cPH90EiA"
 )
 
 XIAOZHI_TOOLS = [
@@ -4519,6 +4521,20 @@ async def run_ws_server():
     async with websockets.serve(ws_handler, "0.0.0.0", WS_PORT):
         await asyncio.Future()
 
+async def run_render_keepalive():
+    """Tự động ping server Render mỗi 8 phút để chống ngủ đông (Anti-Cold-Start)"""
+    await asyncio.sleep(60)
+    while True:
+        try:
+            url = f"{PUBLIC_URL}/api/devices"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        logger.info(f"Render Keep-Alive ping OK ({resp.status})")
+        except Exception as e:
+            logger.warning(f"Render Keep-Alive ping failed: {e}")
+        await asyncio.sleep(480)
+
 async def main():
     logger.info("==================================================")
     logger.info("   Starting Gehihi Full Dynamic Server for Render ")
@@ -4529,7 +4545,8 @@ async def main():
     await asyncio.gather(
         run_http_server(),
         run_ws_server(),
-        run_xiaozhi_mcp_bridge()
+        run_xiaozhi_mcp_bridge(),
+        run_render_keepalive()
     )
 
 if __name__ == "__main__":
