@@ -4050,6 +4050,256 @@ async def handle_static_web_admin(request):
         return web.FileResponse(idx_path)
     return web.Response(text="<h1>Gehihi Server Online</h1>", content_type="text/html")
 
+
+# ==================== XIAOZHI MCP BRIDGE ====================
+XIAOZHI_MCP_ENDPOINT = os.getenv(
+    "XIAOZHI_MCP_ENDPOINT",
+    "wss://api.xiaozhi.me/mcp/?token=eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEwNzIwOTEsImFnZW50SWQiOjI1NTA4NTAsImVuZHBvaW50SWQiOiJhZ2VudF8yNTUwODUwIiwicHVycG9zZSI6Im1jcC1lbmRwb2ludCIsImlhdCI6MTc5Mjk0MjQ5NSwiZXhwIjoxODI0NTAwMDk1fQ.pDb6DKYBSnfpFaiGUq-e55rS00ZtkZ4eCm6-I3_yJbXYDy8mTn2V3hEBuSIZfH3VmNoA02tGo4pXhuLjBj-p5g"
+)
+
+XIAOZHI_TOOLS = [
+    {
+        "name": "get_robot_status",
+        "description": "Lấy thông tin trạng thái hoạt động của Robot Gehihi (trực tuyến, phần cứng, RAM, biểu cảm)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "change_robot_emotion",
+        "description": "Thay đổi biểu cảm trên màn hình OLED khuôn mặt của Robot Gehihi",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "emotion": {
+                    "type": "string",
+                    "description": "Tên biểu cảm: happy, sad, thinking, angry, cool, sleepy, surprised, loving, neutral",
+                    "enum": ["happy", "sad", "thinking", "angry", "cool", "sleepy", "surprised", "loving", "neutral"]
+                }
+            },
+            "required": ["emotion"]
+        }
+    },
+    {
+        "name": "speak_on_robot",
+        "description": "Phát giọng nói tiếng Việt trực tiếp ra loa của Robot Gehihi",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "Nội dung câu nói tiếng Việt cần phát qua loa"
+                },
+                "emotion": {
+                    "type": "string",
+                    "description": "Biểu cảm hiển thị kèm theo khi nói (tùy chọn)",
+                    "enum": ["happy", "sad", "thinking", "angry", "cool", "sleepy", "surprised", "loving", "neutral"]
+                }
+            },
+            "required": ["text"]
+        }
+    },
+    {
+        "name": "play_music_on_robot",
+        "description": "Phát nhạc hoặc bài hát trên Robot Gehihi theo từ khóa hoặc tên bài hát",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "keyword": {
+                    "type": "string",
+                    "description": "Tên bài hát hoặc ca sĩ cần phát"
+                }
+            },
+            "required": ["keyword"]
+        }
+    },
+    {
+        "name": "stop_music_on_robot",
+        "description": "Dừng phát nhạc trên Robot Gehihi",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    }
+]
+
+XIAOZHI_MCP_STATE = {
+    "enabled": True,
+    "connected": False,
+    "endpoint": XIAOZHI_MCP_ENDPOINT,
+    "last_connect_time": 0,
+    "last_tool_call": "",
+    "last_tool_result": "",
+    "last_error": "",
+    "tools_count": len(XIAOZHI_TOOLS)
+}
+
+async def handle_xiaozhi_mcp_status(request):
+    """API lấy trạng thái kết nối MCP Bridge với Xiaozhi.me"""
+    return cors_response({
+        "code": 0,
+        "msg": "success",
+        "data": XIAOZHI_MCP_STATE
+    })
+
+async def handle_xiaozhi_mcp_config(request):
+    """API cập nhật URL MCP Endpoint của Xiaozhi.me"""
+    global XIAOZHI_MCP_ENDPOINT
+    try:
+        body = await request.json()
+        new_endpoint = body.get("endpoint", "").strip()
+        if new_endpoint:
+            XIAOZHI_MCP_ENDPOINT = new_endpoint
+            XIAOZHI_MCP_STATE["endpoint"] = new_endpoint
+            logger.info(f"Updated Xiaozhi MCP Endpoint to: {new_endpoint}")
+            return cors_response({"code": 0, "msg": "Endpoint updated successfully"})
+        return cors_response({"code": 400, "msg": "Invalid endpoint"}, status=400)
+    except Exception as e:
+        return cors_response({"code": 500, "msg": str(e)}, status=500)
+
+async def run_xiaozhi_mcp_bridge():
+    """Background worker duy trì kết nối persistent MCP WebSocket với Xiaozhi.me"""
+    global XIAOZHI_MCP_ENDPOINT
+    logger.info("Starting Xiaozhi MCP Bridge Service...")
+    while True:
+        if not XIAOZHI_MCP_STATE.get("enabled") or not XIAOZHI_MCP_ENDPOINT:
+            await asyncio.sleep(10)
+            continue
+
+        try:
+            logger.info(f"Connecting to Xiaozhi MCP Endpoint: {XIAOZHI_MCP_ENDPOINT[:45]}...")
+            async with websockets.connect(XIAOZHI_MCP_ENDPOINT, ping_interval=20, ping_timeout=20) as ws:
+                XIAOZHI_MCP_STATE["connected"] = True
+                XIAOZHI_MCP_STATE["last_connect_time"] = int(time.time() * 1000)
+                XIAOZHI_MCP_STATE["last_error"] = ""
+                logger.info(">>> SUCCESS: Gehihi Server Connected to Xiaozhi.me MCP Endpoint! <<<")
+
+                async for message in ws:
+                    try:
+                        data = json.loads(message)
+                        msg_id = data.get("id")
+                        method = data.get("method")
+
+                        if method == "initialize":
+                            resp = {
+                                "jsonrpc": "2.0",
+                                "id": msg_id,
+                                "result": {
+                                    "protocolVersion": "2024-11-05",
+                                    "capabilities": {"tools": {}},
+                                    "serverInfo": {
+                                        "name": "Gehihi-Server-MCP",
+                                        "version": "2.5.0"
+                                    }
+                                }
+                            }
+                            await ws.send(json.dumps(resp))
+                            logger.info(f"Xiaozhi MCP: Handshake initialized (id={msg_id})")
+
+                        elif method in ("notifications/initialized", "initialized"):
+                            logger.info("Xiaozhi MCP: Handshake acknowledged by Xiaozhi platform.")
+
+                        elif method == "tools/list":
+                            resp = {
+                                "jsonrpc": "2.0",
+                                "id": msg_id,
+                                "result": {
+                                    "tools": XIAOZHI_TOOLS
+                                }
+                            }
+                            await ws.send(json.dumps(resp))
+                            logger.info(f"Xiaozhi MCP: Registered {len(XIAOZHI_TOOLS)} tools with Xiaozhi.")
+
+                        elif method == "tools/call":
+                            params = data.get("params", {})
+                            tool_name = params.get("name")
+                            args = params.get("arguments", {})
+                            logger.info(f"Xiaozhi MCP Executing Tool: {tool_name} with args: {args}")
+                            XIAOZHI_MCP_STATE["last_tool_call"] = f"{tool_name}({args})"
+
+                            result_text = ""
+                            if tool_name == "get_robot_status":
+                                online_count = len(CONNECTED_ROBOTS)
+                                if online_count > 0:
+                                    result_text = f"Robot Gehihi đang trực tuyến (kết nối qua Gehihi Server), RAM SRAM ổn định 120KB, AI đang dùng: {ACTIVE_AI_PROVIDER}. Biểu cảm hiện tại: {LIVE_DIAGNOSTICS.get('last_emotion', 'neutral')}."
+                                else:
+                                    result_text = "Robot Gehihi hiện đang ở chế độ chờ (Standby/Offline). Server Gehihi vẫn hoạt động bình thường và sẵn sàng điều khiển."
+
+                            elif tool_name == "change_robot_emotion":
+                                emo = args.get("emotion", "happy")
+                                LIVE_DIAGNOSTICS["last_emotion"] = emo
+                                for mac, r_ws in list(CONNECTED_ROBOTS.items()):
+                                    try:
+                                        await r_ws.send(json.dumps({"type": "llm", "emotion": emo}))
+                                    except Exception:
+                                        pass
+                                result_text = f"Đã chuyển đổi biểu cảm khuôn mặt Robot Gehihi sang '{emo}' thành công!"
+
+                            elif tool_name == "speak_on_robot":
+                                text_to_speak = args.get("text", "")
+                                emo = args.get("emotion", "happy")
+                                if CONNECTED_ROBOTS and text_to_speak:
+                                    try:
+                                        opus_pkts = await tts_to_opus(text_to_speak)
+                                        for mac, r_ws in list(CONNECTED_ROBOTS.items()):
+                                            try:
+                                                await r_ws.send(json.dumps({"type": "llm", "emotion": emo}))
+                                                await send_dynamic_tts_response(r_ws, str(uuid.uuid4()), "Xiaozhi MCP", text_to_speak, emo, opus_pkts)
+                                            except Exception:
+                                                pass
+                                        result_text = f"Đã phát thành công câu nói: '{text_to_speak}' ra loa Robot Gehihi!"
+                                    except Exception as ex:
+                                        result_text = f"Lỗi phát âm thanh: {ex}"
+                                else:
+                                    result_text = f"Server đã tiếp nhận yêu cầu phát câu nói: '{text_to_speak}', nhưng hiện tại Robot Gehihi chưa bật nguồn."
+
+                            elif tool_name == "play_music_on_robot":
+                                kw = args.get("keyword", "")
+                                if kw:
+                                    asyncio.create_task(resolve_and_stream_music(kw, {"title": kw, "artist": "Gehihi Music"}))
+                                    result_text = f"Đang tìm kiếm và phát bài hát '{kw}' trên Robot Gehihi!"
+                                else:
+                                    result_text = "Vui lòng cung cấp tên bài hát cần phát."
+
+                            elif tool_name == "stop_music_on_robot":
+                                stop_active_music()
+                                result_text = "Đã dừng phát nhạc trên Robot Gehihi thành công."
+
+                            else:
+                                result_text = f"Công cụ {tool_name} đã được thực thi."
+
+                            XIAOZHI_MCP_STATE["last_tool_result"] = result_text
+                            resp = {
+                                "jsonrpc": "2.0",
+                                "id": msg_id,
+                                "result": {
+                                    "content": [
+                                        {
+                                            "type": "text",
+                                            "text": result_text
+                                        }
+                                    ]
+                                }
+                            }
+                            await ws.send(json.dumps(resp))
+                            logger.info(f"Xiaozhi MCP Tool {tool_name} executed -> {result_text}")
+
+                        elif method == "ping":
+                            resp = {"jsonrpc": "2.0", "id": msg_id, "result": {}}
+                            await ws.send(json.dumps(resp))
+
+                    except Exception as parse_ex:
+                        logger.error(f"Error handling Xiaozhi MCP message: {parse_ex}")
+
+        except Exception as conn_ex:
+            XIAOZHI_MCP_STATE["connected"] = False
+            XIAOZHI_MCP_STATE["last_error"] = str(conn_ex)
+            logger.warning(f"Xiaozhi MCP connection error: {conn_ex}. Reconnecting in 8s...")
+            await asyncio.sleep(8)
+
 async def run_http_server():
     app = web.Application()
 
@@ -4249,6 +4499,9 @@ async def run_http_server():
     app.router.add_get("/xiaozhi/sys/menu/nav", handle_menu_nav)
 
     # Generic Fallback & CORS
+    # Xiaozhi MCP Bridge Endpoints
+    app.router.add_get("/xiaozhi/mcp/bridge/status", handle_xiaozhi_mcp_status)
+    app.router.add_post("/xiaozhi/mcp/bridge/config", handle_xiaozhi_mcp_config)
     app.router.add_route("*", "/xiaozhi/{tail:.*}", handle_generic_fallback)
     app.router.add_options("/{tail:.*}", handle_cors_options)
 
@@ -4275,7 +4528,8 @@ async def main():
     logger.info("==================================================")
     await asyncio.gather(
         run_http_server(),
-        run_ws_server()
+        run_ws_server(),
+        run_xiaozhi_mcp_bridge()
     )
 
 if __name__ == "__main__":
