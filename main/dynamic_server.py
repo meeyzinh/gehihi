@@ -4179,7 +4179,7 @@ XIAOZHI_TOOLS = [
 ]
 
 XIAOZHI_MCP_STATE = {
-    "enabled": True,
+    "enabled": False,
     "connected": False,
     "connected_count": 0,
     "endpoints": XIAOZHI_MCP_ENDPOINTS,
@@ -4361,14 +4361,9 @@ async def run_single_mcp_bridge(endpoint: str):
             await asyncio.sleep(6)
 
 async def run_xiaozhi_mcp_bridge():
-    """Background supervisor khởi chạy persistent MCP WebSocket cho toàn bộ endpoints"""
-    logger.info("Starting Multi-Endpoint Xiaozhi MCP Bridge Service...")
-    for ep in XIAOZHI_MCP_ENDPOINTS:
-        if ep not in ACTIVE_MCP_TASKS:
-            task = asyncio.create_task(run_single_mcp_bridge(ep))
-            ACTIVE_MCP_TASKS[ep] = task
-    while True:
-        await asyncio.sleep(30)
+    """Đã tắt kết nối MCP tới xiaozhi.me theo yêu cầu người dùng (Robot kết nối trực tiếp với Server)"""
+    logger.info("Xiaozhi.me MCP Bridge is DISABLED. Robot connects directly to Gehihi Server.")
+    return
 
 
 # ==================== AIOHTTP WEBSOCKET ADAPTER ====================
