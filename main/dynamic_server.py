@@ -725,6 +725,41 @@ async def handle_debug_live(request):
     data["packet_age_ms"] = int((time.time() - LIVE_DIAGNOSTICS["last_packet_time"]) * 1000) if LIVE_DIAGNOSTICS["last_packet_time"] else -1
     return cors_response(data)
 
+
+# ==================== PC CLOUDFLARE TUNNEL REGISTRATION ====================
+ACTIVE_TUNNEL_INFO = {
+    "url": "",
+    "updated_at": 0
+}
+
+async def handle_tunnel_register(request):
+    """API cho phep PC Server dang ky Cloudflare Tunnel URL len Cloud"""
+    try:
+        data = await request.json()
+        tunnel_url = data.get("tunnel_url", "").strip()
+        if tunnel_url:
+            ACTIVE_TUNNEL_INFO["url"] = tunnel_url
+            ACTIVE_TUNNEL_INFO["updated_at"] = time.time()
+            logger.info(f">>> REGISTERED PC CLOUDFLARE TUNNEL: {tunnel_url} <<<")
+            return cors_response({"code": 0, "msg": "Registered", "tunnel_url": tunnel_url})
+    except Exception as e:
+        logger.error(f"Error registering tunnel: {e}")
+    return cors_response({"code": 400, "msg": "Invalid tunnel_url"}, status=400)
+
+async def handle_tunnel_status(request):
+    """API kiem tra Cloudflare Tunnel dang duoc dang ky tren Cloud"""
+    is_active = bool(ACTIVE_TUNNEL_INFO["url"] and (time.time() - ACTIVE_TUNNEL_INFO["updated_at"] < 180))
+    return cors_response({
+        "code": 0,
+        "msg": "success",
+        "data": {
+            "tunnel_url": ACTIVE_TUNNEL_INFO["url"],
+            "updated_at": ACTIVE_TUNNEL_INFO["updated_at"],
+            "is_active": is_active,
+            "age_seconds": int(time.time() - ACTIVE_TUNNEL_INFO["updated_at"]) if ACTIVE_TUNNEL_INFO["updated_at"] else -1
+        }
+    })
+
 async def handle_ota(request):
     """Xử lý yêu cầu OTA từ robot Gehihi"""
     device_id = request.headers.get("Device-Id", "14:c1:9f:c4:ee:d0").lower()
@@ -749,6 +784,15 @@ async def handle_ota(request):
 
     logger.info(f"OTA Request from Device: {device_id}, Client: {client_id}")
 
+    # Neu co PC Cloudflare Tunnel dang online (cap nhat trong 3 phut), uu tien tro Robot ve PC ca nhan
+    active_ws_url = WS_URL
+    if ACTIVE_TUNNEL_INFO["url"] and (time.time() - ACTIVE_TUNNEL_INFO["updated_at"] < 180):
+        t_url = ACTIVE_TUNNEL_INFO["url"].replace("https://", "wss://").rstrip("/")
+        active_ws_url = f"{t_url}/ws/device"
+        logger.info(f"OTA for {device_id}: Directing Robot to active PC Cloudflare Tunnel -> {active_ws_url}")
+    else:
+        logger.info(f"OTA for {device_id}: Directing Robot to Cloud Server -> {active_ws_url}")
+
     return cors_response({
         "server_time": {
             "timestamp": int(time.time() * 1000),
@@ -759,7 +803,7 @@ async def handle_ota(request):
             "url": ""
         },
         "websocket": {
-            "url": WS_URL,
+            "url": active_ws_url,
             "token": f"gehihi-token-{uuid.uuid4().hex[:12]}",
             "version": 1
         }
@@ -4548,6 +4592,10 @@ async def run_http_server():
     app.router.add_get("/xiaozhi/sys/menu/nav", handle_menu_nav)
 
     # Generic Fallback & CORS
+    # Tunnel Registration Endpoints
+    app.router.add_post("/xiaozhi/tunnel/register", handle_tunnel_register)
+    app.router.add_get("/xiaozhi/tunnel/status", handle_tunnel_status)
+
     # Dual-port WebSocket routes (Hỗ trợ truy cập WebSocket trực tiếp qua HTTP Port / Cloudflare Tunnel)
     app.router.add_get("/ws/device", handle_aiohttp_robot_ws)
     app.router.add_get("/xiaozhi/v1/", handle_aiohttp_robot_ws)
