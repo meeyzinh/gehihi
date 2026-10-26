@@ -2216,12 +2216,20 @@ async def ws_handler(websocket):
             if len(wav_bytes) < 3000:
                 logger.info(f"Audio payload too small ({len(wav_bytes)} bytes). Skipping AI turn.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = f"Audio too small ({len(wav_bytes)} bytes)"
+                try:
+                    await websocket.send(json.dumps({"type": "abort"}))
+                except Exception:
+                    pass
                 return
 
             # Kiểm tra năng lượng thực tế: Chỉ bỏ qua nếu là khoảng lặng hoàn toàn
             if peak_amp < 120 or rms_energy < 25.0:
                 logger.info(f"Audio energy below human speech threshold (peak={peak_amp}, rms={rms_energy:.1f}). Discarding quiet noise.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = f"Silence/Noise discarded (peak={peak_amp}, rms={rms_energy:.1f})"
+                try:
+                    await websocket.send(json.dumps({"type": "abort"}))
+                except Exception:
+                    pass
                 return
 
             u_text, b_text, emotion = await call_unified_ai(wav_bytes)
@@ -2247,8 +2255,12 @@ async def ws_handler(websocket):
 
             # Nếu người dùng im lặng hoặc âm thanh bị lọc do là tạp âm/ảo giác:
             if not b_text or not b_text.strip() or not u_text or not u_text.strip():
-                logger.info("Turn empty or filtered out. Skipping AI response without interrupting robot listening.")
+                logger.info("Turn empty or filtered out. Resetting robot to idle state.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = "Silence/hallucination filtered"
+                try:
+                    await websocket.send(json.dumps({"type": "abort"}))
+                except Exception:
+                    pass
                 return
 
             # Chống lặp câu trả lời (self-echo loop prevention)
