@@ -4098,10 +4098,16 @@ async def handle_static_web_admin(request):
 
 
 # ==================== XIAOZHI MCP BRIDGE ====================
-XIAOZHI_MCP_ENDPOINT = os.getenv(
-    "XIAOZHI_MCP_ENDPOINT",
+DEFAULT_MCP_ENDPOINTS = [
+    "wss://api.xiaozhi.me/mcp/?token=eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEwNzIwOTEsImFnZW50SWQiOjI1NTA4NTAsImVuZHBvaW50SWQiOiJhZ2VudF8yNTUwODUwIiwicHVycG9zZSI6Im1jcC1lbmRwb2ludCIsImlhdCI6MTc5Mjk0MjQ5NSwiZXhwIjoxODI0NTAwMDk1fQ.pDb6DKYBSnfpFaiGUq-e55rS00ZtkZ4eCm6-I3_yJbXYDy8mTn2V3hEBuSIZfH3VmNoA02tGo4pXhuLjBj-p5g",
     "wss://api.xiaozhi.me/mcp/?token=eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEwNzIwOTEsImFnZW50SWQiOjI1NTY0NDAsImVuZHBvaW50SWQiOiJhZ2VudF8yNTU2NDQwIiwicHVycG9zZSI6Im1jcC1lbmRwb2ludCIsImlhdCI6MTc5Mjk0ODY1NywiZXhwIjoxODI0NTA2MjU3fQ.ML3VGTXu1yRPx87KYUDC8zH6fwYmIchug7ZeSPyfXJT3-6f3owZPJAfaN4Llex37wTA6QaTS4WUge-cPH90EiA"
-)
+]
+
+env_mcp = os.getenv("XIAOZHI_MCP_ENDPOINT", "").strip()
+if env_mcp and env_mcp not in DEFAULT_MCP_ENDPOINTS:
+    DEFAULT_MCP_ENDPOINTS.append(env_mcp)
+
+XIAOZHI_MCP_ENDPOINTS = list(DEFAULT_MCP_ENDPOINTS)
 
 XIAOZHI_TOOLS = [
     {
@@ -4175,7 +4181,9 @@ XIAOZHI_TOOLS = [
 XIAOZHI_MCP_STATE = {
     "enabled": True,
     "connected": False,
-    "endpoint": XIAOZHI_MCP_ENDPOINT,
+    "connected_count": 0,
+    "endpoints": XIAOZHI_MCP_ENDPOINTS,
+    "active_connections": {},
     "last_connect_time": 0,
     "last_tool_call": "",
     "last_tool_result": "",
@@ -4183,8 +4191,12 @@ XIAOZHI_MCP_STATE = {
     "tools_count": len(XIAOZHI_TOOLS)
 }
 
+ACTIVE_MCP_TASKS = {}
+
 async def handle_xiaozhi_mcp_status(request):
     """API lấy trạng thái kết nối MCP Bridge với Xiaozhi.me"""
+    XIAOZHI_MCP_STATE["connected_count"] = sum(1 for v in XIAOZHI_MCP_STATE["active_connections"].values() if v)
+    XIAOZHI_MCP_STATE["connected"] = XIAOZHI_MCP_STATE["connected_count"] > 0
     return cors_response({
         "code": 0,
         "msg": "success",
@@ -4192,36 +4204,38 @@ async def handle_xiaozhi_mcp_status(request):
     })
 
 async def handle_xiaozhi_mcp_config(request):
-    """API cập nhật URL MCP Endpoint của Xiaozhi.me"""
-    global XIAOZHI_MCP_ENDPOINT
+    """API cập nhật hoặc thêm URL MCP Endpoint của Xiaozhi.me"""
     try:
         body = await request.json()
         new_endpoint = body.get("endpoint", "").strip()
-        if new_endpoint:
-            XIAOZHI_MCP_ENDPOINT = new_endpoint
-            XIAOZHI_MCP_STATE["endpoint"] = new_endpoint
-            logger.info(f"Updated Xiaozhi MCP Endpoint to: {new_endpoint}")
-            return cors_response({"code": 0, "msg": "Endpoint updated successfully"})
-        return cors_response({"code": 400, "msg": "Invalid endpoint"}, status=400)
+        if new_endpoint and new_endpoint.startswith("ws"):
+            if new_endpoint not in XIAOZHI_MCP_ENDPOINTS:
+                XIAOZHI_MCP_ENDPOINTS.append(new_endpoint)
+                XIAOZHI_MCP_STATE["endpoints"] = XIAOZHI_MCP_ENDPOINTS
+                task = asyncio.create_task(run_single_mcp_bridge(new_endpoint))
+                ACTIVE_MCP_TASKS[new_endpoint] = task
+                logger.info(f"Added and connected new Xiaozhi MCP Endpoint: {new_endpoint[:45]}...")
+            return cors_response({"code": 0, "msg": "Endpoint added/updated successfully", "endpoints": XIAOZHI_MCP_ENDPOINTS})
+        return cors_response({"code": 400, "msg": "Invalid endpoint format"}, status=400)
     except Exception as e:
         return cors_response({"code": 500, "msg": str(e)}, status=500)
 
-async def run_xiaozhi_mcp_bridge():
-    """Background worker duy trì kết nối persistent MCP WebSocket với Xiaozhi.me"""
-    global XIAOZHI_MCP_ENDPOINT
-    logger.info("Starting Xiaozhi MCP Bridge Service...")
+async def run_single_mcp_bridge(endpoint: str):
+    """Worker duy trì kết nối persistent MCP WebSocket tới 1 endpoint cụ thể của Xiaozhi.me"""
+    ep_short = endpoint.split("token=")[-1][:12] if "token=" in endpoint else endpoint[:25]
+    logger.info(f"Starting MCP Bridge Worker for token {ep_short}...")
     while True:
-        if not XIAOZHI_MCP_STATE.get("enabled") or not XIAOZHI_MCP_ENDPOINT:
+        if not XIAOZHI_MCP_STATE.get("enabled"):
             await asyncio.sleep(10)
             continue
-
         try:
-            logger.info(f"Connecting to Xiaozhi MCP Endpoint: {XIAOZHI_MCP_ENDPOINT[:45]}...")
-            async with websockets.connect(XIAOZHI_MCP_ENDPOINT, ping_interval=20, ping_timeout=20) as ws:
+            logger.info(f"Connecting to Xiaozhi MCP ({ep_short})...")
+            async with websockets.connect(endpoint, ping_interval=20, ping_timeout=20) as ws:
+                XIAOZHI_MCP_STATE["active_connections"][endpoint] = True
                 XIAOZHI_MCP_STATE["connected"] = True
                 XIAOZHI_MCP_STATE["last_connect_time"] = int(time.time() * 1000)
                 XIAOZHI_MCP_STATE["last_error"] = ""
-                logger.info(">>> SUCCESS: Gehihi Server Connected to Xiaozhi.me MCP Endpoint! <<<")
+                logger.info(f">>> SUCCESS: Connected to Xiaozhi MCP ({ep_short})! <<<")
 
                 async for message in ws:
                     try:
@@ -4243,10 +4257,10 @@ async def run_xiaozhi_mcp_bridge():
                                 }
                             }
                             await ws.send(json.dumps(resp))
-                            logger.info(f"Xiaozhi MCP: Handshake initialized (id={msg_id})")
+                            logger.info(f"Xiaozhi MCP ({ep_short}): Handshake initialized (id={msg_id})")
 
                         elif method in ("notifications/initialized", "initialized"):
-                            logger.info("Xiaozhi MCP: Handshake acknowledged by Xiaozhi platform.")
+                            logger.info(f"Xiaozhi MCP ({ep_short}): Handshake acknowledged by Xiaozhi platform.")
 
                         elif method == "tools/list":
                             resp = {
@@ -4257,13 +4271,13 @@ async def run_xiaozhi_mcp_bridge():
                                 }
                             }
                             await ws.send(json.dumps(resp))
-                            logger.info(f"Xiaozhi MCP: Registered {len(XIAOZHI_TOOLS)} tools with Xiaozhi.")
+                            logger.info(f"Xiaozhi MCP ({ep_short}): Registered {len(XIAOZHI_TOOLS)} tools with Xiaozhi.")
 
                         elif method == "tools/call":
                             params = data.get("params", {})
                             tool_name = params.get("name")
                             args = params.get("arguments", {})
-                            logger.info(f"Xiaozhi MCP Executing Tool: {tool_name} with args: {args}")
+                            logger.info(f"Xiaozhi MCP ({ep_short}) Executing Tool: {tool_name} with args: {args}")
                             XIAOZHI_MCP_STATE["last_tool_call"] = f"{tool_name}({args})"
 
                             result_text = ""
@@ -4331,20 +4345,30 @@ async def run_xiaozhi_mcp_bridge():
                                 }
                             }
                             await ws.send(json.dumps(resp))
-                            logger.info(f"Xiaozhi MCP Tool {tool_name} executed -> {result_text}")
+                            logger.info(f"Xiaozhi MCP ({ep_short}) Tool {tool_name} executed -> {result_text}")
 
                         elif method == "ping":
                             resp = {"jsonrpc": "2.0", "id": msg_id, "result": {}}
                             await ws.send(json.dumps(resp))
 
                     except Exception as parse_ex:
-                        logger.error(f"Error handling Xiaozhi MCP message: {parse_ex}")
+                        logger.error(f"Error handling Xiaozhi MCP ({ep_short}) message: {parse_ex}")
 
         except Exception as conn_ex:
-            XIAOZHI_MCP_STATE["connected"] = False
+            XIAOZHI_MCP_STATE["active_connections"][endpoint] = False
             XIAOZHI_MCP_STATE["last_error"] = str(conn_ex)
-            logger.warning(f"Xiaozhi MCP connection error: {conn_ex}. Reconnecting in 8s...")
-            await asyncio.sleep(8)
+            logger.warning(f"Xiaozhi MCP ({ep_short}) connection error: {conn_ex}. Reconnecting in 6s...")
+            await asyncio.sleep(6)
+
+async def run_xiaozhi_mcp_bridge():
+    """Background supervisor khởi chạy persistent MCP WebSocket cho toàn bộ endpoints"""
+    logger.info("Starting Multi-Endpoint Xiaozhi MCP Bridge Service...")
+    for ep in XIAOZHI_MCP_ENDPOINTS:
+        if ep not in ACTIVE_MCP_TASKS:
+            task = asyncio.create_task(run_single_mcp_bridge(ep))
+            ACTIVE_MCP_TASKS[ep] = task
+    while True:
+        await asyncio.sleep(30)
 
 
 # ==================== AIOHTTP WEBSOCKET ADAPTER ====================
