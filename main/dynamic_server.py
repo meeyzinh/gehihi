@@ -4302,6 +4302,53 @@ async def run_xiaozhi_mcp_bridge():
             logger.warning(f"Xiaozhi MCP connection error: {conn_ex}. Reconnecting in 8s...")
             await asyncio.sleep(8)
 
+
+# ==================== AIOHTTP WEBSOCKET ADAPTER ====================
+class AioHttpWebSocketAdapter:
+    """Adapter cho phép ws_handler chạy mượt mà trên cả aiohttp (port 8003) và websockets (port 8000)"""
+    def __init__(self, ws, request):
+        self.ws = ws
+        self.request = request
+        self.path = request.path_qs
+        self.remote_address = request.remote
+        self.request_headers = request.headers
+
+    async def send(self, data):
+        if isinstance(data, str):
+            await self.ws.send_str(data)
+        elif isinstance(data, (bytes, bytearray)):
+            await self.ws.send_bytes(data)
+
+    async def ping(self):
+        try:
+            await self.ws.ping()
+        except Exception:
+            pass
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            msg = await self.ws.receive()
+            if msg.type in (web.WSMsgType.TEXT, web.WSMsgType.BINARY):
+                return msg.data
+            elif msg.type in (web.WSMsgType.CLOSE, web.WSMsgType.CLOSING, web.WSMsgType.CLOSED):
+                raise StopAsyncIteration
+            elif msg.type == web.WSMsgType.ERROR:
+                raise StopAsyncIteration
+            raise StopAsyncIteration
+        except Exception:
+            raise StopAsyncIteration
+
+async def handle_aiohttp_robot_ws(request):
+    """Xử lý kết nối WebSocket của Robot và Mic Monitor trực tiếp trên cổng HTTP (8003)"""
+    ws = web.WebSocketResponse(heartbeat=20.0, max_msg_size=16*1024*1024)
+    await ws.prepare(request)
+    adapter = AioHttpWebSocketAdapter(ws, request)
+    await ws_handler(adapter)
+    return ws
+
 async def run_http_server():
     app = web.Application()
 
@@ -4501,6 +4548,11 @@ async def run_http_server():
     app.router.add_get("/xiaozhi/sys/menu/nav", handle_menu_nav)
 
     # Generic Fallback & CORS
+    # Dual-port WebSocket routes (Hỗ trợ truy cập WebSocket trực tiếp qua HTTP Port / Cloudflare Tunnel)
+    app.router.add_get("/ws/device", handle_aiohttp_robot_ws)
+    app.router.add_get("/xiaozhi/v1/", handle_aiohttp_robot_ws)
+    app.router.add_get("/ws/mic-monitor", handle_aiohttp_robot_ws)
+
     # Xiaozhi MCP Bridge Endpoints
     app.router.add_get("/xiaozhi/mcp/bridge/status", handle_xiaozhi_mcp_status)
     app.router.add_post("/xiaozhi/mcp/bridge/config", handle_xiaozhi_mcp_config)
