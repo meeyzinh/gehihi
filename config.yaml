@@ -1,0 +1,346 @@
+# 服务器基础配置(Basic server configuration)
+server:
+  # 服务器监听地址和端口(Server listening address and port)
+  ip: 0.0.0.0
+  port: 8000
+  token: "你的token" # 服务器访问令牌
+  # 认证配置
+  auth:
+    # 是否启用认证
+    enabled: false
+    # 认证存储配置
+    store:
+      type: memory # memory/file/redis
+      expiry: 24 # 过期时间(小时)
+    # 允许的设备ID列表
+    allowed_devices: []
+    # 有效的token列表
+    tokens: []
+
+# 传输层配置
+transport:
+  # WebSocket传输层
+  websocket:
+    enabled: true
+    ip: "0.0.0.0"
+    port: 8000
+
+# Web界面配置
+web:
+  # 是否启用Web界面
+  enabled: true
+  # Web服务监听端口
+  port: 8080
+  # 由ota下发的WebSocket地址 (Mặc định cho Render: wss://gehihi.onrender.com/ws)
+  websocket: wss://gehihi.onrender.com/ws
+  vision: https://gehihi.onrender.com/api/vision
+  activate_text: "Xiaozhi AI Chat" # 发送激活码时携带的文本
+
+log:
+  # 设置控制台输出的日志格式，时间、日志级别、标签、消息
+  log_format: "{time:YYYY-MM-DD HH:mm:ss} - {level} - {message}"
+  # 设置日志等级：INFO、DEBUG
+  log_level: INFO
+  # 设置日志路径
+  log_dir: logs
+  # 设置日志文件
+  log_file: "server.log"
+
+prompt: |
+  Bạn là Xiaozhi (Tiểu Trí), một robot trợ lý AI thông minh, vui vẻ, thân thiện và nói tiếng Việt tự nhiên, ấm áp.
+  [Đặc điểm cốt lõi]
+  - Trả lời bằng tiếng Việt ngắn gọn, xúc tích, dễ hiểu và tự nhiên khi giao tiếp bằng giọng nói.
+  - Luôn nhiệt tình, lễ phép, sẵn sàng chia sẻ kiến thức, giải đáp câu hỏi và kể chuyện vui.
+  - Phản hồi nhanh chóng, không nói dông dài hay dùng các ký tự emoji đặc biệt không thể phát âm.
+
+roles:
+  - name: "Gia sư Tiếng Anh"
+    description: "Tôi là cô giáo Lily, dạy tiếng Anh giao tiếp chuẩn cho người Việt, phát âm chuẩn xác, phản hồi ngắn gọn để bạn luyện nói nhiều hơn."
+    enabled: true
+  - name: "Bạn gái tâm sự"
+    description: "Em là bạn gái dễ thương, luôn lắng nghe và chia sẻ mọi câu chuyện vui buồn hàng ngày bằng giọng nói ngọt ngào, hóm hỉnh."
+    enabled: true
+  - name: "Bé thông thái"
+    description: "Cháu là cậu bé 8 tuổi thông minh, ham học hỏi về thiên văn, động vật, khoa học tự nhiên và vũ trụ bao la."
+    enabled: true
+
+# 音频处理相关设置
+delete_audio: true
+# 开启后，服务端会把实际下发到客户端的 Opus 包保存为可用 FFmpeg 独立解码的 Ogg 文件。
+save_tts_audio: false
+quick_reply: true
+quick_reply_words:
+  - "Dạ em đây"
+  - "Em nghe đây ạ"
+  - "Dạ có em"
+  - "Em đây rồi"
+
+use_private_config: false
+
+local_mcp_fun:
+  - name: "time"
+    description: "Lấy thời gian hệ thống"
+    enabled: true
+  - name: "exit"
+    description: "Nhận biết ý định thoát cuộc trò chuyện"
+    enabled: true
+  - name: "play_music"
+    description: "Phát nhạc cục bộ"
+    enabled: true
+  - name: "switch_agent"
+    description: "Chuyển đổi trợ lý AI"
+    enabled: true
+
+CMD_exit:
+  - "tạm biệt"
+  - "hẹn gặp lại"
+  - "nghỉ ngơi đi"
+  - "dừng lại"
+  - "thoát"
+  - "bye bye"
+  - "goodbye"
+
+# 选择使用的模块
+selected_module:
+  ASR: DoubaoASR
+  TTS: EdgeTTS
+  LLM: OllamaLLM
+  VLLLM: ChatGLMVLLM
+
+# ASR配置
+ASR:
+  DoubaoASR:
+    # 火山 流式语音识别大模型-小时版， https://console.volcengine.com/ark/region:ark+cn-beijing/tts/speechRecognition
+    # 开通功能，有20小时免费额度
+    type: doubao
+    appid: "你的appid"
+    access_token: 你的access_token
+    output_dir: tmp/
+    end_window_size: 300  # 结束窗口大小，单位毫秒，默认400ms，最小200ms
+
+  GoSherpaASR:
+    type: gosherpa
+    addr: "ws://127.0.0.1:8848/asr"
+
+  DeepgramSST:
+    type: deepgram
+    addr: "wss://api.deepgram.com/v1/listen"
+    api_key: 你的api_key
+    lang: "zh-CN"
+    output_dir: tmp/
+
+  StepASR:
+    # https://platform.stepfun.com/docs/llm/realtime
+    type: stepfun
+    api_key: 你的api_key
+    model: "step-audio-2-mini"
+    voice: "qingchunshaonv"
+    prompt: 你是由阶跃星辰提供的AI聊天助手，你擅长中文、英文及多语种对话。
+
+# TTS配置
+  IflytekASR:
+    # iFlytek voice dictation WebSocket, expects 16k PCM audio.
+    type: iflytek
+    appid: "your_appid"
+    api_key: "your_api_key"
+    api_secret: "your_api_secret"
+    asr_url: "wss://iat-api.xfyun.cn/v2/iat"
+    language: "zh_cn"
+    domain: "iat"
+    accent: "mandarin"
+    vad_eos: 2000
+    format: "audio/L16;rate=16000"
+    encoding: "raw"
+
+TTS:
+  # EdgeTTS 是微软的语音合成服务，免费使用，容易合成失败，并发未测试
+  EdgeTTS:
+    type: edge
+    voice: zh-CN-XiaoxiaoNeural
+    output_dir: "tmp/"
+    supported_voices:
+      [
+        {
+          name: "zh-CN-XiaoxiaoNeural",
+          display_name: "晓晓",
+          sex: "女",
+          description: "商务知性风格，音色成熟清晰，适合新闻播报、专业内容朗读",
+          audio_url: "",
+        },
+        {
+          name: "zh-CN-XiaoyiNeural",
+          display_name: "晓伊",
+          sex: "女",
+          description: "柔和温暖风格，带自然呼吸感，适合故事叙述或客服场景",
+          audio_url: "",
+        },
+        {
+          name: "zh-CN-YunjianNeural",
+          display_name: "云健",
+          sex: "男",
+          description: "沉稳磁性男声，权威感强，适合男性角色配音或严肃内容",
+          audio_url: "",
+        },
+        {
+          name: "zh-CN-YunxiNeural",
+          display_name: "云希",
+          sex: "男",
+          description: "年轻活力风格，语速轻快，适合青少年角色或轻松场景",
+          audio_url: "",
+        },
+        {
+          name: "zh-CN-YunxiaNeural",
+          display_name: "云夏",
+          sex: "男",
+          description: "方言特色（东北腔），幽默接地气，适合娱乐内容",
+          audio_url: "",
+        },
+        {
+          name: "zh-CN-YunyangNeural",
+          display_name: "云扬",
+          sex: "男",
+          description: "明亮自信风格，中气十足，适合广告宣传或公开演讲",
+          audio_url: "",
+        },
+        {
+          name: "zh-CN-liaoning-XiaobeiNeural",
+          display_name: "晓北（辽宁）",
+          sex: "女",
+          description: "带东北方言特色，亲切直率，适合地方化内容",
+          audio_url: "",
+        },
+        {
+          name: "zh-CN-shaanxi-XiaoniNeural",
+          display_name: "晓妮（陕西）",
+          sex: "女",
+          description: "陕西口音风格，质朴热情，适合方言文化场景",
+          audio_url: "",
+        },
+      ]
+
+  DoubaoTTS:
+    # 火山语音合成大模型 https://console.volcengine.com/ark/region:ark+cn-beijing/tts/speechSynthesis
+    type: doubao
+    voice: zh_female_wanwanxiaohe_moon_bigtts # 湾湾小何
+    output_dir: "tmp/"
+    appid: "你的appid"
+    token: 你的access_token
+    cluster: 你的cluster
+  GoSherpaTTS:
+    type: gosherpa
+    cluster: "ws://127.0.0.1:8848/tts"
+    output_dir: "tmp/"
+  DeepgramTTS:
+    type: deepgram
+    voice: aura-2-zeus-en
+    cluster: "wss://api.deepgram.com/v1/speak"
+    token: 你的token
+    output_dir: "tmp/"
+    sample_rate: 16000
+
+# LLM配置
+  IflytekTTS:
+    # token stores api_key, cluster stores api_secret for compatibility with existing TTS config.
+    type: iflytek
+    voice: xiaoyan
+    format: mp3
+    output_dir: "tmp/"
+    appid: "your_appid"
+    token: "your_api_key"
+    cluster: "your_api_secret"
+    supported_voices:
+      [
+        {
+          name: "xiaoyan",
+          display_name: "xiaoyan",
+          sex: "female",
+          description: "iFlytek Mandarin female voice",
+          audio_url: "",
+        },
+        {
+          name: "aisjiuxu",
+          display_name: "aisjiuxu",
+          sex: "male",
+          description: "iFlytek Mandarin male voice",
+          audio_url: "",
+        },
+      ]
+
+LLM:
+  ChatGLMLLM:
+    # 定义LLM API类型
+    type: openai
+    # glm-4-flash 是免费的，但是还是需要注册填写api_key的
+    # 可在这里找到你的api key https://bigmodel.cn/usercenter/proj-mgmt/apikeys
+    model_name: glm-4-flash
+    url: https://open.bigmodel.cn/api/paas/v4/
+    api_key: 你的api_key
+  OllamaLLM:
+    # 定义LLM API类型
+    type: ollama
+    model_name: qwen3 #  使用的模型名称，需要预先使用ollama pull下载
+    url: http://localhost:11434 # Ollama服务地址
+  DoubaoLLM:
+    # 定义LLM API类型
+    type: doubao
+    # doubao-seed-1.6-251015 是豆包深度思考模型 deepseek-v3-1-terminus效果比较好
+    # 可在这里找到你的api key https://console.volcengine.com/ark
+    model_name: doubao-seed-1.6-251015
+    url: https://ark.cn-beijing.volces.com/api/v3
+    api_key: 你的api_key
+    thinking: disabled # 思考模式: disabled(关闭思考) 或 enabled(启用思考)
+    max_tokens: 4000
+  CozeLLM:
+    # 定义LLM API类型
+    type: coze
+    bot_id: 你的bot_id
+    user_id: 你的user_id
+    # 正式环境
+    # 可以在这里创建一个 OAuth服务类应用，得到client_id、public_key、private_key：https://www.coze.cn/open/oauth/apps
+    client_id: 你的coze clientId
+    public_key: 你的coze 公钥
+    private_key: 你的coze 私钥
+    # 个人测试，填了client_id、public_key、private_key此项就不用填了
+    # 可在这里找到你的personal_access_token：https://www.coze.cn/open/oauth/pats
+    personal_access_token: 你的coze个人令牌
+    url: "https://api.coze.cn" # Coze服务地址
+
+# 退出指令
+CMD_exit:
+  - "退出"
+  - "关闭"
+
+# VLLLM配置（视觉语言大模型）
+VLLLM:
+  ChatGLMVLLM:
+    type: openai
+    model_name: glm-4v-flash # 智谱AI的视觉模型
+    url: https://open.bigmodel.cn/api/paas/v4/
+    api_key: 你的api_key
+    max_tokens: 4096
+    temperature: 0.7
+    top_p: 0.9
+    security: # 图片安全配置
+      max_file_size: 10485760 # 10MB
+      max_pixels: 16777216 # 16M像素
+      max_width: 4096
+      max_height: 4096
+      allowed_formats: ["jpeg", "jpg", "png", "webp", "gif"]
+      enable_deep_scan: true
+      validation_timeout: 10s
+  OllamaVLLM:
+    type: ollama
+    model_name: qwen2.5vl # 本地视觉模型
+    url: http://localhost:11434
+    max_tokens: 4096
+    temperature: 0.7
+    top_p: 0.9
+    security: # 图片安全配置
+      max_file_size: 10485760 # 10MB
+      max_pixels: 16777216 # 16M像素
+      max_width: 4096
+      max_height: 4096
+      allowed_formats: ["jpeg", "jpg", "png", "webp", "gif"]
+      enable_deep_scan: true
+      validation_timeout: 10s
+

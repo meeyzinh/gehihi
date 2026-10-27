@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: gehihi
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    healthCheckPath: /api/ota/
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: WEBSOCKET_URL
+        value: wss://gehihi.onrender.com/ws
+      - key: TIMEZONE_OFFSET
+        value: 420
+      - key: TZ
+        value: Asia/Ho_Chi_Minh

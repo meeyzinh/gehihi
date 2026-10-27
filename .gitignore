@@ -1,0 +1,14 @@
+xiaozhi-server
+/logs
+/tmp
+/.config.yaml
+/.mcp_server_settings.json
+xiaozhi-server-go
+.mcp_server_settings copy.json
+.DS_Store
+wake_replay
+/uploads
+.env
+config.db
+/ota_bin
+/cloudflare/tunnel.yml

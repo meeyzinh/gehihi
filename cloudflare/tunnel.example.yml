@@ -1,0 +1,12 @@
+# Copy to tunnel.yml and replace the placeholders with your Cloudflare Tunnel details.
+tunnel: YOUR_TUNNEL_UUID
+credentials-file: C:/Users/YOUR_WINDOWS_USER/.cloudflared/YOUR_TUNNEL_UUID.json
+
+ingress:
+  # Dashboard + OTA API.
+  - hostname: panel.example.com
+    service: http://127.0.0.1:8080
+  # Xiaozhi device WebSocket. Do not put interactive Cloudflare Access on this hostname.
+  - hostname: robot.example.com
+    service: http://127.0.0.1:8000
+  - service: http_status:404

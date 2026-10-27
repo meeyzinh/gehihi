@@ -1,0 +1,9 @@
+{
+  "name": "Xiaozhi Server",
+  "title": "Bảng Điều Khiển Xiaozhi",
+  "welcome": "Chào mừng bạn đến với Bảng Điều Khiển Quản Trị Xiaozhi",
+  "logoUrl": "/logo.png",
+  "favicon": "/favicon.ico",
+  "homeLink": "https://github.com/meeyzinh/gehihi",
+  "copyright": "Xiaozhi Server Vietnam"
+}

@@ -1,0 +1,126 @@
+<!-- WELCOME_PAGE_MARKER -->
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Xiaozhi AI Chat - Bảng Điều Khiển Máy Chủ</title>
+  <style>
+    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; color:#222; background:#f5f7fa; margin:0; padding:0; line-height: 1.6; }
+    .container { max-width:1100px; margin:32px auto; background:#fff; border-radius:12px; box-shadow:0 4px 24px 0 rgba(0,0,0,0.06); padding:32px 28px; }
+    .alert { background: #e6f7ff; border: 1px solid #91d5ff; color: #0050b3; border-radius: 8px; padding: 14px 20px; margin-bottom: 28px; font-size: 15px; }
+    h1 { text-align:center; margin-bottom:8px; font-size:2.2em; color: #1f2937; }
+    .title-icons { font-size: 1.1em; vertical-align: middle; }
+    .lead { text-align:center; color:#4b5563; margin-bottom:28px; font-size: 16px; }
+    .card { background: #f8fafc; border-radius: 10px; margin-bottom: 24px; border: 1px solid #e2e8f0; padding: 20px 28px; }
+    .card2 { background: #f0f7ff; border-color: #bae0ff; }
+    .card3 { background: #f6ffed; border-color: #b7eb8f; }
+    .quickstart { color: #374151; font-size: 15px; line-height: 1.8; margin: 0; padding-left: 22px; }
+    .quickstart li { margin-bottom: 8px; }
+    .code-box { background: #1e293b; color: #38bdf8; padding: 4px 10px; border-radius: 6px; font-family: Consolas, monospace; font-size: 14px; font-weight: 600; display: inline-block; word-break: break-all; }
+    .section { text-align: center; margin-top: 36px; }
+    .contact-row { display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; }
+    .contact-col { min-width: 220px; }
+    .btn-link { display:inline-block; padding:10px 24px; background:#2563eb; color:#fff; border-radius:8px; font-weight:600; font-size:15px; text-decoration:none; box-shadow:0 2px 8px 0 rgba(37,99,235,0.25); transition:all 0.2s; }
+    .btn-link:hover { background:#1d4ed8; }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-top: 32px; }
+    .feature-card { background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; box-shadow: 0 2px 10px 0 rgba(0,0,0,0.03); display: flex; flex-direction: column; padding: 24px; }
+    .feature-title { display: flex; align-items: center; margin-bottom: 12px; font-size: 18px; font-weight: 700; color: #111827; }
+    .feature-list { font-size: 14px; color: #4b5563; line-height: 1.9; margin: 0; padding-left: 18px; flex: 1; }
+    @media (max-width:768px) { .container { margin:12px; padding:16px; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="alert">
+      🚀 <b>Máy chủ Xiaozhi Server (Tiếng Việt)</b> đang hoạt động trực tuyến trên Render tại <b>https://gehihi.onrender.com/</b>
+    </div>
+    <h1>
+      <span class="title-icons">🤖</span>
+      Bảng Điều Khiển Máy Chủ Xiaozhi
+      <span class="title-icons" style="color:#ef4444;">❤️</span>
+    </h1>
+    <div class="lead">
+      Hệ thống quản trị máy chủ thông minh cho Robot <b>Xiaozhi (ESP32)</b>, hỗ trợ tương tác giọng nói hai chiều thời gian thực (Realtime Voice AI) bằng <b>Tiếng Việt</b>.
+    </div>
+
+    <div class="card card2">
+      <h3 style="color:#1e3a8a;margin-top:0;margin-bottom:14px;">⚡ Hướng Dẫn Kết Nối Robot Xiaozhi ESP32 Vào Máy Chủ</h3>
+      <ol class="quickstart">
+        <li>
+          <b>Đăng nhập Quản trị:</b> Đăng nhập vào bảng điều khiển bằng tài khoản <span class="code-box">admin</span> và mật khẩu ban đầu (hoặc mật khẩu tạm thời hiển thị trong nhật ký máy chủ).
+        </li>
+        <li>
+          <b>Cấu hình Nhà Cung Cấp (Provider):</b> Vào mục <b>Nhà cung cấp AI</b> để cấu hình ít nhất 1 tổ hợp ASR (Nhận dạng giọng nói), LLM (Mô hình trí tuệ nhân tạo như OpenAI / Ollama / Doubao), và TTS (Giọng đọc EdgeTTS hoặc Doubao TTS).
+        </li>
+        <li>
+          <b>Cấu hình Robot kết nối đến Máy chủ:</b>
+          <div style="margin-top:6px;">
+            Khi Robot Xiaozhi ESP32 ở chế độ cấu hình mạng Wi-Fi (AP mode), hãy nhập đường dẫn OTA sau vào ô <b>OTA URL</b>:
+            <br>
+            <span class="code-box">https://gehihi.onrender.com/api/ota/</span>
+          </div>
+        </li>
+        <li>
+          <b>Nhận địa chỉ WebSocket tự động:</b> Sau khi kết nối mạng thành công, Robot sẽ tự động gọi API OTA và nhận địa chỉ truyền dẫn WebSocket:
+          <br>
+          <span class="code-box">wss://gehihi.onrender.com/ws</span>
+        </li>
+        <li>
+          <b>Lấy mã kích hoạt & Ghép nối:</b>
+          Robot sẽ phát âm thanh đọc <b>mã xác thực gồm 6 chữ số</b> (hoặc hiển thị trên màn hình nếu có).
+          Vào mục <b>Trợ lý AI</b> trên bảng điều khiển này, chọn <b>Thêm thiết bị</b> (hoặc liên kết mã), nhập địa chỉ MAC / mã xác thực để liên kết robot với trợ lý tương ứng.
+        </li>
+        <li>
+          <b>Trò chuyện:</b> Khởi động lại hoặc bấm nút nói trên robot để bắt đầu đàm thoại mượt mà bằng tiếng Việt!
+        </li>
+      </ol>
+    </div>
+
+    <div class="features">
+      <div class="feature-card">
+        <div class="feature-title">🎙️ Xử Lý Giọng Nói Thời Gian Thực</div>
+        <ul class="feature-list">
+          <li>Hỗ trợ mã hóa âm thanh chất lượng cao <b>OPUS</b> và PCM</li>
+          <li>Đàm thoại 2 chiều Full-Duplex qua giao thức WebSocket bảo mật (WSS)</li>
+          <li>Hỗ trợ tự động ngắt lời (Barge-in / Voice Interruption) khi người dùng nói chen ngang</li>
+          <li>Tích hợp các mô hình giọng đọc TTS mượt mà (Microsoft EdgeTTS, Doubao, Deepgram...)</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-title">🧠 Trí Tuệ Nhân Tạo & MCP</div>
+        <ul class="feature-list">
+          <li>Tương thích chuẩn <b>OpenAI API</b> (GPT-4o, Claude, DeepSeek, Qwen, Gemini...)</li>
+          <li>Hỗ trợ mô hình nội bộ không giới hạn qua <b>Ollama</b></li>
+          <li>Hỗ trợ Model Context Protocol (MCP) trên cả server và client ESP32</li>
+          <li>Tự động thực thi công cụ: Xem giờ, thời tiết, phát nhạc, điều khiển nhà thông minh IoT</li>
+        </ul>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-title">📱 Quản Trị Thiết Bị Linh Hoạt</div>
+        <ul class="feature-list">
+          <li>Tự động cập nhật Firmware không dây qua OTA</li>
+          <li>Đồng bộ hóa múi giờ chuẩn Việt Nam (UTC+7)</li>
+          <li>Tạo nhiều nhân vật / trợ lý ảo khác nhau với Prompt và giọng đọc tùy biến</li>
+          <li>Hỗ trợ danh sách trắng (Whitelist MAC) để bảo mật chống truy cập trái phép</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="contact-row">
+        <div class="contact-col">
+          <a href="https://github.com/meeyzinh/gehihi" target="_blank" rel="noopener noreferrer" class="btn-link">
+            Xem Mã Nguồn Trên GitHub (meeyzinh/gehihi)
+          </a>
+        </div>
+      </div>
+      <p style="color:#6b7280;font-size:13px;margin-top:16px;">
+        Xiaozhi Server Go - Phiên bản Tiếng Việt tối ưu hóa cho nền tảng Cloud & Render.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
