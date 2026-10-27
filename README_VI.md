@@ -82,3 +82,4 @@ Trong thư mục `xiaozhi-esp32-main`:
 4. Khi robot khởi động và kết nối Wi-Fi, robot sẽ tự động liên hệ tới server và phát ra **mã kích hoạt 6 chữ số**.
 5. Trên Dashboard, vào mục **Trợ lý AI** -> Bấm **Thêm thiết bị** -> Nhập địa chỉ MAC hoặc mã xác thực để liên kết robot.
 6. Bắt đầu trò chuyện bằng giọng nói Tiếng Việt với robot!
+

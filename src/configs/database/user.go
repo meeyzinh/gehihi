@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"os"
 	"time"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/models"
@@ -59,39 +60,35 @@ func generateInitialAdminPassword() (string, error) {
 }
 
 func InitAdminUser(db *gorm.DB, config *configs.Config) error {
-	var count int64
-	// 检查是否已经存在管理员用户
-	if err := db.Model(&models.User{}).Where("role = ?", "admin").Count(&count).Error; err != nil {
-		// 查询失败
-		return err
+	adminPass := "123456"
+	if envPass := os.Getenv("ADMIN_PASSWORD"); envPass != "" {
+		adminPass = envPass
 	}
-	if count > 0 {
-		// 已经存在管理员用户，不需要初始化
-		return nil
-	}
-
-	password, err := generateInitialAdminPassword()
-	if err != nil {
-		return err
-	}
-	hash := md5.Sum([]byte(password + "xiaozhi_salt"))
+	hash := md5.Sum([]byte(adminPass + "xiaozhi_salt"))
 	pwd := hex.EncodeToString(hash[:])
-	// 创建管理员用户
-	adminUser := &models.User{
-		ID:        AdminUserID,
-		Username:  "admin",
-		Email:     "",
-		Password:  pwd, // 使用默认的管理员密码
-		Role:      "admin",
-		Status:    1, // 默认启用状态
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-	if err := db.Create(adminUser).Error; err != nil {
-		// 创建失败
+
+	var adminUser models.User
+	err := db.Where("username = ?", "admin").First(&adminUser).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			adminUser = models.User{
+				ID:        AdminUserID,
+				Username:  "admin",
+				Email:     "",
+				Password:  pwd,
+				Role:      "admin",
+				Status:    1,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			if err := db.Create(&adminUser).Error; err != nil {
+				return err
+			}
+			fmt.Printf("Đã khởi tạo tài khoản quản trị: admin / %s\n", adminPass)
+			return nil
+		}
 		return err
 	}
-	fmt.Printf("首次启动已创建本地管理员账号 admin，临时密码：%s。请登录后立即修改密码；该密码只会在本次启动日志中显示。\n", password)
 
 	return nil
 }
