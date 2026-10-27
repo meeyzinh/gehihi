@@ -34,8 +34,10 @@ WORKDIR /app
 COPY --from=builder /build/xiaozhi-server /app/xiaozhi-server
 COPY --from=builder /build/web /app/web
 COPY --from=builder /build/config.yaml /app/config.yaml
-COPY --from=builder /build/.config.yaml /app/.config.yaml
+COPY --from=builder /build/config.yaml /app/.config.yaml
 COPY --from=builder /build/music /app/music
+
+RUN mkdir -p /app/logs /app/tmp
 
 # Ensure execution permission
 RUN chmod +x /app/xiaozhi-server
