@@ -99,6 +99,8 @@ CMD_exit:
   - "thoát"
   - "bye bye"
   - "goodbye"
+  - "退出"
+  - "关闭"
 
 # 选择使用的模块
 selected_module:
@@ -304,11 +306,6 @@ LLM:
     # 可在这里找到你的personal_access_token：https://www.coze.cn/open/oauth/pats
     personal_access_token: 你的coze个人令牌
     url: "https://api.coze.cn" # Coze服务地址
-
-# 退出指令
-CMD_exit:
-  - "退出"
-  - "关闭"
 
 # VLLLM配置（视觉语言大模型）
 VLLLM:
