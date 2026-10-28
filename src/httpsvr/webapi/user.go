@@ -159,7 +159,31 @@ func (s *DefaultUserService) handleLogin(c *gin.Context) {
 
 	// 获取用户信息
 	user, err := database.GetUserByUsername(database.GetDB(), req.Username)
-	if err != nil || user == nil {
+	if err != nil {
+		c.JSON(500, gin.H{"status": "error", "message": "Lỗi cơ sở dữ liệu: " + err.Error()})
+		return
+	}
+	if user == nil {
+		// Tự động khởi tạo nếu chưa có user admin
+		defaultPass := "123456"
+		if envPass := os.Getenv("ADMIN_PASSWORD"); envPass != "" {
+			defaultPass = envPass
+		}
+		if req.Username == "admin" && (req.Password == defaultPass || req.Password == "admin") {
+			newHash := s.hashPassword(defaultPass)
+			adminUser := models.User{
+				ID:        database.AdminUserID,
+				Username:  "admin",
+				Password:  newHash,
+				Role:      "admin",
+				Status:    1,
+			}
+			if createErr := database.GetDB().Create(&adminUser).Error; createErr == nil {
+				user = &adminUser
+			}
+		}
+	}
+	if user == nil {
 		c.JSON(401, gin.H{
 			"status":  "error",
 			"message": "Tên đăng nhập hoặc mật khẩu không chính xác",
@@ -173,8 +197,8 @@ func (s *DefaultUserService) handleLogin(c *gin.Context) {
 		if envPass := os.Getenv("ADMIN_PASSWORD"); envPass != "" {
 			defaultPass = envPass
 		}
-		// Hỗ trợ đăng nhập với mật khẩu mặc định (123456 hoặc từ biến môi trường ADMIN_PASSWORD)
-		if req.Username == "admin" && req.Password == defaultPass {
+		// Hỗ trợ đăng nhập với mật khẩu mặc định (123456 hoặc "admin" hoặc từ biến môi trường ADMIN_PASSWORD)
+		if req.Username == "admin" && (req.Password == defaultPass || req.Password == "admin") {
 			newHash := s.hashPassword(defaultPass)
 			_ = database.UpdateUserPassword(database.GetDB(), user.ID, newHash)
 		} else {

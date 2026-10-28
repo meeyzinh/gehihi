@@ -115,6 +115,9 @@ func InitDB() (*gorm.DB, string, error) {
 		return nil, dbType, err
 	}
 
+	_ = InitAdminUser(db, nil)
+	_ = NormalizeSingleUserData(db)
+
 	DB = db
 	NewServerConfigDB(db)
 	return db, dbType, nil
