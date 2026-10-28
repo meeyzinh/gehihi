@@ -2,6 +2,9 @@ package edge
 
 import (
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -23,6 +26,42 @@ func NewProvider(config *tts.Config, deleteFile bool) (*Provider, error) {
 	}, nil
 }
 
+func (p *Provider) toGoogleTTS(text string, outputDir string) (string, error) {
+	tempFile := filepath.Join(outputDir, fmt.Sprintf("tts_google_%d.mp3", time.Now().UnixNano()))
+	runes := []rune(text)
+	if len(runes) > 150 {
+		text = string(runes[:150])
+	}
+	ttsURL := fmt.Sprintf("https://translate.google.com/translate_tts?ie=UTF-8&q=%s&tl=vi&client=tw-ob", url.QueryEscape(text))
+
+	req, err := http.NewRequest("GET", ttsURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("google tts request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("google tts returned status %d", resp.StatusCode)
+	}
+
+	audioData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.WriteFile(tempFile, audioData, 0644); err != nil {
+		return "", err
+	}
+	return tempFile, nil
+}
+
 // ToTTS 将文本转换为音频文件，并返回文件路径
 // 使用的edge库是github.com/wujunwei928/edge-tts-go，默认使用24k采样率
 func (p *Provider) ToTTS(text string) (string, error) {
@@ -30,7 +69,7 @@ func (p *Provider) ToTTS(text string) (string, error) {
 	edgeTTSStartTime := time.Now()
 	voice := p.BaseProvider.Config().Voice
 	if voice == "" {
-		voice = "zh-CN-XiaoxiaoNeural" // 默认声音
+		voice = "vi-VN-HoaiMyNeural" // 默认声音
 	}
 
 	// 创建临时文件路径用于保存 edgeTTS 生成的 MP3
@@ -53,38 +92,39 @@ func (p *Provider) ToTTS(text string) (string, error) {
 	// 创建 Communicate 实例
 	conn, err := edge_tts.NewCommunicate(text, connOptions...)
 	if err != nil {
-		return "", fmt.Errorf("创建 edge-tts-go Communicate 失败: %v", err)
+		return p.toGoogleTTS(text, outputDir)
 	}
 
 	// 获取音频流数据
 	audioData, err := conn.Stream()
 	if err != nil {
-		return "", fmt.Errorf("edge-tts-go 获取音频流失败: %v", err)
+		// Datacenter IP bị chặn websocket -> tự động chuyển sang Google TTS tiếng Việt miễn phí
+		return p.toGoogleTTS(text, outputDir)
 	}
 
 	ttsDuration := time.Since(edgeTTSStartTime)
 	_ = ttsDuration
-	//fmt.Println(fmt.Sprintf("edge-tts-go 语音合成完成，耗时: %s", ttsDuration))
 
 	// 将音频数据写入临时文件
 	err = os.WriteFile(tempFile, audioData, 0644)
 	if err != nil {
-		return "", fmt.Errorf("写入音频文件 '%s' 失败: %v", tempFile, err)
+		return p.toGoogleTTS(text, outputDir)
 	}
 
 	// 检查文件是否成功创建
 	if _, err := os.Stat(tempFile); os.IsNotExist(err) {
-		return "", fmt.Errorf("edge-tts-go 未能创建音频文件: %s", tempFile)
+		return p.toGoogleTTS(text, outputDir)
 	}
-	//fmt.Printf("音频文件已生成: %s\n", tempFile)
 
-	// Return the path to the generated audio file
 	return tempFile, nil
 }
 
 func init() {
 	// 注册Edge TTS提供者
 	tts.Register("edge", func(config *tts.Config, deleteFile bool) (tts.Provider, error) {
+		return NewProvider(config, deleteFile)
+	})
+	tts.Register("google", func(config *tts.Config, deleteFile bool) (tts.Provider, error) {
 		return NewProvider(config, deleteFile)
 	})
 }
