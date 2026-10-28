@@ -42,6 +42,7 @@ import (
 	_ "xiaozhi-server-go/src/core/providers/asr/deepgram"
 	_ "xiaozhi-server-go/src/core/providers/asr/doubao"
 	_ "xiaozhi-server-go/src/core/providers/asr/gosherpa"
+	_ "xiaozhi-server-go/src/core/providers/asr/groq"
 	_ "xiaozhi-server-go/src/core/providers/asr/iflytek"
 	_ "xiaozhi-server-go/src/core/providers/asr/stepfun"
 	_ "xiaozhi-server-go/src/core/providers/llm/coze"

@@ -104,13 +104,19 @@ CMD_exit:
 
 # 选择使用的模块
 selected_module:
-  ASR: DoubaoASR
+  ASR: GroqASR
   TTS: EdgeTTS
-  LLM: OllamaLLM
+  LLM: GroqLLM
   VLLLM: ChatGLMVLLM
 
 # ASR配置
 ASR:
+  GroqASR:
+    type: groq
+    api_key: ""
+    url: "https://api.groq.com/openai/v1/audio/transcriptions"
+    model: "whisper-large-v3-turbo"
+    lang: "vi"
   DoubaoASR:
     # 火山 流式语音识别大模型-小时版， https://console.volcengine.com/ark/region:ark+cn-beijing/tts/speechRecognition
     # 开通功能，有20小时免费额度
@@ -283,6 +289,13 @@ TTS:
       ]
 
 LLM:
+  GroqLLM:
+    # Định nghĩa LLM Groq (OpenAI-compatible)
+    type: openai
+    model_name: qwen/qwen3.8-27b
+    url: https://api.groq.com/openai/v1/
+    api_key: ""
+    max_tokens: 4000
   ChatGLMLLM:
     # 定义LLM API类型
     type: openai

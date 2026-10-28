@@ -71,6 +71,7 @@ func stringConfig(config map[string]interface{}, key string) string {
 func missingProviderTestFields(providerType, subType string, config map[string]interface{}) []string {
 	required := map[string]map[string][]string{
 		"ASR": {
+			"groq": {"api_key"}, "whisper": {"api_key"}, "openai": {"api_key"},
 			"doubao": {"appid", "access_token"}, "deepgram": {"addr", "api_key"}, "gosherpa": {"addr"},
 			"stepfun": {"api_key", "model", "voice"}, "iflytek": {"appid", "api_key", "api_secret"},
 		},

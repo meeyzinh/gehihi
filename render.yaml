@@ -17,4 +17,6 @@ services:
         value: Asia/Ho_Chi_Minh
       - key: ADMIN_PASSWORD
         value: "123456"
+      - key: GROQ_API_KEY
+        sync: false
 

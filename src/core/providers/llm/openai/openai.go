@@ -44,7 +44,9 @@ func (p *Provider) Initialize() error {
 	config := p.Config()
 	apiKey := config.APIKey
 	if apiKey == "" {
-		if envKey := os.Getenv("OPENAI_API_KEY"); envKey != "" {
+		if envKey := os.Getenv("GROQ_API_KEY"); envKey != "" {
+			apiKey = envKey
+		} else if envKey := os.Getenv("OPENAI_API_KEY"); envKey != "" {
 			apiKey = envKey
 		} else if envKey := os.Getenv("LLM_API_KEY"); envKey != "" {
 			apiKey = envKey
