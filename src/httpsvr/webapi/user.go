@@ -8,6 +8,7 @@ import (
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/configs/database"
 	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
