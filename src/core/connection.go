@@ -120,6 +120,7 @@ type ConnectionHandler struct {
 	tts_last_text_index int
 	client_asr_text     string // 客户端ASR文本
 	quickReplyCache     *utils.QuickReplyCache
+	asrErrorNotified    bool
 
 	// 并发控制
 	stopChan         chan struct{}
@@ -586,6 +587,13 @@ func (h *ConnectionHandler) processClientAudioMessagesCoroutine() {
 			}
 			if err := h.providers.asr.AddAudio(audioData); err != nil {
 				h.LogError(fmt.Sprintf("处理音频数据失败: %v", err))
+				if !h.asrErrorNotified {
+					h.asrErrorNotified = true
+					go func() {
+						time.Sleep(1 * time.Second)
+						h.SystemSpeak("Máy chủ chưa được cấu hình dịch vụ nhận diện giọng nói ASR. Bạn vui lòng vào Bảng điều khiển để cấu hình nhé.")
+					}()
+				}
 			}
 		}
 	}
@@ -757,7 +765,11 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 	tools := h.functionRegister.GetAllFunctions()
 	responses, err := h.providers.llm.ResponseWithFunctions(ctx, h.sessionID, messages, tools)
 	if err != nil {
-		return fmt.Errorf("LLM生成回复失败: %v", err)
+		h.LogError(fmt.Sprintf("LLM生成回复失败: %v", err))
+		fallbackMsg := "Dạ em xin lỗi, hiện tại em chưa kết nối được dịch vụ AI. Bạn vui lòng kiểm tra cấu hình LLM trên Bảng điều khiển nhé."
+		h.tts_last_text_index = 1
+		h.SpeakAndPlay(fallbackMsg, 1, round)
+		return nil
 	}
 
 	// 处理回复

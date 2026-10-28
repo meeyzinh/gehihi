@@ -155,13 +155,27 @@ ASR:
     encoding: "raw"
 
 TTS:
-  # EdgeTTS 是微软的语音合成服务，免费使用，容易合成失败，并发未测试
+  # EdgeTTS là dịch vụ TTS miễn phí của Microsoft, hỗ trợ tiếng Việt chất lượng cao
   EdgeTTS:
     type: edge
-    voice: zh-CN-XiaoxiaoNeural
+    voice: vi-VN-HoaiMyNeural
     output_dir: "tmp/"
     supported_voices:
       [
+        {
+          name: "vi-VN-HoaiMyNeural",
+          display_name: "Hoài My (Nữ)",
+          sex: "Nữ",
+          description: "Giọng nữ tiếng Việt ấm áp, tự nhiên",
+          audio_url: "",
+        },
+        {
+          name: "vi-VN-NamMinhNeural",
+          display_name: "Nam Minh (Nam)",
+          sex: "Nam",
+          description: "Giọng nam tiếng Việt truyền cảm, rõ ràng",
+          audio_url: "",
+        },
         {
           name: "zh-CN-XiaoxiaoNeural",
           display_name: "晓晓",

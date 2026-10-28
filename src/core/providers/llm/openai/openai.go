@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"xiaozhi-server-go/src/core/providers/llm"
 	"xiaozhi-server-go/src/core/types"
@@ -41,13 +42,29 @@ func NewProvider(config *llm.Config) (llm.Provider, error) {
 // Initialize 初始化提供者
 func (p *Provider) Initialize() error {
 	config := p.Config()
-	if config.APIKey == "" {
+	apiKey := config.APIKey
+	if apiKey == "" {
+		if envKey := os.Getenv("OPENAI_API_KEY"); envKey != "" {
+			apiKey = envKey
+		} else if envKey := os.Getenv("LLM_API_KEY"); envKey != "" {
+			apiKey = envKey
+		}
+	}
+	if apiKey == "" {
 		return fmt.Errorf("missing OpenAI API key")
 	}
 
-	clientConfig := openai.DefaultConfig(config.APIKey)
-	if config.BaseURL != "" {
-		clientConfig.BaseURL = config.BaseURL
+	clientConfig := openai.DefaultConfig(apiKey)
+	baseURL := config.BaseURL
+	if baseURL == "" {
+		if envURL := os.Getenv("OPENAI_BASE_URL"); envURL != "" {
+			baseURL = envURL
+		} else if envURL := os.Getenv("LLM_BASE_URL"); envURL != "" {
+			baseURL = envURL
+		}
+	}
+	if baseURL != "" {
+		clientConfig.BaseURL = baseURL
 	}
 
 	p.client = openai.NewClientWithConfig(clientConfig)

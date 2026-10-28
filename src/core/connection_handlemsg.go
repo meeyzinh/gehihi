@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
+	"time"
 	"xiaozhi-server-go/src/core/chat"
 	"xiaozhi-server-go/src/core/image"
 	"xiaozhi-server-go/src/core/providers"
@@ -174,9 +176,18 @@ func (h *ConnectionHandler) handleListenMessage(msgMap map[string]interface{}) e
 			h.clientAbortChat()
 		}
 		h.client_asr_text = ""
+		h.asrErrorNotified = false
 	case "stop":
 		h.providers.asr.SendLastAudio([]byte{}) // 发送空数据标记结束
 		h.LogInfo("客户端停止语音识别")
+		currentRound := h.talkRound
+		go func(round int) {
+			time.Sleep(3500 * time.Millisecond)
+			if h.talkRound == round && atomic.LoadInt32(&h.serverVoiceStop) == 0 && h.client_asr_text == "" {
+				h.LogInfo("ASR không phản hồi sau khi dừng nghe, gửi thông báo fallback")
+				h.SystemSpeak("Dạ em chưa nghe rõ câu nói của bạn hoặc máy chủ chưa nhận diện được giọng nói. Bạn thử nói lại nhé.")
+			}
+		}(currentRound)
 	case "detect":
 		text, hasText := msgMap["text"].(string)
 
