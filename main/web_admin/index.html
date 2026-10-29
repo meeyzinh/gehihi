@@ -3316,7 +3316,21 @@ Ví dụ:
 
     <div class="form-group">
         <label>Chọn model AI phù hợp với nhu cầu của bạn</label>
-        <select id="xiaozhiLlmModel" onchange="onModelChange()"></select>
+        <select id="xiaozhiLlmModel" onchange="onModelChange()">
+            <optgroup label="🤖 Google Gemini">
+              <option value="gemini-3.8-flash" selected>Gemini 3.8 Flash (Thông minh, phản hồi nhanh - Mặc định)</option>
+              <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Phản hồi cực nhanh ~1s)</option>
+            </optgroup>
+            <optgroup label="🧠 OpenAI (ChatGPT)">
+              <option value="gpt-4o-mini">ChatGPT GPT-4o Mini (Phản hồi nhanh, rẻ, thông minh - Khuyên dùng)</option>
+              <option value="gpt-4o">ChatGPT GPT-4o (Đỉnh cao trí tuệ)</option>
+              <option value="gpt-3.5-turbo">ChatGPT GPT-3.5 Turbo</option>
+            </optgroup>
+            <optgroup label="💡 DeepSeek AI">
+              <option value="deepseek-chat">DeepSeek V3 (deepseek-chat - Tiếng Việt siêu tự nhiên, siêu rẻ)</option>
+              <option value="deepseek-reasoner">DeepSeek R1 (deepseek-reasoner - Suy luận logic sâu)</option>
+            </optgroup>
+        </select>
         <div id="apiKeyGroup" style="margin-top: 10px; background: rgba(15,23,42,0.6); padding: 10px 12px; border-radius: 8px; border: 1px solid #334155;">
             <label id="apiKeyLabel" style="font-size: 12px; color: #94a3b8; display: block; margin-bottom: 6px;">
                 🔑 API Key riêng (Tùy chọn - nếu để trống sẽ tự dùng Key từ hệ thống server/.env):
@@ -3331,14 +3345,17 @@ Ví dụ:
     <div class="form-group">
         <label>Chọn ngôn ngữ nói của Gehihi</label>
         <select id="xiaozhiLanguage" onchange="onMyXiaozhiLanguageChange()">
-            <option value="">Đang tải ngôn ngữ...</option>
+            <option value="vi" selected>Tiếng Việt</option>
+            <option value="en">English (US)</option>
         </select>
     </div>
 
     <div class="form-group">
         <label>Chọn Giọng nói của Gehihi</label>
         <select id="xiaozhiTtsVoice">
-            <option value="">Đang tải giọng nói...</option>
+            <option value="vi-VN-HoaiMyNeural" selected>🎙️ Giọng nữ (Hoài My - Nữ miền Bắc)</option>
+            <option value="vi-VN-NamMinhNeural">🎙️ Giọng nam (Nam Minh - Nam miền Bắc)</option>
+            <option value="vi-VN-MaiNgocNeural">🎙️ Giọng nữ miền Nam (Mai Ngọc)</option>
         </select>
 
         <input id="xiaozhiCustomTtsVoice" placeholder="Voice ID tùy chỉnh, chỉ dùng khi cần test" style="display:none;">
@@ -3471,6 +3488,8 @@ Ví dụ:
 
       if (sectionId === 'youtubeMusic') {
         checkMusicStatus();
+      } else if (sectionId === 'xiaozhiConfig') {
+        loadMyXiaozhiConfig();
       }
 
       const targets = targetMap[sectionId] || [sectionId];
@@ -5192,7 +5211,19 @@ Ví dụ:
     // 4. QUẢN LÝ CẤU HÌNH ROBOT (PROMPT, MODEL, VOICE, SPEED)
     async function loadMyXiaozhiConfig(notify = false) {
       try {
-        const res = await fetch(`/api/devices/${activeDeviceId}`);
+        let devId = activeDeviceId || localStorage.getItem("gehihi_active_robot_id") || "DEV_001";
+        let res = await fetch(`/api/devices/${devId}`);
+        if (!res.ok) {
+          const listRes = await fetch("/api/devices");
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            if (Array.isArray(listData) && listData.length > 0) {
+              devId = listData[0].id || listData[0].pin || listData[0].mac;
+              activeDeviceId = devId;
+              res = await fetch(`/api/devices/${devId}`);
+            }
+          }
+        }
         if (!res.ok) return;
         const dev = await res.json();
 
@@ -6152,7 +6183,24 @@ Ví dụ:
       showToast("Đang phát mẫu giọng nói nhận dạng...");
     }
 
-    function onMyXiaozhiLanguageChange() {}
+    function onMyXiaozhiLanguageChange() {
+      const lang = document.getElementById("xiaozhiLanguage")?.value || "vi";
+      const voiceSelect = document.getElementById("xiaozhiTtsVoice");
+      if (!voiceSelect) return;
+      if (lang === "en") {
+        voiceSelect.innerHTML = `
+          <option value="en-US-JennyNeural">🇺🇸 Jenny (Nữ Mỹ - Ngọt ngào, tự nhiên)</option>
+          <option value="en-US-GuyNeural">🇺🇸 Guy (Nam Mỹ - Trầm ấm, truyền cảm)</option>
+          <option value="en-US-AriaNeural">🇺🇸 Aria (Nữ Mỹ - Biểu cảm cao)</option>
+        `;
+      } else {
+        voiceSelect.innerHTML = `
+          <option value="vi-VN-HoaiMyNeural">🇻🇳 Giọng nữ (Hoài My - Nữ miền Bắc)</option>
+          <option value="vi-VN-NamMinhNeural">🇻🇳 Giọng nam (Nam Minh - Nam miền Bắc)</option>
+          <option value="vi-VN-MaiNgocNeural">🇻🇳 Giọng nữ miền Nam (Mai Ngọc)</option>
+        `;
+      }
+    }
 
     // 7.7. CƠ SỞ TRI THỨC & OCR SCAN GIẢ LẬP VĂN BẢN
     async function loadKnowledgeDocuments() {

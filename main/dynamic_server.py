@@ -1693,6 +1693,10 @@ async def call_groq_llm(user_text: str, api_key: str = None, system_prompt: str 
         "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
+    if "json" not in system_prompt.lower():
+        system_prompt = system_prompt + "\nTrả về câu trả lời ở định dạng JSON với cấu trúc: {\"reply\": \"...\", \"emotion\": \"happy\"}"
+    if "json" not in system_prompt.lower():
+        system_prompt = system_prompt + "\nTrả về câu trả lời ở định dạng JSON với cấu trúc: {\"reply\": \"...\", \"emotion\": \"happy\"}"
     payload = {
         "model": "qwen/qwen3.8-27b",
         "messages": [
@@ -2203,10 +2207,8 @@ async def ws_handler(websocket):
         nonlocal processing_ai, cooldown_until, last_user_activity, last_bot_reply
         processing_ai = True
         turn_started_at = time.perf_counter()
+        music_was_playing = bool(ACTIVE_MUSIC_STATE.get("is_playing"))
         try:
-            if ACTIVE_MUSIC_STATE.get("is_playing"):
-                logger.info("Voice detected while music is streaming. Stopping music...")
-                stop_active_music()
 
             logger.info(f"Executing AI turn with {len(audio_packets)} audio packets...")
             LIVE_DIAGNOSTICS["turns_executed"] += 1
@@ -2234,11 +2236,55 @@ async def ws_handler(websocket):
 
             u_text, b_text, emotion = await call_unified_ai(wav_bytes)
             if u_text:
-                u_clean = u_text.lower()
-                if any(w in u_clean for w in ["dừng nhạc", "tắt nhạc", "ngừng nhạc", "thôi phát nhạc", "dừng phát"]):
+                u_clean = u_text.lower().strip()
+                stop_triggers = ["dừng nhạc", "tắt nhạc", "ngừng nhạc", "thôi phát nhạc", "dừng phát", "im lặng", "tắt đi", "dừng lại", "stop music", "stop"]
+                play_triggers = [
+                    "phát bài hát", "phát bài", "mở bài hát", "mở bài", "hát bài hát", "hát bài",
+                    "bật bài hát", "bật bài", "nghe bài hát", "nghe bài", "phát nhạc", "mở nhạc",
+                    "bật nhạc", "nghe nhạc", "hát cho tôi nghe bài", "hát cho mình nghe bài", "hát cho em nghe bài",
+                    "hát cho tôi nghe", "hát cho mình nghe", "hát cho em nghe", "cho tôi nghe bài", "cho mình nghe bài"
+                ]
+
+                is_stop = any(w in u_clean for w in stop_triggers)
+                is_play = any(w in u_clean for w in play_triggers)
+
+                if is_stop:
                     stop_active_music()
-                    b_text = "Dạ, em đã dừng phát nhạc rồi ạ!"
-                    emotion = "happy" 
+                    b_text = "Dạ, em đã dừng phát nhạc rồi bạn nhé!"
+                    emotion = "happy"
+                elif is_play:
+                    stop_active_music()
+                    song_query = u_text
+                    for trig in sorted(play_triggers, key=len, reverse=True):
+                        if trig in u_clean:
+                            idx = u_clean.find(trig)
+                            song_query = u_text[idx + len(trig):].strip(" :,.-?!~")
+                            break
+                    if not song_query or len(song_query) < 2:
+                        song_query = "nhạc thiếu nhi vui nhộn"
+
+                    b_text = f"Dạ, em đang tìm và phát bài {song_query} cho bạn đây ạ!"
+                    emotion = "happy"
+
+                    async def _play_voice_music_bg(query):
+                        try:
+                            # Đợi 2.5s để robot nói xong câu thông báo trước khi phát nhạc
+                            await asyncio.sleep(2.5)
+                            results = await search_youtube_tracks(query, 1)
+                            if results and len(results) > 0:
+                                track = results[0]
+                                await resolve_and_stream_music(track["id"], track)
+                            else:
+                                await resolve_and_stream_music(query, {"title": query})
+                        except Exception as ex:
+                            logger.error(f"Error streaming requested voice music '{query}': {ex}")
+
+                    asyncio.create_task(_play_voice_music_bg(song_query))
+                elif music_was_playing:
+                    # Nếu mic chỉ thu âm vang ngắn của bài hát, bỏ qua để không ngắt quãng âm nhạc
+                    if len(u_clean.split()) <= 2:
+                        logger.info(f"Ignoring mic echo while music is streaming: '{u_text}'")
+                        return 
             LIVE_DIAGNOSTICS["last_user_text"] = u_text
             LIVE_DIAGNOSTICS["last_bot_text"] = b_text
             if MIC_MONITOR_CLIENTS:
@@ -3864,29 +3910,32 @@ async def stream_music_to_robots(audio_url: str, track_info: dict):
     ACTIVE_MUSIC_STATE["track"] = track_info
 
     session_id = str(uuid.uuid4())
-    raw_title = track_info.get("title", "Bài hát thiếu nhi")
-    title_clean = raw_title.split("-")[0].strip()[:26]
+    raw_title = track_info.get("title", "Bài hát yêu thích")
+    title_clean = raw_title.split("-")[0].split("|")[0].strip()[:26]
     logger.info(f"Starting music stream to robots: '{title_clean}'")
 
-    # 1. Báo hiển thị OLED & khởi tạo luồng âm thanh
+    # 1. Báo hiển thị OLED & khởi tạo luồng âm thanh theo đúng thứ tự firmware yêu cầu
     for mac, ws in list(CONNECTED_ROBOTS.items()):
         try:
             await ws.send(json.dumps({"type": "llm", "emotion": "happy"}))
             await asyncio.sleep(0.01)
-            await ws.send(json.dumps({"type": "tts", "state": "start", "session_id": session_id}))
-            await asyncio.sleep(0.01)
             await ws.send(json.dumps({
                 "type": "tts",
                 "state": "sentence_start",
-                "text": f"🎵 {title_clean}",
+                "text": f"🎶 {title_clean}",
                 "session_id": session_id
             }))
+            await asyncio.sleep(0.01)
+            await ws.send(json.dumps({"type": "tts", "state": "start", "session_id": session_id}))
         except Exception as e:
             logger.warning(f"Error signaling music start to robot {mac}: {e}")
 
     ffmpeg_exe = get_ffmpeg_cmd()
     cmd = [
         ffmpeg_exe,
+        "-reconnect", "1",
+        "-reconnect_streamed", "1",
+        "-reconnect_delay_max", "5",
         "-i", audio_url,
         "-f", "s16le",
         "-acodec", "pcm_s16le",
@@ -3912,25 +3961,29 @@ async def stream_music_to_robots(audio_url: str, track_info: dict):
         next_frame_time = time.monotonic()
 
         while not stop_event.is_set():
-            chunk = await proc.stdout.read(frame_bytes)
-            if not chunk or len(chunk) == 0:
+            try:
+                chunk = await proc.stdout.readexactly(frame_bytes)
+            except (asyncio.IncompleteReadError, EOFError):
                 break
-            if len(chunk) < frame_bytes:
-                chunk += b"\x00" * (frame_bytes - len(chunk))
+
+            if not chunk or len(chunk) < frame_bytes:
+                break
 
             encoded_opus = encoder.encode(chunk, frame_samples)
 
-            # Truyền frame Opus tới tất cả robot kết nối
+            # Đóng gói Opus theo đúng giao thức BinaryProtocol của firmware robot
             for mac, ws in list(CONNECTED_ROBOTS.items()):
                 try:
-                    await ws.send(encoded_opus)
+                    proto_ver = CONNECTED_ROBOT_PROTOCOLS.get(id(ws), 1)
+                    wrapped_frame = encode_robot_audio_frame(encoded_opus, proto_ver)
+                    await ws.send(wrapped_frame)
                 except Exception as ex:
                     logger.debug(f"Error sending frame to {mac}: {ex}")
 
             frame_idx += 1
-            if frame_idx <= 4:
-                # Preload 4 frames đầu để loa phát tức thì không ngắt quãng
-                await asyncio.sleep(0.008)
+            if frame_idx <= 7:
+                # Pre-buffer 7 frames (420ms) để hàng đợi giải mã của robot đầy đủ, không ngắt quãng
+                await asyncio.sleep(0.005)
                 next_frame_time = time.monotonic() + 0.058
             else:
                 next_frame_time += 0.058
@@ -3963,6 +4016,13 @@ async def stream_music_to_robots(audio_url: str, track_info: dict):
         ACTIVE_MUSIC_STATE["stop_event"] = None
         logger.info(f"Music streaming finished for: '{title_clean}'")
 
+        # Khôi phục trạng thái lắng nghe cho robot
+        for mac, ws in list(CONNECTED_ROBOTS.items()):
+            try:
+                await ws.send(json.dumps({"type": "listen", "state": "start", "mode": "auto"}))
+            except Exception:
+                pass
+
 async def handle_api_music_status(request):
     return cors_response({
         "success": True,
@@ -3979,8 +4039,11 @@ async def handle_api_music_search(request):
         "count": len(tracks)
     })
 
-async def resolve_and_stream_music(target_url: str, track_info: dict):
+async def resolve_and_stream_music(target_url: str, track_info: dict = None):
+    if track_info is None:
+        track_info = {}
     audio_stream_url = target_url
+    title = track_info.get("title", "")
     if yt_dlp:
         try:
             ydl_opts = {
@@ -3989,12 +4052,23 @@ async def resolve_and_stream_music(target_url: str, track_info: dict):
                 'no_warnings': True,
                 'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
             }
+            req_target = target_url
+            if not req_target.startswith("http://") and not req_target.startswith("https://"):
+                req_target = f"ytsearch1:{req_target}"
             def _extract():
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    return ydl.extract_info(target_url, download=False)
-            info = await asyncio.wait_for(asyncio.to_thread(_extract), timeout=6.0)
-            if info and info.get("url"):
-                audio_stream_url = info.get("url")
+                    return ydl.extract_info(req_target, download=False)
+            info = await asyncio.wait_for(asyncio.to_thread(_extract), timeout=8.0)
+            if info:
+                if "entries" in info and len(info["entries"]) > 0:
+                    info = info["entries"][0]
+                if info.get("url"):
+                    audio_stream_url = info.get("url")
+                if not title and info.get("title"):
+                    title = info.get("title")
+                    track_info["title"] = title
+                if info.get("thumbnail") and not track_info.get("thumbnail"):
+                    track_info["thumbnail"] = info.get("thumbnail")
         except Exception as e:
             logger.warning(f"Background stream extract fallback: {e}")
 
