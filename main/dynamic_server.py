@@ -1940,31 +1940,22 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             "emotion": emotion or "happy"
         }))
 
-        # Hiển thị câu trả lời trước, chỉ chuyển robot sang trạng thái Speaking
-        # khi frame audio đầu tiên đã sẵn sàng.
-        await websocket.send(json.dumps({
-            "type": "tts",
-            "state": "sentence_start",
-            "text": bot_text,
-            "session_id": session_id
-        }))
-
-        # Opus frame_duration là 60ms ở phía robot. Gửi đúng nhịp để không làm
-        # tràn hàng đợi giải mã/phát loa khi server nhanh hơn I2S.
-        loop = asyncio.get_running_loop()
-        next_frame_at = loop.time()
-        sent_frames = 0
+        # Phát âm thanh mượt mà chống giật: Pre-buffer 7 frames (420ms) trước khi phát
+        # và duy trì độ đệm 360ms để hàng đợi giải mã của robot không bao giờ bị rỗng (underflow).
         protocol_version = CONNECTED_ROBOT_PROTOCOLS.get(id(websocket), 1)
-        async def send_frame(chunk):
-            nonlocal sent_frames, next_frame_at, started
-            if sent_frames:
-                next_frame_at += 0.060
-                delay = next_frame_at - loop.time()
-                if delay > 0:
-                    await asyncio.sleep(delay)
-                elif delay < -0.120:
-                    next_frame_at = loop.time()
-            if sent_frames == 0:
+        sent_frames = 0
+        loop = asyncio.get_running_loop()
+
+        async def flush_chunk(chunk):
+            nonlocal sent_frames, started
+            if not started:
+                # ĐỒNG BỘ: Hiển thị text lên OLED đúng lúc âm thanh phát ra loa!
+                await websocket.send(json.dumps({
+                    "type": "tts",
+                    "state": "sentence_start",
+                    "text": bot_text,
+                    "session_id": session_id
+                }))
                 await websocket.send(json.dumps({
                     "type": "tts",
                     "state": "start",
@@ -1974,36 +1965,71 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             await websocket.send(encode_robot_audio_frame(chunk, protocol_version))
             sent_frames += 1
 
+        PREBUFFER_TARGET = 7
+        TARGET_LEAD_SEC = 0.360  # Đệm trước 360ms so với đồng hồ phát thực tế
+        FRAME_DURATION = 0.060   # 60ms mỗi frame Opus
+        prebuffer = []
+        play_start_time = None
+
         if hasattr(opus_chunks, "__aiter__"):
             async for chunk in opus_chunks:
-                await send_frame(chunk)
+                if len(prebuffer) < PREBUFFER_TARGET:
+                    prebuffer.append(chunk)
+                    if len(prebuffer) == PREBUFFER_TARGET:
+                        for b_chunk in prebuffer:
+                            await flush_chunk(b_chunk)
+                        play_start_time = loop.time()
+                else:
+                    target_time = play_start_time + (sent_frames * FRAME_DURATION) - TARGET_LEAD_SEC
+                    now = loop.time()
+                    wait_sec = target_time - now
+                    if wait_sec > 0.005:
+                        await asyncio.sleep(wait_sec)
+                    elif wait_sec < -0.500:
+                        play_start_time = loop.time() - (sent_frames * FRAME_DURATION - TARGET_LEAD_SEC)
+                    await flush_chunk(chunk)
+            if prebuffer and not started:
+                for b_chunk in prebuffer:
+                    await flush_chunk(b_chunk)
         else:
             for chunk in opus_chunks:
-                await send_frame(chunk)
+                if len(prebuffer) < PREBUFFER_TARGET:
+                    prebuffer.append(chunk)
+                    if len(prebuffer) == PREBUFFER_TARGET:
+                        for b_chunk in prebuffer:
+                            await flush_chunk(b_chunk)
+                        play_start_time = loop.time()
+                else:
+                    target_time = play_start_time + (sent_frames * FRAME_DURATION) - TARGET_LEAD_SEC
+                    now = loop.time()
+                    wait_sec = target_time - now
+                    if wait_sec > 0.005:
+                        await asyncio.sleep(wait_sec)
+                    elif wait_sec < -0.500:
+                        play_start_time = loop.time() - (sent_frames * FRAME_DURATION - TARGET_LEAD_SEC)
+                    await flush_chunk(chunk)
+            if prebuffer and not started:
+                for b_chunk in prebuffer:
+                    await flush_chunk(b_chunk)
 
-        if not sent_frames:
+        if not started:
             if not LIVE_DIAGNOSTICS["last_tts_error"]:
-                LIVE_DIAGNOSTICS["last_tts_error"] = "Không có frame Opus để phát"
+                LIVE_DIAGNOSTICS["last_tts_error"] = "Không phát được frame audio nào"
                 LIVE_DIAGNOSTICS["tts_failure_count"] += 1
             return False
 
-        # Chờ ESP32 xả hết hàng đợi âm thanh qua loa I2S trước khi báo stop
-        await asyncio.sleep(0.55)
-
-        # 6. Kết thúc TTS
         await websocket.send(json.dumps({
             "type": "tts",
             "state": "stop",
             "session_id": session_id
         }))
-        LIVE_DIAGNOSTICS["last_tts_frame_count"] = sent_frames
         logger.info(f"Dynamic response finished: user='{user_text}' -> bot='{bot_text}' ({sent_frames} frames)")
+        LIVE_DIAGNOSTICS["last_tts_frame_count"] = sent_frames
 
-        # 7. Lưu hội thoại vào database Web Dashboard
+        # Lưu lịch sử chat
         now_ms = int(time.time() * 1000)
         if "AGT_001" not in DB_SESSIONS:
             DB_SESSIONS["AGT_001"] = []
-
         sess = next((s for s in DB_SESSIONS["AGT_001"] if s["sessionId"] == session_id), None)
         if not sess:
             sess = {
@@ -2013,10 +2039,8 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
                 "chatCount": 0
             }
             DB_SESSIONS["AGT_001"].insert(0, sess)
-
         if session_id not in DB_CHAT_MESSAGES:
             DB_CHAT_MESSAGES[session_id] = []
-
         DB_CHAT_MESSAGES[session_id].append({
             "id": f"MSG_{uuid.uuid4().hex[:8]}",
             "sessionId": session_id,
@@ -2034,29 +2058,12 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             "macAddress": "14:C1:9F:C4:EE:D0"
         })
         sess["chatCount"] = len(DB_CHAT_MESSAGES[session_id])
-        for a in DB_AGENTS:
-            if a["id"] == "AGT_001":
-                a["lastConnectedAt"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         return True
     except Exception as e:
-        error_message = str(e)[:240]
-        if LIVE_DIAGNOSTICS["last_tts_error"] != error_message:
-            LIVE_DIAGNOSTICS["tts_failure_count"] += 1
-        LIVE_DIAGNOSTICS["last_tts_error"] = error_message
         logger.error(f"Error in send_dynamic_tts_response: {e}")
-        if started:
-            try:
-                await websocket.send(json.dumps({
-                    "type": "tts",
-                    "state": "stop",
-                    "session_id": session_id
-                }))
-            except Exception:
-                pass
+        LIVE_DIAGNOSTICS["last_tts_error"] = str(e)[:240]
+        LIVE_DIAGNOSTICS["tts_failure_count"] += 1
         return False
-
-# ==================== WEBSOCKET SERVER CHO ROBOT XIAOZHI ====================
-
 
 async def ws_handler(websocket):
     raw_path = getattr(websocket, "path", None)
@@ -2971,41 +2978,83 @@ async def handle_api_devices_get_post(request):
     return cors_response(res)
 
 async def handle_api_device_by_id(request):
-    dev_id = request.match_info.get("id", "").lower()
+    dev_id = request.match_info.get("id", "").lower().strip()
     found_key = None
     for mac, dev in DB_DEVICES.items():
-        if mac.lower() == dev_id or dev.get("id", "").lower() == dev_id:
+        if (
+            mac.lower() == dev_id
+            or dev.get("id", "").lower() == dev_id
+            or dev.get("pin", "").lower() == dev_id
+            or dev.get("device_code", "").lower() == dev_id
+        ):
             found_key = mac
             break
-            
+    # Fallback: if not found, map common identifiers or default to first registered device
+    if not found_key and len(DB_DEVICES) > 0:
+        if dev_id in ("ong-robot", "default", "current", "active", "undefined", "null", "") or len(DB_DEVICES) == 1:
+            found_key = list(DB_DEVICES.keys())[0]
+
     if request.method == "DELETE":
         if found_key:
             del DB_DEVICES[found_key]
-            await broadcast_mic_monitor({"type": "device_event", "action": "deleted", "device_id": dev_id})
-            return cors_response({"code": 0, "msg": "Đã xóa thiết bị"})
+            await broadcast_mic_monitor({"type": "device_event", "action": "deleted", "mac": found_key})
+            return cors_response({"code": 0, "msg": "Đã xoá thiết bị"})
         return cors_response({"code": 1, "message": "Không tìm thấy thiết bị"}, status=404)
-        
-    if request.method == "PUT":
+
+    if request.method in ("POST", "PUT"):
         try:
             data = await request.json()
         except Exception:
             data = {}
         if found_key:
-            if "name" in data:
-                DB_DEVICES[found_key]["name"] = data["name"]
-            if "volume" in data:
-                DB_DEVICES[found_key]["volume"] = data["volume"]
-            if "prompt" in data:
-                DB_DEVICES[found_key]["prompt"] = data["prompt"]
-            if "avatar" in data:
-                DB_DEVICES[found_key]["avatar"] = data["avatar"]
-            await broadcast_mic_monitor({"type": "device_event", "action": "updated", "data": DB_DEVICES[found_key]})
-            return cors_response({"code": 0, "msg": "Cập nhật thành công", "data": DB_DEVICES[found_key]})
+            dev = DB_DEVICES[found_key]
+            for k in (
+                "name", "volume", "prompt", "avatar", "model_id", "model",
+                "voice", "language", "voice_speed", "tts_speed", "voice_pitch",
+                "openai_api_key", "deepseek_api_key", "gemini_api_key",
+                "custom_prompt", "memory_enabled"
+            ):
+                if k in data:
+                    dev[k] = data[k]
+            # Update active provider if model_id provided
+            if "model_id" in data and data["model_id"]:
+                mid = str(data["model_id"]).lower()
+                global ACTIVE_AI_PROVIDER
+                if "gemini" in mid:
+                    ACTIVE_AI_PROVIDER = "gemini"
+                elif "deepseek" in mid:
+                    ACTIVE_AI_PROVIDER = "deepseek"
+                elif "gpt" in mid or "openai" in mid:
+                    ACTIVE_AI_PROVIDER = "openai"
+                elif "groq" in mid or "qwen" in mid:
+                    ACTIVE_AI_PROVIDER = "groq"
+            if data.get("gemini_api_key"):
+                CUSTOM_API_KEYS["gemini"] = data["gemini_api_key"]
+            if data.get("openai_api_key"):
+                CUSTOM_API_KEYS["openai"] = data["openai_api_key"]
+            if data.get("deepseek_api_key"):
+                CUSTOM_API_KEYS["deepseek"] = data["deepseek_api_key"]
+            await broadcast_mic_monitor({"type": "device_event", "action": "updated", "data": dev})
+            return cors_response({"code": 0, "msg": "Cập nhật thành công", "data": dev})
         return cors_response({"code": 1, "message": "Không tìm thấy thiết bị"}, status=404)
-        
+
     # GET
     if found_key:
-        return cors_response(DB_DEVICES[found_key])
+        dev = dict(DB_DEVICES[found_key])
+        dev.setdefault("name", "Robot Gehihi AI ESP32-S3 (Mạch tím)")
+        dev.setdefault("model_id", "gemini-3.8-flash")
+        dev.setdefault("model", "gemini-3.8-flash")
+        dev.setdefault("voice", "vi-VN-HoaiMyNeural")
+        dev.setdefault("language", "vi")
+        dev.setdefault("voice_speed", "normal")
+        dev.setdefault("tts_speed", "normal")
+        dev.setdefault("voice_pitch", 0)
+        dev.setdefault("volume", 80)
+        dev.setdefault("prompt", "Bạn là Gehihi, một trợ lý robot thông minh nói tiếng Việt tự nhiên và thân thiện.")
+        dev.setdefault("openai_api_key", "")
+        dev.setdefault("deepseek_api_key", "")
+        dev.setdefault("gemini_api_key", "")
+        return cors_response(dev)
     return cors_response({"code": 1, "message": "Không tìm thấy thiết bị"}, status=404)
 
 async def handle_api_robot_control(request):
