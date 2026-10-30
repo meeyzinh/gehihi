@@ -3317,17 +3317,20 @@ Ví dụ:
     <div class="form-group">
         <label>Chọn model AI phù hợp với nhu cầu của bạn</label>
         <select id="xiaozhiLlmModel" onchange="onModelChange()">
+            <optgroup label="⚡ Siêu Tốc (Groq Cloud)">
+              <option value="groq" selected>Groq (Qwen 2.5 72B / Llama 3 - Siêu tốc 460ms - Mặc định)</option>
+            </optgroup>
             <optgroup label="🤖 Google Gemini">
-              <option value="gemini-3.8-flash" selected>Gemini 3.8 Flash (Thông minh, phản hồi nhanh - Mặc định)</option>
-              <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Phản hồi cực nhanh ~1s)</option>
+              <option value="gemini-3.8-flash">Gemini 2.5 Flash (Thông minh, phản hồi nhanh)</option>
+              <option value="gemini-3.1-flash-lite-preview">Gemini 1.5 Flash Lite (Phản hồi cực nhanh ~1s)</option>
             </optgroup>
             <optgroup label="🧠 OpenAI (ChatGPT)">
-              <option value="gpt-4o-mini">ChatGPT GPT-4o Mini (Phản hồi nhanh, rẻ, thông minh - Khuyên dùng)</option>
+              <option value="gpt-4o-mini">ChatGPT GPT-4o Mini (Phản hồi nhanh, rẻ, thông minh)</option>
               <option value="gpt-4o">ChatGPT GPT-4o (Đỉnh cao trí tuệ)</option>
               <option value="gpt-3.5-turbo">ChatGPT GPT-3.5 Turbo</option>
             </optgroup>
             <optgroup label="💡 DeepSeek AI">
-              <option value="deepseek-chat">DeepSeek V3 (deepseek-chat - Tiếng Việt siêu tự nhiên, siêu rẻ)</option>
+              <option value="deepseek-chat">DeepSeek V3 (deepseek-chat - Tiếng Việt siêu tự nhiên)</option>
               <option value="deepseek-reasoner">DeepSeek R1 (deepseek-reasoner - Suy luận logic sâu)</option>
             </optgroup>
         </select>
@@ -4440,7 +4443,8 @@ Ví dụ:
       const newName = prompt(`Nhập tên mới cho Robot (${curName}):`, curName);
       if (!newName || !newName.trim() || newName.trim() === curName) return;
       try {
-        const res = await fetch(`/api/devices/${activeDeviceId}`, {
+        const devId = activeDeviceId || localStorage.getItem('gehihi_active_robot_id') || 'DEV_001';
+        const res = await fetch(`/api/devices/${devId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: newName.trim(), initial: newName.trim()[0].toUpperCase() })
@@ -5239,21 +5243,24 @@ Ví dụ:
         // Điền model options đa dạng (Gemini, ChatGPT, DeepSeek)
         if (modelSelect) {
           modelSelect.innerHTML = `
+            <optgroup label="⚡ Siêu Tốc (Groq Cloud)">
+              <option value="groq">Groq (Qwen 2.5 72B / Llama 3 - Siêu tốc 460ms - Mặc định)</option>
+            </optgroup>
             <optgroup label="🌟 Google Gemini">
-              <option value="gemini-3.8-flash">Gemini 3.8 Flash (Thông minh, phản hồi nhanh - Mặc định)</option>
-              <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Phản hồi cực nhanh ~1s)</option>
+              <option value="gemini-3.8-flash">Gemini 2.5 Flash (Thông minh, phản hồi nhanh)</option>
+              <option value="gemini-3.1-flash-lite-preview">Gemini 1.5 Flash Lite (Phản hồi cực nhanh ~1s)</option>
             </optgroup>
             <optgroup label="⚡ OpenAI (ChatGPT)">
-              <option value="gpt-4o-mini">ChatGPT GPT-4o Mini (Phản hồi nhanh, rẻ, thông minh - Khuyên dùng)</option>
+              <option value="gpt-4o-mini">ChatGPT GPT-4o Mini (Phản hồi nhanh, rẻ, thông minh)</option>
               <option value="gpt-4o">ChatGPT GPT-4o (Đỉnh cao trí tuệ)</option>
               <option value="gpt-3.5-turbo">ChatGPT GPT-3.5 Turbo</option>
             </optgroup>
             <optgroup label="🧠 DeepSeek AI">
-              <option value="deepseek-chat">DeepSeek V3 (deepseek-chat - Tiếng Việt siêu tự nhiên, siêu rẻ)</option>
+              <option value="deepseek-chat">DeepSeek V3 (deepseek-chat - Tiếng Việt siêu tự nhiên)</option>
               <option value="deepseek-reasoner">DeepSeek R1 (deepseek-reasoner - Suy luận logic sâu)</option>
             </optgroup>
           `;
-          modelSelect.value = dev.model_id || "gemini-3.8-flash";
+          modelSelect.value = dev.model_id || dev.model || "groq";
         }
 
         const apiKeyInput = document.getElementById("customApiKey");
@@ -6781,7 +6788,11 @@ Ví dụ:
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             device_id: deviceId,
-            url: videoIdOrUrl,
+            id: videoIdOrUrl,
+            url: videoIdOrUrl.startsWith('http') ? videoIdOrUrl : `https://www.youtube.com/watch?v=${videoIdOrUrl}`,
+            title: title,
+            thumbnail: thumb,
+            duration_str: durationStr
           })
         });
         const data = await res.json();
