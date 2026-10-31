@@ -2090,6 +2090,13 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
                 LIVE_DIAGNOSTICS["tts_failure_count"] += 1
             return False
 
+        # Cho robot phát hết toàn bộ buffer âm thanh trong hàng đợi trước khi gửi tts: stop
+        total_audio_sec = sent_frames * FRAME_DURATION
+        elapsed_sec = loop.time() - play_start_time if play_start_time else 0
+        remain_sec = total_audio_sec - elapsed_sec + 0.250
+        if remain_sec > 0:
+            await asyncio.sleep(min(remain_sec, 10.0))
+
         await websocket.send(json.dumps({
             "type": "tts",
             "state": "stop",
