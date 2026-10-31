@@ -2123,6 +2123,7 @@ async def ws_handler(websocket):
         protocol_version = 1
     device_mac = "14:c1:9f:c4:ee:d0"
     logger.info(f"Robot Gehihi connected from {client_ip}")
+    LIVE_DIAGNOSTICS["device_connected"] = True
     LIVE_DIAGNOSTICS["protocol_version"] = protocol_version
 
     if device_mac in DB_DEVICES:
@@ -2551,6 +2552,7 @@ async def ws_handler(websocket):
     finally:
         CONNECTED_ROBOTS.pop(device_mac, None)
         CONNECTED_ROBOT_PROTOCOLS.pop(id(websocket), None)
+        LIVE_DIAGNOSTICS["device_connected"] = False
         session_active = False
         if heartbeat_task and not heartbeat_task.done():
             heartbeat_task.cancel()
