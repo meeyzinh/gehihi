@@ -1468,7 +1468,7 @@ async def stream_tts_opus(text: str, voice: str = None):
             raise RuntimeError("Không tìm thấy ffmpeg để giải mã giọng nói")
         proc = await asyncio.create_subprocess_exec(
             ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "mp3", "-i", "pipe:0",
-            "-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "16000", "pipe:1",
+            "-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "24000", "pipe:1",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
@@ -1487,10 +1487,11 @@ async def stream_tts_opus(text: str, voice: str = None):
                     await proc.stdin.wait_closed()
 
         import opuslib_next
-        encoder = opuslib_next.Encoder(16000, 1, opuslib_next.APPLICATION_AUDIO)
+        encoder = opuslib_next.Encoder(24000, 1, opuslib_next.APPLICATION_AUDIO)
         producer = asyncio.create_task(feed_mp3())
         pending_pcm = bytearray()
-        frame_bytes = 960 * 2
+        frame_samples = 1440  # 60ms tại 24kHz (phù hợp 100% với phần cứng I2S 24kHz của robot)
+        frame_bytes = frame_samples * 2  # 2880 bytes
         async with asyncio.timeout(15):
             while True:
                 data = await proc.stdout.read(8192)
@@ -1498,7 +1499,7 @@ async def stream_tts_opus(text: str, voice: str = None):
                     break
                 pending_pcm.extend(data)
                 while len(pending_pcm) >= frame_bytes:
-                    frame = encoder.encode(bytes(pending_pcm[:frame_bytes]), 960)
+                    frame = encoder.encode(bytes(pending_pcm[:frame_bytes]), frame_samples)
                     del pending_pcm[:frame_bytes]
                     frame_count += 1
                     LIVE_DIAGNOSTICS["last_tts_frame_count"] = frame_count
@@ -1511,7 +1512,7 @@ async def stream_tts_opus(text: str, voice: str = None):
             raise RuntimeError(f"ffmpeg kết thúc với mã {proc.returncode}")
         if pending_pcm:
             pending_pcm.extend(b"\x00" * (frame_bytes - len(pending_pcm)))
-            frame = encoder.encode(bytes(pending_pcm), 960)
+            frame = encoder.encode(bytes(pending_pcm), frame_samples)
             frame_count += 1
             LIVE_DIAGNOSTICS["last_tts_frame_count"] = frame_count
             if frame_count == 1:
@@ -1561,7 +1562,7 @@ async def tts_to_opus(text: str, voice: str = None) -> list:
         if not mp3_buffer:
             return []
         proc = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-i", "pipe:0", "-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "16000", "pipe:1",
+            "ffmpeg", "-i", "pipe:0", "-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "24000", "pipe:1",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL
@@ -1569,12 +1570,12 @@ async def tts_to_opus(text: str, voice: str = None) -> list:
         pcm_bytes, _ = await proc.communicate(input=bytes(mp3_buffer))
         if not pcm_bytes:
             return []
-        frame_size = 960
+        frame_size = 1440
         frame_bytes = frame_size * 2
         opus_frames = []
         try:
             import opuslib_next
-            encoder = opuslib_next.Encoder(16000, 1, opuslib_next.APPLICATION_AUDIO)
+            encoder = opuslib_next.Encoder(24000, 1, opuslib_next.APPLICATION_AUDIO)
             for i in range(0, len(pcm_bytes), frame_bytes):
                 chunk = pcm_bytes[i:i + frame_bytes]
                 if len(chunk) < frame_bytes:
@@ -2434,7 +2435,7 @@ async def ws_handler(websocket):
                             "session_id": session_id,
                             "audio_params": {
                                 "format": "opus",
-                                "sample_rate": 16000,
+                                "sample_rate": 24000,
                                 "channels": 1,
                                 "frame_duration": 60
                             }
@@ -2446,6 +2447,7 @@ async def ws_handler(websocket):
                                 "type": "mcp",
                                 "payload": {
                                     "jsonrpc": "2.0",
+                                    "id": 1,
                                     "method": "initialize",
                                     "params": {
                                         "protocolVersion": "2024-11-05",
@@ -3275,32 +3277,169 @@ async def handle_api_chat(request):
         "provider": ACTIVE_AI_PROVIDER
     })
 
+async def handle_api_my_xiaozhi_options(request):
+    """Danh sách Models, Ngôn ngữ, và Giọng nói cho giao diện Web Admin / Cấu hình Gehihi AI"""
+    return cors_response({
+        "models": [
+            {"value": "groq", "label": "Groq (Qwen 27B / Llama 3.3 - Siêu tốc 450ms)"},
+            {"value": "gemini", "label": "Google Gemini 2.0 Flash"},
+            {"value": "deepseek", "label": "DeepSeek V3 / R1"},
+            {"value": "openai", "label": "OpenAI GPT-4o Mini"}
+        ],
+        "languages": [
+            {"value": "vi", "label": "Tiếng Việt (Mặc định)"},
+            {"value": "en", "label": "Tiếng Anh (English)"},
+            {"value": "zh", "label": "Tiếng Trung"},
+            {"value": "ja", "label": "Tiếng Nhật"},
+            {"value": "ko", "label": "Tiếng Hàn"}
+        ],
+        "voicesByLanguage": {
+            "vi": [
+                {"value": "vi-VN-HoaiMyNeural", "label": "Hoài My (Nữ - Truyền cảm, tự nhiên)"},
+                {"value": "vi-VN-NamMinhNeural", "label": "Nam Minh (Nam - Trầm ấm, dõng dạc)"}
+            ],
+            "en": [
+                {"value": "en-US-JennyNeural", "label": "Jenny (Nữ - Tự nhiên)"},
+                {"value": "en-US-GuyNeural", "label": "Guy (Nam - Trầm ấm)"},
+                {"value": "en-US-AriaNeural", "label": "Aria (Nữ - Biểu cảm)"}
+            ],
+            "zh": [
+                {"value": "zh-CN-XiaoxiaoNeural", "label": "Xiaoxiao (Nữ - Ngọt ngào)"},
+                {"value": "zh-CN-YunxiNeural", "label": "Yunxi (Nam - Năng động)"}
+            ],
+            "ja": [
+                {"value": "ja-JP-NanamiNeural", "label": "Nanami (Nữ)"},
+                {"value": "ja-JP-KeitaNeural", "label": "Keita (Nam)"}
+            ],
+            "ko": [
+                {"value": "ko-KR-SunHiNeural", "label": "SunHi (Nữ)"},
+                {"value": "ko-KR-InJoonNeural", "label": "InJoon (Nam)"}
+            ]
+        }
+    })
+
 async def handle_api_my_xiaozhi_config(request):
-    if request.method == "PUT":
+    """API Cấu hình Gehihi AI (GET để tải thông tin form, POST/PUT để lưu cấu hình)"""
+    global ACTIVE_AI_PROVIDER
+    agent = DB_AGENTS[0] if DB_AGENTS else {}
+    char_prompt = agent.get("systemPrompt", "Bạn là Robot Gehihi thân thiện, trả lời bằng tiếng Việt tự nhiên và súc tích.")
+
+    if request.method in ("POST", "PUT"):
         try:
             data = await request.json()
         except Exception:
             data = {}
+
+        name = data.get("assistant_name") or data.get("name")
+        model = data.get("llm_model") or data.get("model")
+        lang = data.get("language")
+        voice = data.get("tts_voice") or data.get("voice")
+        speed = data.get("tts_speech_speed")
+        pitch = data.get("tts_pitch")
+        character = data.get("character") or data.get("prompt")
+
         for a in DB_AGENTS:
-            if a["id"] == "AGT_001":
-                if "voice" in data:
-                    a["ttsVoiceName"] = data["voice"]
-                if "prompt" in data:
-                    a["systemPrompt"] = data["prompt"]
-                if "name" in data:
-                    a["agentName"] = data["name"]
-        return cors_response({"code": 0, "msg": "Cấu hình Gehihi đã lưu thành công!"})
-    
-    agent = DB_AGENTS[0] if DB_AGENTS else {}
+            if a.get("id") == "AGT_001":
+                if name: a["agentName"] = name
+                if voice: a["ttsVoiceName"] = voice
+                if character: a["systemPrompt"] = character
+                if lang: a["language"] = lang
+                if speed: a["tts_speech_speed"] = speed
+                if pitch is not None: a["tts_pitch"] = pitch
+                if model: a["llm_model"] = model
+
+        if model in ("groq", "gemini", "deepseek", "openai"):
+            ACTIVE_AI_PROVIDER = model
+            LIVE_DIAGNOSTICS["active_provider"] = model
+
+        device_mac = "14:c1:9f:c4:ee:d0"
+        if device_mac in DB_DEVICES:
+            if character:
+                DB_DEVICES[device_mac]["prompt"] = character
+                DB_DEVICES[device_mac]["custom_prompt"] = True
+            if name:
+                DB_DEVICES[device_mac]["name"] = name
+            if voice:
+                DB_DEVICES[device_mac]["voice"] = voice
+
+        char_final = character or char_prompt
+        logger.info(f"Updated Gehihi AI Config: name='{name}', model='{model}', voice='{voice}', lang='{lang}'")
+
+        return cors_response({
+            "code": 0,
+            "msg": "Đã lưu cấu hình Xiaozhi thành công!",
+            "agent": {
+                "assistant_name": name or agent.get("agentName", "Sophia"),
+                "llm_model": ACTIVE_AI_PROVIDER,
+                "language": lang or agent.get("language", "vi"),
+                "tts_voice": voice or agent.get("ttsVoiceName", "vi-VN-HoaiMyNeural"),
+                "tts_speech_speed": speed or agent.get("tts_speech_speed", "normal"),
+                "tts_pitch": pitch if pitch is not None else agent.get("tts_pitch", 0),
+                "character": char_final,
+                "character_max_length": 7305,
+                "character_total_limit": 7305,
+                "character_current_total_length": len(char_final)
+            }
+        })
+
+    # GET Handler: trả về format chuẩn mà web memory_page.html yêu cầu
     return cors_response({
-        "name": agent.get("agentName", "Robot Gehihi AI"),
-        "language": "vi",
-        "voice": agent.get("ttsVoiceName", "vi-VN-HoaiMyNeural"),
-        "volume": 8,
-        "prompt": agent.get("systemPrompt", "Bạn là robot Gehihi thân thiện, trả lời bằng tiếng Việt tự nhiên."),
-        "temperature": 0.7,
-        "model": ACTIVE_AI_PROVIDER
+        "agent": {
+            "assistant_name": agent.get("agentName", "Sophia"),
+            "llm_model": ACTIVE_AI_PROVIDER,
+            "language": agent.get("language", "vi"),
+            "tts_voice": agent.get("ttsVoiceName", "vi-VN-HoaiMyNeural"),
+            "tts_speech_speed": agent.get("tts_speech_speed", "normal"),
+            "tts_pitch": agent.get("tts_pitch", 0),
+            "character": char_prompt,
+            "character_max_length": 7305,
+            "character_total_limit": 7305,
+            "character_current_total_length": len(char_prompt)
+        }
     })
+
+async def handle_api_my_xiaozhi_speakers(request):
+    """Danh sách nhận diện người nói Xiaozhi"""
+    if request.method == "POST":
+        return cors_response({"code": 0, "msg": "Thêm người nói thành công", "data": {"id": 1, "name": "Admin"}})
+    elif request.method in ("PUT", "DELETE"):
+        return cors_response({"code": 0, "msg": "Thành công"})
+    return cors_response({"data": []})
+
+async def handle_api_my_xiaozhi_speaker_embeddings(request):
+    """Mẫu giọng nói nhận diện người nói"""
+    return cors_response({"data": []})
+
+async def handle_api_reset_default_ai_prompt(request):
+    """Khôi phục prompt AI mặc định"""
+    default_prompt = "Bạn là Robot Gehihi thân thiện, trả lời bằng tiếng Việt tự nhiên và súc tích."
+    for a in DB_AGENTS:
+        if a.get("id") == "AGT_001":
+            a["systemPrompt"] = default_prompt
+    device_mac = "14:c1:9f:c4:ee:d0"
+    if device_mac in DB_DEVICES:
+        DB_DEVICES[device_mac]["prompt"] = default_prompt
+        DB_DEVICES[device_mac]["custom_prompt"] = False
+    logger.info("Reset Gehihi AI Prompt to default.")
+    return cors_response({"code": 0, "msg": "Đã khôi phục cấu hình AI mặc định"})
+
+async def handle_api_custom_role_only(request):
+    """Lưu vai trò tính cách AI riêng"""
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    role = data.get("role", "").strip()
+    if role:
+        for a in DB_AGENTS:
+            if a.get("id") == "AGT_001":
+                a["systemPrompt"] = role
+        device_mac = "14:c1:9f:c4:ee:d0"
+        if device_mac in DB_DEVICES:
+            DB_DEVICES[device_mac]["prompt"] = role
+            DB_DEVICES[device_mac]["custom_prompt"] = True
+        logger.info(f"Custom role applied: '{role[:40]}...'")
+    return cors_response({"code": 0, "msg": "Đã áp dụng vai trò thành công"})
 
 async def handle_api_curriculums(request):
     if request.method == "POST":
@@ -4064,7 +4203,7 @@ async def stream_music_to_robots(audio_url: str, track_info: dict):
         "-f", "s16le",
         "-acodec", "pcm_s16le",
         "-ac", "1",
-        "-ar", "16000",
+        "-ar", "24000",
         "pipe:1"
     ]
 
@@ -4077,9 +4216,9 @@ async def stream_music_to_robots(audio_url: str, track_info: dict):
         )
 
         import opuslib_next
-        encoder = opuslib_next.Encoder(16000, 1, opuslib_next.APPLICATION_AUDIO)
-        frame_samples = 960  # 60ms tại 16kHz
-        frame_bytes = frame_samples * 2  # 1920 bytes
+        encoder = opuslib_next.Encoder(24000, 1, opuslib_next.APPLICATION_AUDIO)
+        frame_samples = 1440  # 60ms tại 24kHz (khớp hoàn hảo phần cứng robot)
+        frame_bytes = frame_samples * 2  # 2880 bytes
 
         frame_idx = 0
         next_frame_time = time.monotonic()
@@ -4662,17 +4801,27 @@ class AioHttpWebSocketAdapter:
         return self
 
     async def __anext__(self):
-        try:
-            msg = await self.ws.receive()
-            if msg.type in (web.WSMsgType.TEXT, web.WSMsgType.BINARY):
-                return msg.data
-            elif msg.type in (web.WSMsgType.CLOSE, web.WSMsgType.CLOSING, web.WSMsgType.CLOSED):
+        while True:
+            try:
+                msg = await self.ws.receive()
+                if msg.type in (web.WSMsgType.TEXT, web.WSMsgType.BINARY):
+                    return msg.data
+                elif msg.type == web.WSMsgType.PING:
+                    try:
+                        await self.ws.pong(msg.data)
+                    except Exception:
+                        pass
+                    continue
+                elif msg.type == web.WSMsgType.PONG:
+                    continue
+                elif msg.type in (web.WSMsgType.CLOSE, web.WSMsgType.CLOSING, web.WSMsgType.CLOSED):
+                    raise StopAsyncIteration
+                elif msg.type == web.WSMsgType.ERROR:
+                    raise StopAsyncIteration
+                else:
+                    continue
+            except Exception:
                 raise StopAsyncIteration
-            elif msg.type == web.WSMsgType.ERROR:
-                raise StopAsyncIteration
-            raise StopAsyncIteration
-        except Exception:
-            raise StopAsyncIteration
 
 async def handle_aiohttp_robot_ws(request):
     """Xử lý kết nối WebSocket của Robot và Mic Monitor trực tiếp trên cổng HTTP (8003)"""
@@ -4720,9 +4869,21 @@ async def run_http_server():
     app.router.add_post("/api/robot/speak", handle_api_robot_speak)
     app.router.add_post("/api/chat", handle_api_chat)
 
-    # API Config & Education
+    # API Config & Education (Gehihi AI Configuration & Roles)
+    app.router.add_get("/api/my-xiaozhi-options", handle_api_my_xiaozhi_options)
+    app.router.add_get("/api/my-xiaozhi-config", handle_api_my_xiaozhi_config)
+    app.router.add_post("/api/my-xiaozhi-config", handle_api_my_xiaozhi_config)
+    app.router.add_put("/api/my-xiaozhi-config", handle_api_my_xiaozhi_config)
     app.router.add_get("/api/my-xiaozhi/config", handle_api_my_xiaozhi_config)
+    app.router.add_post("/api/my-xiaozhi/config", handle_api_my_xiaozhi_config)
     app.router.add_put("/api/my-xiaozhi/config", handle_api_my_xiaozhi_config)
+    app.router.add_get("/api/my-xiaozhi-speakers", handle_api_my_xiaozhi_speakers)
+    app.router.add_post("/api/my-xiaozhi-speakers", handle_api_my_xiaozhi_speakers)
+    app.router.add_put("/api/my-xiaozhi-speakers/{id}", handle_api_my_xiaozhi_speakers)
+    app.router.add_delete("/api/my-xiaozhi-speakers/{id}", handle_api_my_xiaozhi_speakers)
+    app.router.add_get("/api/my-xiaozhi-speaker-embeddings", handle_api_my_xiaozhi_speaker_embeddings)
+    app.router.add_post("/api/reset-default-ai-prompt", handle_api_reset_default_ai_prompt)
+    app.router.add_post("/api/custom-role-only", handle_api_custom_role_only)
     app.router.add_get("/api/curriculums", handle_api_curriculums)
     app.router.add_post("/api/curriculums", handle_api_curriculums)
     app.router.add_post("/api/curriculums/{id}/apply", handle_api_curriculums_apply)
