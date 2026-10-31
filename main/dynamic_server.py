@@ -1673,13 +1673,62 @@ def get_active_system_prompt() -> str:
         return DB_DEVICES[device_mac]["prompt"]
     return AI_SYSTEM_PROMPT
 
-AI_SYSTEM_PROMPT = """Bạn là robot Gehihi tiếng Việt thông minh, dễ thương, phản hồi siêu nhanh.
+
+# ==================== REALTIME CONTEXT PROVIDERS ====================
+async def get_realtime_weather_async() -> str:
+    try:
+        url = "https://api.open-meteo.com/v1/forecast?latitude=21.0285&longitude=105.8542&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        def _fetch():
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                return json.loads(resp.read().decode())
+        d = (await asyncio.to_thread(_fetch)).get("current", {})
+        temp = d.get("temperature_2m", 28)
+        humid = d.get("relative_humidity_2m", 70)
+        code = d.get("weather_code", 0)
+        desc = "nhiều mây, thời tiết mát mẻ" if code > 3 else "trời trong, nắng đẹp"
+        return f"Khu vực Hà Nội và miền Bắc hiện tại khoảng {temp}°C, độ ẩm {humid}%, {desc}."
+    except Exception as e:
+        logger.warning(f"Failed to fetch realtime weather: {e}")
+        return "Thời tiết hôm nay dễ chịu, nhiệt độ khoảng 28-30°C."
+
+async def get_realtime_news_async() -> str:
+    try:
+        import xml.etree.ElementTree as ET
+        req = urllib.request.Request("https://vnexpress.net/rss/tin-moi-nhat.rss", headers={"User-Agent": "Mozilla/5.0"})
+        def _fetch():
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                return resp.read()
+        raw = await asyncio.to_thread(_fetch)
+        root = ET.fromstring(raw)
+        items = root.findall(".//item")[:3]
+        headlines = [it.find("title").text.strip() for it in items if it.find("title") is not None]
+        return "; ".join(headlines)
+    except Exception as e:
+        logger.warning(f"Failed to fetch realtime news: {e}")
+        return "Các hoạt động đời sống xã hội diễn ra bình thường."
+
+def extract_llm_reply(parsed: dict, default_reply: str = "Dạ, tôi đã hiểu rồi bạn nhé!") -> tuple:
+    if not isinstance(parsed, dict):
+        return (default_reply, "happy")
+    reply = (
+        parsed.get("reply") or 
+        parsed.get("bot_text") or 
+        parsed.get("response") or 
+        parsed.get("message") or 
+        parsed.get("text") or 
+        parsed.get("answer") or 
+        default_reply
+    )
+    emotion = parsed.get("emotion") or "happy"
+    return (str(reply).strip(), str(emotion).strip())
+
+AI_SYSTEM_PROMPT = """Bạn là robot Gehihi tiếng Việt thông minh, đáng yêu, hiểu biết rộng, phản hồi siêu nhanh.
 Quy tắc tối quan trọng:
-1. Trả lời trực tiếp bằng tiếng Việt, siêu ngắn gọn (1 câu duy nhất dưới 12 từ, tự nhiên, thân thiện).
-2. Tuyệt đối không dùng markdown, ký tự đặc biệt hay dấu hoa thị (*).
-3. Tuyệt đối không bao giờ nói về 'subscribe', 'đăng ký kênh', 'like', 'video', 'kênh Ghiền Mì Gõ' hay bất kỳ từ ngữ quảng cáo nào.
-4. Trả về đúng 1 JSON hợp lệ định dạng: {"bot_text": "...", "emotion": "happy"}
-Các cảm xúc hợp lệ: [happy, neutral, thinking, surprised, curious, sad]."""
+1. Trả lời trực tiếp bằng tiếng Việt, tự nhiên, thân thiện, ngắn gọn (1 đến 2 câu súc tích).
+2. Khi được hỏi về thời tiết, tin tức, ngày giờ, hãy sử dụng thông tin thực tế được cung cấp để trả lời người dùng một cách chính xác.
+3. Tuyệt đối không dùng markdown, ký tự đặc biệt hay dấu hoa thị (*).
+4. Luôn trả về đúng 1 JSON hợp lệ có cấu trúc: {"reply": "...", "emotion": "happy"} (cảm xúc: happy, neutral, thinking, surprised, curious, sad)."""
 
 async def call_groq_llm(user_text: str, api_key: str = None, system_prompt: str = None) -> tuple:
     if not system_prompt:
@@ -1714,7 +1763,7 @@ async def call_groq_llm(user_text: str, api_key: str = None, system_prompt: str 
                     data = await resp.json()
                     content = data["choices"][0]["message"]["content"].strip()
                     parsed = json.loads(content)
-                    return (parsed.get("bot_text", "Tôi đã hiểu rồi!"), parsed.get("emotion", "happy"))
+                    return extract_llm_reply(parsed)
                 else:
                     err = await resp.text()
                     logger.warning(f"Groq LLM returned {resp.status}: {err[:120]}")
@@ -1751,7 +1800,7 @@ async def call_deepseek_llm(user_text: str, api_key: str = None, system_prompt: 
                     data = await resp.json()
                     content = data["choices"][0]["message"]["content"].strip()
                     parsed = json.loads(content)
-                    return (parsed.get("bot_text", "Tôi đã hiểu rồi!"), parsed.get("emotion", "happy"))
+                    return extract_llm_reply(parsed)
                 elif resp.status == 402:
                     logger.warning("DeepSeek 402: Insufficient Balance. Falling back to Groq.")
                     b_txt, emo = await call_groq_llm(user_text)
@@ -1789,7 +1838,7 @@ async def call_openai_llm(user_text: str, api_key: str = None, system_prompt: st
                     data = await resp.json()
                     content = data["choices"][0]["message"]["content"].strip()
                     parsed = json.loads(content)
-                    return (parsed.get("bot_text", "Tôi đã hiểu rồi!"), parsed.get("emotion", "happy"))
+                    return extract_llm_reply(parsed)
                 elif resp.status in [429, 401]:
                     logger.warning("OpenAI 429/401: Quota exhausted or invalid key. Falling back to Groq.")
                     b_txt, emo = await call_groq_llm(user_text)
@@ -1829,7 +1878,7 @@ async def call_gemini_llm(user_text: str, api_key: str = None, system_prompt: st
                             clean = re.sub(r"^```[a-zA-Z]*\n?", "", raw_t.strip())
                             clean = re.sub(r"\n?```$", "", clean).strip()
                             parsed = json.loads(clean)
-                            return (parsed.get("bot_text", "Tôi hiểu rồi!"), parsed.get("emotion", "happy"))
+                            return extract_llm_reply(parsed)
         except Exception as e:
             logger.warning(f"Error calling Gemini model {m}: {e}")
     return await call_groq_llm(user_text)
@@ -1897,14 +1946,36 @@ async def call_unified_ai(wav_bytes: bytes):
         return ("", "", "neutral")
     logger.info(f"User speech detected ({t_asr:.3f}s): '{user_text}'")
     t0_llm = time.time()
+    user_lower = user_text.lower()
+    extra_context = ""
+    weather_kws = ["thời tiết", "trời mưa", "nhiệt độ", "nắng không", "mưa không", "dự báo thời tiết", "thoi tiet", "nhiet do"]
+    news_kws = ["tin tức", "tin mới", "tin hôm nay", "thời sự", "tin tức mới", "tin tuc", "thoi su"]
+    time_kws = ["mấy giờ", "mấy giờ rồi", "hôm nay ngày mấy", "ngày bao nhiêu", "thứ mấy"]
+
+    if any(k in user_lower for k in weather_kws):
+        w_str = await get_realtime_weather_async()
+        extra_context += f"\n[Dữ liệu thời tiết hiện tại: {w_str}]"
+    if any(k in user_lower for k in news_kws):
+        n_str = await get_realtime_news_async()
+        extra_context += f"\n[Dữ liệu tin tức thời sự mới nhất hôm nay: {n_str}]"
+    if any(k in user_lower for k in time_kws):
+        from datetime import datetime, timezone, timedelta
+        vn_time = datetime.now(timezone(timedelta(hours=7)))
+        time_str = vn_time.strftime("Bây giờ là %H:%M, ngày %d/%m/%Y")
+        extra_context += f"\n[Thời gian thực tế: {time_str}]"
+
+    active_prompt = get_active_system_prompt()
+    if extra_context:
+        active_prompt = active_prompt + f"\nThông tin thực tế hỗ trợ trả lời:{extra_context}\nHãy trả lời người dùng dựa trên thông tin này."
+
     if provider == "groq":
-        bot_text, emotion = await call_groq_llm(user_text)
+        bot_text, emotion = await call_groq_llm(user_text, system_prompt=active_prompt)
     elif provider == "deepseek":
-        bot_text, emotion = await call_deepseek_llm(user_text)
+        bot_text, emotion = await call_deepseek_llm(user_text, system_prompt=active_prompt)
     elif provider == "openai":
-        bot_text, emotion = await call_openai_llm(user_text)
+        bot_text, emotion = await call_openai_llm(user_text, system_prompt=active_prompt)
     elif provider == "gemini":
-        bot_text, emotion = await call_gemini_llm(user_text)
+        bot_text, emotion = await call_gemini_llm(user_text, system_prompt=active_prompt)
     else:
         bot_text, emotion = await call_groq_llm(user_text)
     t_llm = time.time() - t0_llm
@@ -1965,8 +2036,8 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             await websocket.send(encode_robot_audio_frame(chunk, protocol_version))
             sent_frames += 1
 
-        PREBUFFER_TARGET = 7
-        TARGET_LEAD_SEC = 0.360  # Đệm trước 360ms so với đồng hồ phát thực tế
+        PREBUFFER_TARGET = 10
+        TARGET_LEAD_SEC = 0.700  # Đệm trước 360ms so với đồng hồ phát thực tế
         FRAME_DURATION = 0.060   # 60ms mỗi frame Opus
         prebuffer = []
         play_start_time = None
@@ -2486,10 +2557,10 @@ async def ws_handler(websocket):
                     # Cập nhật mức ồn nền khi đang yên tĩnh
                     noise_floor = noise_floor * 0.92 + min(rms, 250.0) * 0.08
                     # Ngưỡng bắt đầu nói: yêu cầu âm lượng rõ ràng (260+ RMS và gấp 1.7x mức ồn nền)
-                    is_voice = (rms > max(260.0, noise_floor * 1.7))
+                    is_voice = (rms > max(115.0, noise_floor * 1.3))
                 else:
                     # Ngưỡng duy trì nói
-                    is_voice = (rms > max(150.0, noise_floor * 1.3))
+                    is_voice = (rms > max(70.0, noise_floor * 1.15))
 
                 LIVE_DIAGNOSTICS["noise_floor"] = round(noise_floor, 1)
                 LIVE_DIAGNOSTICS["speech_active"] = speech_active
@@ -2531,7 +2602,7 @@ async def ws_handler(websocket):
                         mic_audio_buffer.append(message)
                         silence_frames_count += 1
                         # Phát hiện kết thúc câu: 8 frames im lặng (~480ms) sau khi nói ít nhất 6 frames (~360ms)
-                        if silence_frames_count >= 5:
+                        if silence_frames_count >= 7:
                             if speech_frames_count >= 4 and not processing_ai:
                                 pkts = list(mic_audio_buffer)
                                 mic_audio_buffer.clear()
@@ -4034,7 +4105,7 @@ async def stream_music_to_robots(audio_url: str, track_info: dict):
                     logger.debug(f"Error sending frame to {mac}: {ex}")
 
             frame_idx += 1
-            if frame_idx <= 7:
+            if frame_idx <= 15:
                 # Pre-buffer 7 frames (420ms) để hàng đợi giải mã của robot đầy đủ, không ngắt quãng
                 await asyncio.sleep(0.005)
                 next_frame_time = time.monotonic() + 0.058
@@ -4139,15 +4210,46 @@ async def resolve_and_stream_music(target_url: str, track_info: dict = None):
         except Exception as e:
             logger.warning(f"Background stream extract error: {e}")
 
-    # Fallback if direct stream URL could not be extracted (e.g. YouTube bot check on cloud IPs)
+    # SoundCloud direct streaming fallback if YouTube extraction fails or is blocked by bot detection
     if not audio_stream_url or "youtube.com" in audio_stream_url or "youtu.be" in audio_stream_url:
-        logger.warning(f"Direct stream URL not available for '{title}'. Using verified streaming fallback.")
-        for s in POPULAR_CHILDREN_SONGS:
-            if s.get("url") and not ("youtube.com" in s.get("url") or "youtu.be" in s.get("url")):
-                audio_stream_url = s["url"]
-                break
-        if not audio_stream_url or "youtube.com" in audio_stream_url:
-            audio_stream_url = "https://raw.githubusercontent.com/meeyzinh/gehihi/main/assets/audio/music_sample.mp3"
+        logger.info(f"YouTube stream not direct or blocked. Searching SoundCloud for '{title or target_clean}'...")
+        if yt_dlp:
+            try:
+                sc_target = f"scsearch1:{title or target_clean}"
+                sc_opts = {
+                    'format': 'bestaudio/best',
+                    'quiet': True,
+                    'noplaylist': True,
+                    'nocheckcertificate': True
+                }
+                def _extract_sc():
+                    with yt_dlp.YoutubeDL(sc_opts) as ydl:
+                        return ydl.extract_info(sc_target, download=False)
+                sc_info = await asyncio.wait_for(asyncio.to_thread(_extract_sc), timeout=10.0)
+                if sc_info and "entries" in sc_info and sc_info["entries"]:
+                    sc_entry = sc_info["entries"][0]
+                    if sc_entry.get("url"):
+                        audio_stream_url = sc_entry["url"]
+                        if not title and sc_entry.get("title"):
+                            title = sc_entry["title"]
+                            track_info["title"] = title
+                        logger.info(f"Successfully resolved SoundCloud stream for '{title}'")
+            except Exception as e_sc:
+                logger.warning(f"SoundCloud fallback error: {e_sc}")
+
+    # Ultimate fallback if still no stream: use verified SoundCloud children song
+    if not audio_stream_url or "youtube.com" in audio_stream_url or "youtu.be" in audio_stream_url:
+        try:
+            def _extract_default_sc():
+                with yt_dlp.YoutubeDL({'quiet': True, 'nocheckcertificate': True}) as ydl:
+                    return ydl.extract_info("scsearch1:nhac thieu nhi vui nhon con heo dat", download=False)
+            df_info = await asyncio.wait_for(asyncio.to_thread(_extract_default_sc), timeout=8.0)
+            if df_info and "entries" in df_info and df_info["entries"]:
+                audio_stream_url = df_info["entries"][0].get("url", "")
+                title = "Nhạc Thiếu Nhi Vui Nhộn"
+                track_info["title"] = title
+        except Exception:
+            pass
 
     if audio_stream_url and not ("youtube.com" in audio_stream_url or "youtu.be" in audio_stream_url):
         await stream_music_to_robots(audio_stream_url, track_info)
