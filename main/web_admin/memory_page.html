@@ -3,7 +3,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TRUNG TÂM QUẢN LÝ GEHIHI AI</title>
 
-<script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js">
+function playXiaozhiVoicePreview() {
+    const sel = document.getElementById('xiaozhiTtsVoice');
+    if (!sel || !sel.value) return;
+    const player = document.getElementById('xiaozhiDemoAudio') || new Audio();
+    player.src = '/api/voice-demo/' + sel.value;
+    player.play().catch(e => console.log('Cannot play audio preview:', e));
+}
+
+</script>
 
 <style>
 body {
@@ -1656,10 +1665,13 @@ button.primary:hover {
 
     <div class="form-group">
         <label>Chọn Giọng nói của Gehihi</label>
-        <select id="xiaozhiTtsVoice">
-            <option value="">Đang tải giọng nói...</option>
-        </select>
-
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <select id="xiaozhiTtsVoice" style="flex: 1;">
+                <option value="">Đang tải giọng nói...</option>
+            </select>
+            <button type="button" class="btn secondary" style="padding: 8px 14px; white-space: nowrap;" onclick="playXiaozhiVoicePreview()">▶ Nghe thử</button>
+        </div>
+        <audio id="xiaozhiDemoAudio" style="display: none;"></audio>
         <input id="xiaozhiCustomTtsVoice" placeholder="Voice ID tùy chỉnh, chỉ dùng khi cần test" style="display:none;">
     </div>
 
@@ -9429,8 +9441,26 @@ window.onload = function() {
     loadDevices();
 })();
 
+
+function playXiaozhiVoicePreview() {
+    const sel = document.getElementById('xiaozhiTtsVoice');
+    if (!sel || !sel.value) return;
+    const player = document.getElementById('xiaozhiDemoAudio') || new Audio();
+    player.src = '/api/voice-demo/' + sel.value;
+    player.play().catch(e => console.log('Cannot play audio preview:', e));
+}
+
 </script>
 
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;99b40095bfdc474d964efd0124cdc7c9&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;99b40095bfdc474d964efd0124cdc7c9&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous">
+function playXiaozhiVoicePreview() {
+    const sel = document.getElementById('xiaozhiTtsVoice');
+    if (!sel || !sel.value) return;
+    const player = document.getElementById('xiaozhiDemoAudio') || new Audio();
+    player.src = '/api/voice-demo/' + sel.value;
+    player.play().catch(e => console.log('Cannot play audio preview:', e));
+}
+
+</script>
 
 </body></html>

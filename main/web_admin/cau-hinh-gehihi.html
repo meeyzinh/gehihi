@@ -290,12 +290,33 @@
         </div>
 
         <div class="form-group">
-          <label>Chọn Giọng nói của Gehihi</label>
-          <select>
-            <option>Nữ - Miền Nam (Ấm áp, truyền cảm)</option>
-            <option>Nữ - Miền Bắc (Rõ ràng, chuẩn mực)</option>
-            <option>Nam - Miền Bắc (Trầm ấm)</option>
-          </select>
+          <label>Chọn Giọng nói của Gehihi (Phong cách Xiaozhi)</label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <select id="voiceSelect" style="flex: 1;">
+              <!-- Nữ -->
+              <option value="vi-female">Giọng nữ (Female Voice)</option>
+              <option value="vi-young-girl">cô gái trẻ (Young Girl)</option>
+              <option value="vi-little-girl">cô bé / bé gái (Little Girl)</option>
+              <option value="vi-female-host">Nữ phát thanh viên / MC</option>
+              <option value="vi-storyteller">Kể chuyện dịu dàng (Storyteller)</option>
+              <option value="vi-hoaimy">Thử nghiệm · Hoài My</option>
+              <!-- Nam -->
+              <option value="vi-male">giọng nam (Male Voice)</option>
+              <option value="vi-male-host">chủ nhà nam (Male Host)</option>
+              <option value="vi-young-man">chàng trai trẻ (Young Man)</option>
+              <option value="vi-little-boy">cậu bé / bé trai (Little Boy)</option>
+              <option value="vi-namminh">Thử nghiệm · Nam Minh</option>
+              <!-- Khác -->
+              <option value="vi-robot">Robot công nghệ (Tech Robot)</option>
+              <option value="en-jenny">Jenny (Nữ tiếng Anh)</option>
+              <option value="en-guy">Guy (Nam tiếng Anh)</option>
+              <option value="zh-xiaoxiao">Xiaoxiao (Nữ tiếng Trung)</option>
+              <option value="ja-nanami">Nanami (Nữ tiếng Nhật)</option>
+              <option value="ko-sunhi">SunHi (Nữ tiếng Hàn)</option>
+            </select>
+            <button type="button" class="secondary" style="padding: 8px 14px; white-space: nowrap;" onclick="playVoicePreview()">▶ Nghe thử</button>
+          </div>
+          <audio id="demoAudioPlayer" style="display: none;"></audio>
         </div>
 
         <div class="form-group">
@@ -375,6 +396,16 @@
         alert('Đã gửi yêu cầu nhận diện cho người nói: ' + name.trim());
       }
     }
+
+    function playVoicePreview() {
+      const sel = document.getElementById('voiceSelect');
+      if (!sel) return;
+      const vid = sel.value;
+      const player = document.getElementById('demoAudioPlayer');
+      player.src = '/api/voice-demo/' + vid;
+      player.play().catch(e => console.log('Cannot play audio:', e));
+    }
+
   </script>
 </body>
 </html>

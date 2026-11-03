@@ -486,21 +486,326 @@ DB_PROVIDE_TYPES = {
     ]
 }
 
+VOICE_PROFILES = {
+    # --- Tiếng Việt phong cách Xiaozhi ---
+    "vi-female": {
+        "id": "vi-female",
+        "name": "Giọng nữ (Female Voice)",
+        "base": "vi-VN-HoaiMyNeural",
+        "af": "",
+        "gender": "Nữ",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Xin chào! Tôi là giọng nữ chuẩn, rất vui được trò chuyện cùng bạn."
+    },
+    "vi-male": {
+        "id": "vi-male",
+        "name": "giọng nam (Male Voice)",
+        "base": "vi-VN-NamMinhNeural",
+        "af": "",
+        "gender": "Nam",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Xin chào! Tôi là giọng nam chuẩn, rất vui được hỗ trợ bạn."
+    },
+    "vi-young-girl": {
+        "id": "vi-young-girl",
+        "name": "cô gái trẻ (Young Girl)",
+        "base": "vi-VN-HoaiMyNeural",
+        "af": "asetrate=24000*1.12,aresample=24000,atempo=1/1.12",
+        "gender": "Nữ",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Chào bạn nha! Em là cô gái trẻ tràn đầy năng lượng đây!"
+    },
+    "vi-male-host": {
+        "id": "vi-male-host",
+        "name": "chủ nhà nam (Male Host)",
+        "base": "vi-VN-NamMinhNeural",
+        "af": "asetrate=24000*0.93,aresample=24000,atempo=1/0.93",
+        "gender": "Nam",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Xin kính chào quý bạn! Tôi là chủ nhà nam, sẵn sàng đồng hành cùng bạn."
+    },
+    "vi-young-man": {
+        "id": "vi-young-man",
+        "name": "chàng trai trẻ (Young Man)",
+        "base": "vi-VN-NamMinhNeural",
+        "af": "asetrate=24000*1.08,aresample=24000,atempo=1/1.08",
+        "gender": "Nam",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Chào bạn nhé! Mình là chàng trai trẻ năng động, bạn cần mình giúp gì nào?"
+    },
+    "vi-hoaimy": {
+        "id": "vi-hoaimy",
+        "name": "Thử nghiệm · Hoài My",
+        "base": "vi-VN-HoaiMyNeural",
+        "af": "",
+        "gender": "Nữ",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Xin chào, đây là giọng thử nghiệm Hoài My của Microsoft Edge."
+    },
+    "vi-namminh": {
+        "id": "vi-namminh",
+        "name": "Thử nghiệm · Nam Minh",
+        "base": "vi-VN-NamMinhNeural",
+        "af": "",
+        "gender": "Nam",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Xin chào, đây là giọng thử nghiệm Nam Minh của Microsoft Edge."
+    },
+    "vi-little-girl": {
+        "id": "vi-little-girl",
+        "name": "cô bé / bé gái (Little Girl)",
+        "base": "vi-VN-HoaiMyNeural",
+        "af": "asetrate=24000*1.22,aresample=24000,atempo=1/1.22",
+        "gender": "Nữ",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Dạ em chào anh chị ạ! Em là bé gái đáng yêu đây!"
+    },
+    "vi-little-boy": {
+        "id": "vi-little-boy",
+        "name": "cậu bé / bé trai (Little Boy)",
+        "base": "vi-VN-NamMinhNeural",
+        "af": "asetrate=24000*1.18,aresample=24000,atempo=1/1.18",
+        "gender": "Nam",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Em chào cả nhà ạ! Em là bé trai tinh nghịch và vui tính đây!"
+    },
+    "vi-female-host": {
+        "id": "vi-female-host",
+        "name": "Nữ phát thanh viên / MC",
+        "base": "vi-VN-HoaiMyNeural",
+        "af": "atempo=0.96",
+        "gender": "Nữ",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Kính chào quý vị và các bạn đang theo dõi kênh phát thanh Gehihi."
+    },
+    "vi-storyteller": {
+        "id": "vi-storyteller",
+        "name": "Kể chuyện dịu dàng (Storyteller)",
+        "base": "vi-VN-HoaiMyNeural",
+        "af": "atempo=0.92,asetrate=24000*0.97,aresample=24000,atempo=1/0.97",
+        "gender": "Nữ",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Ngày xửa ngày xưa, ở một ngôi làng xa xôi có một chú robot rất tốt bụng."
+    },
+    "vi-robot": {
+        "id": "vi-robot",
+        "name": "Robot công nghệ (Tech Robot)",
+        "base": "vi-VN-HoaiMyNeural",
+        "af": "asetrate=24000*1.05,aresample=24000,atempo=1/1.05,flanger=delay=3:depth=2",
+        "gender": "Robot",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Hệ thống Robot Gehihi đã được khởi động và sẵn sàng nhận lệnh."
+    },
+    # --- Tiếng Anh ---
+    "en-jenny": {
+        "id": "en-jenny",
+        "name": "Jenny (Nữ tiếng Anh tự nhiên)",
+        "base": "en-US-JennyNeural",
+        "af": "",
+        "gender": "Nữ",
+        "languages": "Tiếng Anh, en-US",
+        "sample": "Hello! I am Jenny, your English AI companion."
+    },
+    "en-guy": {
+        "id": "en-guy",
+        "name": "Guy (Nam tiếng Anh trầm ấm)",
+        "base": "en-US-GuyNeural",
+        "af": "",
+        "gender": "Nam",
+        "languages": "Tiếng Anh, en-US",
+        "sample": "Hello there! I am Guy, ready to assist you."
+    },
+    "en-aria": {
+        "id": "en-aria",
+        "name": "Aria (Nữ tiếng Anh biểu cảm)",
+        "base": "en-US-AriaNeural",
+        "af": "",
+        "gender": "Nữ",
+        "languages": "Tiếng Anh, en-US",
+        "sample": "Hi! I am Aria, happy to talk with you."
+    },
+    "en-ana": {
+        "id": "en-ana",
+        "name": "Ana (Bé gái tiếng Anh)",
+        "base": "en-US-AnaNeural",
+        "af": "",
+        "gender": "Nữ",
+        "languages": "Tiếng Anh, en-US",
+        "sample": "Hi everyone! I am little Ana!"
+    },
+    "en-christopher": {
+        "id": "en-christopher",
+        "name": "Christopher (Nam trẻ tiếng Anh)",
+        "base": "en-US-ChristopherNeural",
+        "af": "",
+        "gender": "Nam",
+        "languages": "Tiếng Anh, en-US",
+        "sample": "Hey there! Christopher here, what is up?"
+    },
+    # --- Tiếng Trung ---
+    "zh-xiaoxiao": {
+        "id": "zh-xiaoxiao",
+        "name": "Xiaoxiao (Nữ tiếng Trung chuẩn)",
+        "base": "zh-CN-XiaoxiaoNeural",
+        "af": "",
+        "gender": "Nữ",
+        "languages": "Tiếng Trung, zh-CN",
+        "sample": "你好！我是晓晓，很高兴和你交流。"
+    },
+    "zh-yunxi": {
+        "id": "zh-yunxi",
+        "name": "Yunxi (Nam tiếng Trung trẻ trung)",
+        "base": "zh-CN-YunxiNeural",
+        "af": "",
+        "gender": "Nam",
+        "languages": "Tiếng Trung, zh-CN",
+        "sample": "你好！我是云希，有什么我可以帮你的吗？"
+    },
+    # --- Tiếng Nhật ---
+    "ja-nanami": {
+        "id": "ja-nanami",
+        "name": "Nanami (Nữ tiếng Nhật chuẩn)",
+        "base": "ja-JP-NanamiNeural",
+        "af": "",
+        "gender": "Nữ",
+        "languages": "Tiếng Nhật, ja-JP",
+        "sample": "こんにちは！七海です。よろしくお願いします。"
+    },
+    "ja-keita": {
+        "id": "ja-keita",
+        "name": "Keita (Nam tiếng Nhật)",
+        "base": "ja-JP-KeitaNeural",
+        "af": "",
+        "gender": "Nam",
+        "languages": "Tiếng Nhật, ja-JP",
+        "sample": "こんにちは！圭太です。何でも聞いてください。"
+    },
+    # --- Tiếng Hàn ---
+    "ko-sunhi": {
+        "id": "ko-sunhi",
+        "name": "SunHi (Nữ tiếng Hàn)",
+        "base": "ko-KR-SunHiNeural",
+        "af": "",
+        "gender": "Nữ",
+        "languages": "Tiếng Hàn, ko-KR",
+        "sample": "안녕하세요! 선희입니다. 만나서 반가워요."
+    },
+    "ko-injoon": {
+        "id": "ko-injoon",
+        "name": "InJoon (Nam tiếng Hàn)",
+        "base": "ko-KR-InJoonNeural",
+        "af": "",
+        "gender": "Nam",
+        "languages": "Tiếng Hàn, ko-KR",
+        "sample": "안녕하세요! 인준입니다. 무엇을 도와드릴까요?"
+    }
+}
+
+# Aliases for edge-tts raw names
+VOICE_PROFILES["vi-VN-HoaiMyNeural"] = VOICE_PROFILES["vi-female"]
+VOICE_PROFILES["vi-VN-NamMinhNeural"] = VOICE_PROFILES["vi-male"]
+VOICE_PROFILES["en-US-JennyNeural"] = VOICE_PROFILES["en-jenny"]
+VOICE_PROFILES["en-US-GuyNeural"] = VOICE_PROFILES["en-guy"]
+VOICE_PROFILES["en-US-AriaNeural"] = VOICE_PROFILES["en-aria"]
+VOICE_PROFILES["en-US-AnaNeural"] = VOICE_PROFILES["en-ana"]
+VOICE_PROFILES["en-US-ChristopherNeural"] = VOICE_PROFILES["en-christopher"]
+VOICE_PROFILES["zh-CN-XiaoxiaoNeural"] = VOICE_PROFILES["zh-xiaoxiao"]
+VOICE_PROFILES["zh-CN-YunxiNeural"] = VOICE_PROFILES["zh-yunxi"]
+VOICE_PROFILES["ja-JP-NanamiNeural"] = VOICE_PROFILES["ja-nanami"]
+VOICE_PROFILES["ja-JP-KeitaNeural"] = VOICE_PROFILES["ja-keita"]
+VOICE_PROFILES["ko-KR-SunHiNeural"] = VOICE_PROFILES["ko-sunhi"]
+VOICE_PROFILES["ko-KR-InJoonNeural"] = VOICE_PROFILES["ko-injoon"]
+
+def resolve_voice_profile(voice_key: str):
+    """Phân giải giọng nói theo style và cấu hình âm thanh tương ứng (hỗ trợ EdgeTTS chuẩn và các phong cách Xiaozhi)"""
+    if not voice_key:
+        return VOICE_PROFILES["vi-female"]
+    if voice_key in VOICE_PROFILES:
+        return VOICE_PROFILES[voice_key]
+    vk_lower = str(voice_key).lower().strip()
+    if vk_lower in VOICE_PROFILES:
+        return VOICE_PROFILES[vk_lower]
+    for k, p in VOICE_PROFILES.items():
+        if k.lower() == vk_lower:
+            return p
+        if p.get("name", "").lower() == vk_lower:
+            return p
+        if p.get("base", "").lower() == vk_lower:
+            return p
+        if vk_lower in p.get("name", "").lower() or p.get("name", "").lower() in vk_lower:
+            return p
+    # Keyword heuristics
+    if any(w in vk_lower for w in ["cô gái", "young girl", "gái trẻ", "thiếu nữ", "shaonv"]):
+        return VOICE_PROFILES["vi-young-girl"]
+    if any(w in vk_lower for w in ["chủ nhà", "male host", "mc nam", "phát thanh nam"]):
+        return VOICE_PROFILES["vi-male-host"]
+    if any(w in vk_lower for w in ["chàng trai", "young man", "thanh niên"]):
+        return VOICE_PROFILES["vi-young-man"]
+    if any(w in vk_lower for w in ["bé gái", "little girl", "trẻ em nữ", "cô bé"]):
+        return VOICE_PROFILES["vi-little-girl"]
+    if any(w in vk_lower for w in ["bé trai", "little boy", "trẻ em nam", "cậu bé"]):
+        return VOICE_PROFILES["vi-little-boy"]
+    if any(w in vk_lower for w in ["nữ phát thanh", "mc nữ", "female host"]):
+        return VOICE_PROFILES["vi-female-host"]
+    if any(w in vk_lower for w in ["kể chuyện", "storyteller", "dịu dàng"]):
+        return VOICE_PROFILES["vi-storyteller"]
+    if any(w in vk_lower for w in ["robot", "công nghệ"]):
+        return VOICE_PROFILES["vi-robot"]
+    if any(w in vk_lower for w in ["nam", "male", "namminh"]):
+        return VOICE_PROFILES["vi-male"]
+    if any(w in vk_lower for w in ["nữ", "female", "hoaimy"]):
+        return VOICE_PROFILES["vi-female"]
+    return VOICE_PROFILES["vi-female"]
+
+VOICE_DEMO_CACHE = {}
+
 DB_VOICES = [
     {
-        "id": "VOICE_01",
-        "name": "Hoài My (Nữ - Tiếng Việt Chuẩn)",
-        "voiceCode": "vi-VN-HoaiMyNeural",
+        "id": p["id"],
+        "name": p["name"],
+        "voiceCode": p.get("base", p["id"]),
         "ttsModelId": "MOD_TTS_01",
-        "languages": "vi-VN"
-    },
-    {
-        "id": "VOICE_02",
-        "name": "Nam Minh (Nam - Tiếng Việt Chuẩn)",
-        "voiceCode": "vi-VN-NamMinhNeural",
-        "ttsModelId": "MOD_TTS_01",
-        "languages": "vi-VN"
+        "languages": p["languages"],
+        "voiceDemo": f"/api/voice-demo/{p['id']}",
+        "isClone": False
     }
+    for p in [
+        VOICE_PROFILES["vi-female"],
+        VOICE_PROFILES["vi-male"],
+        VOICE_PROFILES["vi-young-girl"],
+        VOICE_PROFILES["vi-male-host"],
+        VOICE_PROFILES["vi-young-man"],
+        VOICE_PROFILES["vi-hoaimy"],
+        VOICE_PROFILES["vi-namminh"],
+        VOICE_PROFILES["vi-little-girl"],
+        VOICE_PROFILES["vi-little-boy"],
+        VOICE_PROFILES["vi-female-host"],
+        VOICE_PROFILES["vi-storyteller"],
+        VOICE_PROFILES["vi-robot"],
+        VOICE_PROFILES["en-jenny"],
+        VOICE_PROFILES["en-guy"],
+        VOICE_PROFILES["en-aria"],
+        VOICE_PROFILES["en-ana"],
+        VOICE_PROFILES["en-christopher"],
+        VOICE_PROFILES["zh-xiaoxiao"],
+        VOICE_PROFILES["zh-yunxi"],
+        VOICE_PROFILES["ja-nanami"],
+        VOICE_PROFILES["ja-keita"],
+        VOICE_PROFILES["ko-sunhi"],
+        VOICE_PROFILES["ko-injoon"]
+    ]
+]
+
+DB_VOICE_RESOURCES = [
+    {
+        "id": f"VRES_{i+1:02d}",
+        "name": v["name"],
+        "voiceCode": v["voiceCode"],
+        "gender": "Nữ" if any(w in v["name"].lower() for w in ["nữ", "gái", "jenny", "aria", "ana", "xiaoxiao", "nanami", "sunhi"]) else "Nam",
+        "language": v["languages"].split(",")[0].strip(),
+        "status": 1
+    }
+    for i, v in enumerate(DB_VOICES)
 ]
 
 DB_KNOWLEDGE = [
@@ -1264,14 +1569,71 @@ async def handle_model_names(request):
     names = [{"id": m["id"], "name": m["modelName"], "modelName": m["modelName"]} for m in filtered]
     return cors_response({"code": 0, "msg": "success", "data": names})
 
+
+async def handle_api_voice_demo(request):
+    """Phát mẫu âm thanh thử giọng đọc (cho nút Play trong web admin và roleConfig)"""
+    voice_id = request.match_info.get("voice_id", "vi-female")
+    if voice_id in VOICE_DEMO_CACHE:
+        return web.Response(body=VOICE_DEMO_CACHE[voice_id], content_type="audio/mpeg", headers={
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=86400"
+        })
+    prof = resolve_voice_profile(voice_id)
+    sample_text = prof.get("sample", "Xin chào bạn, tôi là trợ lý ảo robot Gehihi.")
+    base_voice = prof["base"]
+    af_filter = prof.get("af", "")
+    
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg and imageio_ffmpeg:
+        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    if not ffmpeg or not edge_tts:
+        return web.Response(status=500, text="ffmpeg or edge-tts missing")
+        
+    cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "mp3", "-i", "pipe:0"]
+    if af_filter:
+        cmd.extend(["-af", af_filter])
+    cmd.extend(["-f", "mp3", "-b:a", "64k", "pipe:1"])
+    
+    for attempt in range(2):
+        try:
+            comm = edge_tts.Communicate(sample_text, voice=base_voice)
+            mp3_buffer = bytearray()
+            async for chunk in comm.stream():
+                if chunk.get("type") == "audio" and chunk.get("data"):
+                    mp3_buffer.extend(chunk["data"])
+            if not mp3_buffer:
+                if attempt == 0:
+                    await asyncio.sleep(0.8)
+                    continue
+                return web.Response(status=500, text="No audio data")
+                
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL
+            )
+            out, _ = await proc.communicate(input=bytes(mp3_buffer))
+            if out:
+                VOICE_DEMO_CACHE[voice_id] = out
+                return web.Response(body=out, content_type="audio/mpeg", headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=86400"
+                })
+        except Exception as e:
+            logger.warning(f"Voice demo attempt {attempt+1} error for {voice_id}: {e}")
+            if attempt == 0:
+                await asyncio.sleep(0.8)
+            else:
+                return web.Response(status=500, text=str(e))
+    return web.Response(status=500, text="Failed to generate sample")
+
+
 async def handle_tts_voice_list(request):
     return cors_response({
         "code": 0,
         "msg": "success",
-        "data": {
-            "total": len(DB_VOICES),
-            "list": DB_VOICES
-        }
+        "data": DB_VOICES
     })
 
 # ---------- KNOWLEDGE BASE & ADDRESS BOOK ----------
@@ -1451,12 +1813,14 @@ async def stream_tts_opus(text: str, voice: str = None):
         LIVE_DIAGNOSTICS["last_tts_error"] = error
         LIVE_DIAGNOSTICS["tts_failure_count"] += 1
         return
-    if not voice:
-        if ACTIVE_ENGLISH_TUTOR.get("active"):
-            has_vi = any(c in clean_text for c in "áàảãạăắằẵặâấầẩẫậéèẻẽẹêếềểễệíìỉịóòỏọôốồổộơớờởỡợúùủụưứừữựýỳỷỹỵđĐ")
-            voice = "vi-VN-HoaiMyNeural" if has_vi else "en-US-JennyNeural"
-        else:
-            voice = "vi-VN-HoaiMyNeural"
+    if ACTIVE_ENGLISH_TUTOR.get("active"):
+        has_vi = any(c in clean_text for c in "áàảãạăắằẵặâấầẩẫậéèẻẽẹêếềểễệíìỉịóòỏọôốồổộơớờởỡợúùủụưứừữựýỳỷỹỵđĐ")
+        if not has_vi:
+            voice = "en-US-JennyNeural"
+
+    prof = resolve_voice_profile(voice)
+    base_voice = prof["base"]
+    af_filter = prof.get("af", "")
 
     proc = None
     producer = None
@@ -1466,14 +1830,21 @@ async def stream_tts_opus(text: str, voice: str = None):
             ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
         if not ffmpeg:
             raise RuntimeError("Không tìm thấy ffmpeg để giải mã giọng nói")
+        
+        ffmpeg_cmd = [
+            ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "mp3", "-i", "pipe:0"
+        ]
+        if af_filter:
+            ffmpeg_cmd.extend(["-af", af_filter])
+        ffmpeg_cmd.extend(["-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "24000", "pipe:1"])
+
         proc = await asyncio.create_subprocess_exec(
-            ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "mp3", "-i", "pipe:0",
-            "-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "24000", "pipe:1",
+            *ffmpeg_cmd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )
-        communicate = edge_tts.Communicate(clean_text, voice=voice)
+        communicate = edge_tts.Communicate(clean_text, voice=base_voice)
 
         async def feed_mp3():
             try:
@@ -1540,13 +1911,15 @@ async def stream_tts_opus(text: str, voice: str = None):
 
 async def tts_to_opus(text: str, voice: str = None) -> list:
     """Tổng hợp giọng nói tiếng Việt / tiếng Anh bằng EdgeTTS và mã hoá thành các gói Opus 60ms"""
-    if not voice:
-        if ACTIVE_ENGLISH_TUTOR.get("active"):
-            has_vi = any(c in text for c in "áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđĐ")
-            voice = "vi-VN-HoaiMyNeural" if has_vi else "en-US-JennyNeural"
-        else:
-            voice = "vi-VN-HoaiMyNeural"
-    """Tổng hợp giọng nói tiếng Việt bằng EdgeTTS (>=7.3.1) và mã hoá thành các gói Opus 60ms"""
+    if ACTIVE_ENGLISH_TUTOR.get("active"):
+        has_vi = any(c in text for c in "áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđĐ")
+        if not has_vi:
+            voice = "en-US-JennyNeural"
+
+    prof = resolve_voice_profile(voice)
+    base_voice = prof["base"]
+    af_filter = prof.get("af", "")
+
     try:
         if not edge_tts:
             return []
@@ -1554,15 +1927,27 @@ async def tts_to_opus(text: str, voice: str = None) -> list:
         clean_text = re.sub(r"[*_#`]", "", clean_text)
         if not clean_text:
             return []
-        communicate = edge_tts.Communicate(clean_text, voice=voice)
+        communicate = edge_tts.Communicate(clean_text, voice=base_voice)
         mp3_buffer = bytearray()
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 mp3_buffer.extend(chunk["data"])
         if not mp3_buffer:
             return []
+
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg and imageio_ffmpeg:
+            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        if not ffmpeg:
+            ffmpeg = "ffmpeg"
+
+        cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-i", "pipe:0"]
+        if af_filter:
+            cmd.extend(["-af", af_filter])
+        cmd.extend(["-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "24000", "pipe:1"])
+
         proc = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-i", "pipe:0", "-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "24000", "pipe:1",
+            *cmd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL
@@ -2403,7 +2788,10 @@ async def ws_handler(websocket):
                 LIVE_DIAGNOSTICS["last_turn_status"] = "Echo loop prevented"
                 return
 
-            opus_stream = stream_tts_opus(b_text)
+            dev = DB_DEVICES.get(device_mac, {})
+            agent = DB_AGENTS[0] if DB_AGENTS else {}
+            active_voice = dev.get("voice") or agent.get("ttsVoiceName") or agent.get("ttsVoiceId") or "vi-female"
+            opus_stream = stream_tts_opus(b_text, voice=active_voice)
             response_sent = await send_dynamic_tts_response(websocket, session_id, u_text, b_text, emotion, opus_stream)
             LIVE_DIAGNOSTICS["last_total_latency"] = round(time.perf_counter() - turn_started_at, 3)
             if not response_sent:
@@ -3302,25 +3690,24 @@ async def handle_api_my_xiaozhi_options(request):
         ],
         "voicesByLanguage": {
             "vi": [
-                {"value": "vi-VN-HoaiMyNeural", "label": "Hoài My (Nữ - Truyền cảm, tự nhiên)"},
-                {"value": "vi-VN-NamMinhNeural", "label": "Nam Minh (Nam - Trầm ấm, dõng dạc)"}
+                {"value": v["id"], "label": v["name"]}
+                for v in DB_VOICES if "Tiếng Việt" in v["languages"] or "vi-VN" in v["languages"]
             ],
             "en": [
-                {"value": "en-US-JennyNeural", "label": "Jenny (Nữ - Tự nhiên)"},
-                {"value": "en-US-GuyNeural", "label": "Guy (Nam - Trầm ấm)"},
-                {"value": "en-US-AriaNeural", "label": "Aria (Nữ - Biểu cảm)"}
+                {"value": v["id"], "label": v["name"]}
+                for v in DB_VOICES if "Tiếng Anh" in v["languages"] or "en-US" in v["languages"]
             ],
             "zh": [
-                {"value": "zh-CN-XiaoxiaoNeural", "label": "Xiaoxiao (Nữ - Ngọt ngào)"},
-                {"value": "zh-CN-YunxiNeural", "label": "Yunxi (Nam - Năng động)"}
+                {"value": v["id"], "label": v["name"]}
+                for v in DB_VOICES if "Tiếng Trung" in v["languages"] or "zh-CN" in v["languages"]
             ],
             "ja": [
-                {"value": "ja-JP-NanamiNeural", "label": "Nanami (Nữ)"},
-                {"value": "ja-JP-KeitaNeural", "label": "Keita (Nam)"}
+                {"value": v["id"], "label": v["name"]}
+                for v in DB_VOICES if "Tiếng Nhật" in v["languages"] or "ja-JP" in v["languages"]
             ],
             "ko": [
-                {"value": "ko-KR-SunHiNeural", "label": "SunHi (Nữ)"},
-                {"value": "ko-KR-InJoonNeural", "label": "InJoon (Nam)"}
+                {"value": v["id"], "label": v["name"]}
+                for v in DB_VOICES if "Tiếng Hàn" in v["languages"] or "ko-KR" in v["languages"]
             ]
         }
     })
@@ -5035,6 +5422,11 @@ async def run_http_server():
     # TTS Voices
     app.router.add_get("/xiaozhi/ttsVoice", handle_tts_voice_list)
     app.router.add_get("/xiaozhi/models/{id}/voices", handle_tts_voice_list)
+    app.router.add_get("/models/{id}/voices", handle_tts_voice_list)
+    app.router.add_get("/api/voice-demo/{voice_id}", handle_api_voice_demo)
+    app.router.add_get("/xiaozhi/api/voice-demo/{voice_id}", handle_api_voice_demo)
+    app.router.add_options("/api/voice-demo/{voice_id}", handle_cors_options)
+    app.router.add_options("/xiaozhi/api/voice-demo/{voice_id}", handle_cors_options)
 
     # Knowledge & Address Book
     app.router.add_get("/xiaozhi/knowledge/base/list", handle_knowledge_list)
