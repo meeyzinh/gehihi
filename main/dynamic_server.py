@@ -1096,31 +1096,50 @@ async def handle_tunnel_status(request):
         }
     })
 
+# Danh sách thiết bị mới đang chờ người dùng nhập mã PIN trên Web Admin để ghép nối
+PENDING_ACTIVATIONS = {}
+
 async def handle_ota(request):
-    """Xử lý yêu cầu OTA từ robot Gehihi"""
-    device_id = request.headers.get("Device-Id", "14:c1:9f:c4:ee:d0").lower()
+    """Xử lý yêu cầu OTA & Luồng kích hoạt ghép nối thiết bị mới (Activation / Binding)"""
+    device_id = request.headers.get("Device-Id", "").lower().strip()
     client_id = request.headers.get("Client-Id", "")
     accept_lang = request.headers.get("Accept-Language", "vi-VN")
 
-    # Đăng ký hoặc cập nhật thiết bị
-    if device_id not in DB_DEVICES:
-        DB_DEVICES[device_id] = {
-            "id": f"DEV_{device_id[-4:].upper()}",
-            "macAddress": device_id.upper(),
-            "name": f"Robot Gehihi ({device_id[-4:].upper()})",
-            "boardType": "ESP32-S3",
-            "version": "2.5.0",
-            "status": 1,
-            "online": True,
-            "lastActiveTime": int(time.time() * 1000)
-        }
-    else:
-        DB_DEVICES[device_id]["online"] = True
-        DB_DEVICES[device_id]["lastActiveTime"] = int(time.time() * 1000)
+    if not device_id:
+        device_id = "14:c1:9f:c4:ee:d0"
 
-    logger.info(f"OTA Request from Device: {device_id}, Client: {client_id}")
+    dev = DB_DEVICES.get(device_id)
 
-    # Neu co PC Cloudflare Tunnel dang online (cap nhat trong 3 phut), uu tien tro Robot ve PC ca nhan
+    # 1. NẾU THIẾT BỊ CHƯA TỪNG ĐƯỢC THÊM TRÊN WEB HOẶC CHƯA KÍCH HOẠT (status != 1):
+    if not dev or dev.get("status") == 0:
+        if device_id in PENDING_ACTIVATIONS:
+            pin_code = PENDING_ACTIVATIONS[device_id]["pin"]
+        else:
+            # Ưu tiên lấy mã PIN có sẵn trong hồ sơ hoặc sinh ngẫu nhiên 6 chữ số
+            pin_code = (dev.get("pin") or dev.get("device_code")) if dev else str(random.randint(100000, 999999))
+            PENDING_ACTIVATIONS[device_id] = {
+                "pin": pin_code,
+                "mac": device_id.upper(),
+                "created_at": time.time(),
+                "client_id": client_id
+            }
+
+        logger.info(f"OTA: Robot {device_id.upper()} CHƯA KÍCH HOẠT. Gửi mã PIN ghép nối: {pin_code} để hiển thị trên màn hình/loa")
+        return cors_response({
+            "activation": {
+                "code": pin_code,
+                "message": f"Mã ghép nối Robot: {pin_code}. Vui lòng đăng nhập Admin để thêm thiết bị."
+            },
+            "server_time": {
+                "timestamp": int(time.time() * 1000),
+                "timezone_offset": 420
+            }
+        })
+
+    # 2. NẾU THIẾT BỊ ĐÃ KÍCH HOẠT THÀNH CÔNG: Cung cấp WebSocket endpoint để kết nối
+    dev["online"] = True
+    dev["lastActiveTime"] = int(time.time() * 1000)
+
     active_ws_url = WS_URL
     if ACTIVE_TUNNEL_INFO["url"] and (time.time() - ACTIVE_TUNNEL_INFO["updated_at"] < 180):
         t_url = ACTIVE_TUNNEL_INFO["url"].replace("https://", "wss://").rstrip("/")
@@ -1135,7 +1154,7 @@ async def handle_ota(request):
             "timezone_offset": 420  # GMT+7 (Vietnam)
         },
         "firmware": {
-            "version": "2.5.0",
+            "version": dev.get("version", "2.5.0"),
             "url": ""
         },
         "websocket": {
@@ -1146,7 +1165,12 @@ async def handle_ota(request):
     })
 
 async def handle_ota_activate(request):
-    return web.Response(text="success", status=200, headers={'Access-Control-Allow-Origin': '*'})
+    """Xử lý polling kiểm tra trạng thái kích hoạt từ robot"""
+    device_id = request.headers.get("Device-Id", "").lower().strip()
+    if device_id and device_id in DB_DEVICES and DB_DEVICES[device_id].get("status") == 1:
+        logger.info(f"OTA Activate Polling: Robot {device_id.upper()} đã được ghép nối thành công!")
+        return web.Response(text="success", status=200, headers={'Access-Control-Allow-Origin': '*'})
+    return web.Response(text="pending", status=202, headers={'Access-Control-Allow-Origin': '*'})
 
 async def handle_vision_explain(request):
     return cors_response({
@@ -3796,32 +3820,76 @@ async def handle_api_admin_change_password(request):
     return cors_response({"code": 1, "message": "Mật khẩu mới không được trống"}, status=400)
 
 async def handle_api_auth_register(request):
+    """Kích hoạt và ghép nối thiết bị mới vào hệ thống qua mã PIN hoặc MAC"""
     try:
         data = await request.json()
     except Exception:
         data = {}
-    name = data.get("name", "Robot Gehihi Mới")
-    mac = data.get("macAddress", data.get("device_code", f"14:c1:9f:{uuid.uuid4().hex[:6]}"))
-    pin = data.get("pin", str(uuid.uuid4().int)[:6])
-    dev_id = f"DEV_{mac[-4:].upper()}"
-    DB_DEVICES[mac.lower()] = {
+    name = (data.get("name") or "Robot Gehihi").strip()
+    input_pin = str(data.get("pin") or data.get("device_code") or "").strip()
+    input_mac = str(data.get("macAddress") or data.get("mac") or data.get("device_mac") or "").strip().lower()
+
+    matched_mac = None
+    # 1. Tìm kiếm trong danh sách robot đang chờ kích hoạt (PENDING_ACTIVATIONS) theo PIN
+    if input_pin:
+        for p_mac, p_info in list(PENDING_ACTIVATIONS.items()):
+            if p_info.get("pin") == input_pin:
+                matched_mac = p_mac
+                break
+    
+    # 2. Hoặc tìm kiếm theo địa chỉ MAC
+    if not matched_mac and input_mac:
+        for p_mac in list(PENDING_ACTIVATIONS.keys()):
+            if p_mac == input_mac or p_mac.replace(":", "") == input_mac.replace(":", ""):
+                matched_mac = p_mac
+                break
+
+    final_mac = matched_mac or (input_mac if len(input_mac) >= 12 else "14:c1:9f:c4:ee:d0")
+    final_mac = final_mac.lower()
+    final_pin = input_pin or (PENDING_ACTIVATIONS.get(final_mac, {}).get("pin") if final_mac in PENDING_ACTIVATIONS else str(random.randint(100000, 999999)))
+
+    dev_id = f"DEV_{final_mac.replace(':', '')[-4:].upper()}"
+    DB_DEVICES[final_mac] = {
         "id": dev_id,
-        "macAddress": mac.upper(),
+        "macAddress": final_mac.upper(),
+        "mac": final_mac.upper(),
+        "device_mac": final_mac.upper(),
         "name": name,
-        "pin": pin,
+        "pin": final_pin,
+        "device_code": final_pin,
+        "username": "gehihi",
+        "password": data.get("password", "123456"),
         "avatar": data.get("avatar", "🤖"),
         "boardType": "ESP32-S3",
         "version": "2.5.0",
-        "status": 1,
-        "online": True,
+        "status": 1,  # 1 = Đã kích hoạt & ghép nối thành công
+        "online": False,
+        "is_online": False,
         "lastActiveTime": int(time.time() * 1000)
     }
+
+    if final_mac in PENDING_ACTIVATIONS:
+        del PENDING_ACTIVATIONS[final_mac]
+
+    logger.info(f"Đã kích hoạt & liên kết thành công Robot: {name} (MAC: {final_mac.upper()}, PIN: {final_pin})")
     await broadcast_mic_monitor({
         "type": "device_event",
         "action": "created",
-        "data": DB_DEVICES[mac.lower()]
+        "data": DB_DEVICES[final_mac]
     })
-    return cors_response({"code": 0, "msg": "Kích hoạt Robot thành công!", "device": DB_DEVICES[mac.lower()]})
+    return cors_response({"code": 0, "msg": "Kích hoạt & ghép nối Robot thành công!", "device": DB_DEVICES[final_mac]})
+
+async def handle_api_devices_pending(request):
+    """API xem danh sách các robot đang chờ kích hoạt (đang phát mã PIN)"""
+    res = []
+    for mac, info in PENDING_ACTIVATIONS.items():
+        res.append({
+            "mac": mac.upper(),
+            "pin": info.get("pin", ""),
+            "created_at": info.get("created_at", 0),
+            "age_seconds": int(time.time() - info.get("created_at", 0))
+        })
+    return cors_response({"code": 0, "pending_devices": res})
 
 async def handle_api_devices_get_post(request):
     if request.method == "POST":
@@ -5744,6 +5812,7 @@ async def run_http_server():
     app.router.add_post("/api/admin/change-password", handle_api_admin_change_password)
 
     # API Devices & Robot Control
+    app.router.add_get("/api/devices/pending", handle_api_devices_pending)
     app.router.add_get("/api/devices", handle_api_devices_get_post)
     app.router.add_post("/api/devices", handle_api_devices_get_post)
     app.router.add_get("/api/devices/{id}", handle_api_device_by_id)
