@@ -2578,8 +2578,41 @@ async def ws_handler(websocket):
                 ]
             }
             await websocket.send(json.dumps(init_payload, ensure_ascii=False))
-            async for _ in websocket:
-                pass
+            async for msg_raw in websocket:
+                try:
+                    msg = json.loads(msg_raw)
+                    m_type = msg.get("type", "")
+                    if m_type == "device_update":
+                        dev_id = msg.get("device_id", "")
+                        update_data = msg.get("data", {})
+                        for m_mac, m_dev in DB_DEVICES.items():
+                            if m_mac.lower() == dev_id.lower() or m_dev.get("id", "").lower() == dev_id.lower() or len(DB_DEVICES) == 1:
+                                for k, val in update_data.items():
+                                    m_dev[k] = val
+                                if "system_prompt" in update_data:
+                                    m_dev["prompt"] = update_data["system_prompt"]
+                                if "volume" in m_dev:
+                                    v = int(m_dev["volume"])
+                                    v_pct = v * 10 if v <= 10 else min(v, 100)
+                                    r_ws = CONNECTED_ROBOTS.get(m_mac)
+                                    if not r_ws and CONNECTED_ROBOTS:
+                                        r_ws = list(CONNECTED_ROBOTS.values())[0]
+                                    if r_ws:
+                                        await r_ws.send(json.dumps({
+                                            "type": "mcp",
+                                            "payload": {
+                                                "jsonrpc": "2.0",
+                                                "method": "tools/call",
+                                                "params": {"name": "self.audio_speaker.set_volume", "arguments": {"volume": v_pct}},
+                                                "id": int(time.time())
+                                            }
+                                        }))
+                                await broadcast_mic_monitor({"type": "device_event", "action": "updated", "data": m_dev})
+                                break
+                    elif m_type == "device_list":
+                        await websocket.send(json.dumps(init_payload, ensure_ascii=False))
+                except Exception as ex:
+                    logger.warning(f"Error handling mic monitor msg: {ex}")
         except Exception:
             pass
         finally:
@@ -3438,6 +3471,12 @@ async def handle_api_devices_get_post(request):
         is_on = bool(d.get("online", True))
         pin_code = d.get("pin", "927184")
         mac_addr = d.get("macAddress", mac.upper())
+        raw_vol = d.get("volume", 8)
+        norm_vol = int(raw_vol / 10) if raw_vol > 10 else int(raw_vol)
+        norm_vol = max(1, min(norm_vol, 10))
+        act_voice = d.get("voice") or d.get("voice_id") or "vi-female"
+        act_model = d.get("model_id") or d.get("model") or ACTIVE_AI_PROVIDER
+        act_prompt = d.get("prompt") or d.get("system_prompt") or "Bạn là Gehihi, một trợ lý robot thông minh nói tiếng Việt tự nhiên và thân thiện."
         res.append({
             "id": d.get("id", "DEV_001"),
             "device_code": pin_code,
@@ -3445,17 +3484,22 @@ async def handle_api_devices_get_post(request):
             "mac": mac_addr,
             "macAddress": mac_addr,
             "device_mac": mac_addr,
-            "name": d.get("name", "Robot Gehihi AI ESP32-S3 (Mạch tím)"),
+            "name": d.get("name", "Robot Gehihi"),
             "avatar": d.get("avatar", "🤖"),
             "status": 1 if is_on else 0,
             "online": is_on,
             "is_online": is_on,
-            "ip": d.get("ip", "10.26.1.70"),
+            "ip": d.get("ip", "10.26.1.10"),
             "version": d.get("version", "2.5.0"),
-            "volume": d.get("volume", 80),
-            "prompt": d.get("prompt", "Bạn là Gehihi, một trợ lý robot thông minh nói tiếng Việt tự nhiên và thân thiện."),
-            "model": ACTIVE_AI_PROVIDER,
-            "voice": "vi-VN-HoaiMyNeural",
+            "volume": norm_vol,
+            "prompt": act_prompt,
+            "system_prompt": act_prompt,
+            "model": act_model,
+            "model_id": act_model,
+            "voice": act_voice,
+            "voice_id": act_voice,
+            "voice_name": d.get("voice_name") or act_voice,
+            "password": d.get("password", "123456"),
             "battery": 95,
             "lastActiveTime": d.get("lastActiveTime", int(time.time() * 1000))
         })
@@ -3492,14 +3536,64 @@ async def handle_api_device_by_id(request):
             data = {}
         if found_key:
             dev = DB_DEVICES[found_key]
+            if "system_prompt" in data and data["system_prompt"]:
+                data["prompt"] = data["system_prompt"]
+            elif "prompt" in data and data["prompt"]:
+                data["system_prompt"] = data["prompt"]
+
             for k in (
-                "name", "volume", "prompt", "avatar", "model_id", "model",
-                "voice", "language", "voice_speed", "tts_speed", "voice_pitch",
+                "name", "volume", "prompt", "system_prompt", "avatar", "model_id", "model",
+                "voice", "voice_id", "voice_name", "language", "voice_speed", "tts_speed", "voice_pitch",
                 "openai_api_key", "deepseek_api_key", "gemini_api_key",
-                "custom_prompt", "memory_enabled"
+                "custom_prompt", "memory_enabled", "password", "pin", "device_code"
             ):
                 if k in data:
                     dev[k] = data[k]
+
+            # Normalize volume
+            if "volume" in dev:
+                try:
+                    v_val = int(dev["volume"])
+                    dev["volume"] = int(v_val / 10) if v_val > 10 else v_val
+                    dev["volume"] = max(1, min(dev["volume"], 10))
+                except Exception:
+                    dev["volume"] = 8
+
+            # Synchronize to DB_AGENTS
+            if DB_AGENTS:
+                if "prompt" in dev:
+                    DB_AGENTS[0]["systemPrompt"] = dev["prompt"]
+                if "voice" in dev:
+                    DB_AGENTS[0]["ttsVoiceName"] = dev["voice"]
+                    DB_AGENTS[0]["ttsVoiceId"] = dev["voice"]
+
+            # Push live update to connected robot via WebSocket (MCP tool call)
+            robot_ws = CONNECTED_ROBOTS.get(found_key)
+            if not robot_ws and CONNECTED_ROBOTS:
+                robot_ws = list(CONNECTED_ROBOTS.values())[0]
+
+            if robot_ws:
+                try:
+                    # 1. Update volume on ESP32 codec
+                    vol_percent = int(dev.get("volume", 8)) * 10
+                    mcp_vol = {
+                        "type": "mcp",
+                        "payload": {
+                            "jsonrpc": "2.0",
+                            "method": "tools/call",
+                            "params": {
+                                "name": "self.audio_speaker.set_volume",
+                                "arguments": {"volume": vol_percent}
+                            },
+                            "id": int(time.time())
+                        }
+                    }
+                    asyncio.create_task(robot_ws.send(json.dumps(mcp_vol)))
+                    # 2. Flash happy emotion on OLED
+                    asyncio.create_task(robot_ws.send(json.dumps({"type": "llm", "emotion": "happy"})))
+                    logger.info(f"Live synced config to robot {found_key}: volume={vol_percent}%, voice={dev.get('voice')}")
+                except Exception as ws_err:
+                    logger.warning(f"Error live syncing to robot: {ws_err}")
             # Update active provider if model_id provided
             if "model_id" in data and data["model_id"]:
                 mid = str(data["model_id"]).lower()

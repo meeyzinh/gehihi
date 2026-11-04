@@ -1794,7 +1794,7 @@ body {
           </div>
           <div>
             <label style="display: block; font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">🔒 Mật khẩu tài khoản</label>
-            <input type="text" id="editDevicePasswordInput" required style="width: 100%; padding: 10px 12px; border-radius: 8px; background: #061224; border: 1px solid rgba(255,255,255,0.15); color: white; font-size: 13.5px; box-sizing: border-box;">
+            <input type="text" id="editDevicePasswordInput" style="width: 100%; padding: 10px 12px; border-radius: 8px; background: #061224; border: 1px solid rgba(255,255,255,0.15); color: white; font-size: 13.5px; box-sizing: border-box;">
           </div>
         </div>
 
@@ -1813,10 +1813,11 @@ body {
           <div>
             <label style="display: block; font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">🧠 Mô hình AI (LLM)</label>
             <select id="editDeviceModelSelect" style="width: 100%; padding: 10px 12px; border-radius: 8px; background: #061224; border: 1px solid rgba(255,255,255,0.15); color: #93c5fd; font-size: 13px; box-sizing: border-box;">
-              <option value="Gemini 3.1 Flash Lite">Gemini 3.1 Flash Lite (Siêu nhanh - Mặc định)</option>
-              <option value="Gemini 2.5 Flash">Gemini 2.5 Flash (Toàn diện)</option>
-              <option value="DeepSeek V4 (Phong phú)">DeepSeek V4 (Phong phú)</option>
-              <option value="ChatGPT-4o Mini">ChatGPT-4o Mini (OpenAI)</option>
+              <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Siêu nhanh ~1s - Mặc định)</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash (Thông minh, toàn diện)</option>
+              <option value="deepseek-chat">DeepSeek V3 (deepseek-chat - Tiếng Việt tự nhiên)</option>
+              <option value="gpt-4o-mini">ChatGPT GPT-4o Mini (OpenAI)</option>
+              <option value="groq">Groq (Qwen 2.5 72B - Siêu tốc 450ms)</option>
             </select>
           </div>
           <div>
@@ -4636,9 +4637,29 @@ Ví dụ:
 
         const pinCode = d.pin || d.device_code || '927184';
         const macAddr = d.device_mac || d.mac || d.macAddress || '14:C1:9F:C4:EE:D0';
-        const modelName = d.model || d.model_id || 'Gemini 3.1 Flash Lite';
-        const voiceShort = (d.voice_name || d.voice || 'Hoài My').split('-').pop().replace('Neural', '');
-        const volumeVal = d.volume !== undefined ? d.volume : 7;
+        let modelName = 'Gemini Flash';
+        const mId = (d.model_id || d.model || '').toLowerCase();
+        if (mId.includes('3.1') || mId.includes('lite')) modelName = 'Gemini Flash Lite';
+        else if (mId.includes('2.5') || mId.includes('flash')) modelName = 'Gemini 2.5 Flash';
+        else if (mId.includes('deepseek')) modelName = 'DeepSeek V3';
+        else if (mId.includes('gpt') || mId.includes('openai')) modelName = 'GPT-4o Mini';
+        else if (mId.includes('groq')) modelName = 'Groq Cloud (Qwen)';
+        else modelName = d.model_id || d.model || 'Gemini Flash';
+
+        let voiceShort = 'Hoài My';
+        const curVId = d.voice || d.voice_id || '';
+        const foundVoice = (typeof GEHIHI_ALL_VOICES !== 'undefined' ? GEHIHI_ALL_VOICES : []).find(v => v.id === curVId);
+        if (foundVoice) {
+          voiceShort = foundVoice.name.replace(/^[^\s]+\s*/, '');
+        } else if (d.voice_name) {
+          voiceShort = d.voice_name.split('(')[0].trim();
+        } else if (curVId) {
+          voiceShort = curVId.split('-').pop().replace('Neural', '');
+        }
+
+        let volumeVal = d.volume !== undefined ? d.volume : 8;
+        if (volumeVal > 10) volumeVal = Math.round(volumeVal / 10);
+        volumeVal = Math.max(1, Math.min(volumeVal, 10));
         const safeName = (d.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
         return `
@@ -4794,22 +4815,28 @@ Ví dụ:
       }
       document.getElementById("editDeviceIdVal").value = dev.id;
       document.getElementById("editDeviceNameInput").value = dev.name || "";
-      document.getElementById("editDevicePasswordInput").value = dev.password || "";
-      document.getElementById("editDevicePinInput").value = dev.device_code || "";
-      document.getElementById("editDeviceMacInput").value = dev.device_mac || "";
+      document.getElementById("editDevicePasswordInput").value = dev.password || "123456";
+      document.getElementById("editDevicePinInput").value = dev.device_code || dev.pin || "";
+      document.getElementById("editDeviceMacInput").value = dev.device_mac || dev.mac || "";
       
       const modelSel = document.getElementById("editDeviceModelSelect");
       if (modelSel) {
-        const curModel = dev.model || dev.model_id || "Gemini 3.1 Flash Lite";
+        const curModel = (dev.model_id || dev.model || "gemini-3.1-flash-lite-preview").toLowerCase();
         let found = false;
         for (let opt of modelSel.options) {
-          if (opt.value === curModel) {
+          if (opt.value.toLowerCase() === curModel || opt.text.toLowerCase().includes(curModel)) {
             modelSel.value = opt.value;
             found = true;
             break;
           }
         }
-        if (!found) modelSel.value = "Gemini 3.1 Flash Lite";
+        if (!found) {
+          if (curModel.includes("2.5")) modelSel.value = "gemini-2.5-flash";
+          else if (curModel.includes("deepseek")) modelSel.value = "deepseek-chat";
+          else if (curModel.includes("gpt") || curModel.includes("openai")) modelSel.value = "gpt-4o-mini";
+          else if (curModel.includes("groq")) modelSel.value = "groq";
+          else modelSel.value = "gemini-3.1-flash-lite-preview";
+        }
       }
 
       const voiceSel = document.getElementById("editDeviceVoiceSelect");
@@ -4818,14 +4845,16 @@ Ví dụ:
         voiceSel.value = curVoice;
       }
 
-      const volVal = dev.volume !== undefined ? dev.volume : 7;
+      let volVal = dev.volume !== undefined ? dev.volume : 8;
+      if (volVal > 10) volVal = Math.round(volVal / 10);
+      volVal = Math.max(1, Math.min(volVal, 10));
       const volRange = document.getElementById("editDeviceVolRange");
       if (volRange) volRange.value = volVal;
       const volDisp = document.getElementById("editDeviceVolDisplay");
       if (volDisp) volDisp.innerText = `Mức ${volVal}`;
 
       const promptTxt = document.getElementById("editDevicePromptTextarea");
-      if (promptTxt) promptTxt.value = dev.system_prompt || "";
+      if (promptTxt) promptTxt.value = dev.prompt || dev.system_prompt || "Bạn là Gehihi, một trợ lý robot thông minh nói tiếng Việt tự nhiên và thân thiện.";
 
       const modal = document.getElementById("editDeviceDetailModal");
       if (modal) modal.style.display = "flex";
@@ -4858,17 +4887,20 @@ Ví dụ:
 
       const payload = {
         name: name,
-        password: password,
+        password: password || "123456",
         device_code: pin,
+        pin: pin,
         device_mac: mac,
+        mac: mac,
         model: model,
         model_id: model,
         voice: voice,
         voice_id: voice,
         voice_name: voiceName,
         volume: volume,
+        prompt: systemPrompt,
         system_prompt: systemPrompt,
-        initial: name[0].toUpperCase()
+        initial: (name[0] || 'R').toUpperCase()
       };
 
       // 1. Gửi qua WebSocket nếu đang mở
