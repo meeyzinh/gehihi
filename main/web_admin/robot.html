@@ -1908,7 +1908,7 @@ body {
     </div>
 
     <div class="menu">
-      <div class="menu-item active" id="btnNavOverview" onclick="switchSection('devices', this)">📡 Tổng quan Robot đang chọn</div>
+      <div class="menu-item active" id="btnNavOverview" onclick="switchSection('overview', this)">📡 Tổng quan Robot đang chọn</div>
       <div class="menu-item" onclick="switchSection('remoteControl', this)">🎮 Điều khiển D-Pad</div>
       <div class="menu-item" onclick="switchSection('micMonitor', this)">🎙️ Theo dõi Ghi âm Mic</div>
       <div class="menu-item" onclick="switchSection('youtubeMusic', this)">🎵 Phát nhạc YouTube Online</div>
@@ -1972,8 +1972,8 @@ body {
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 8px;">
-        <a href="admin.html" style="text-decoration:none; background: #0f172a; border: 1px solid #38bdf8; color: #38bdf8; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(56,189,248,0.2);">
-          ⬅️ Quản lý tài khoản
+        <a href="admin.html" style="text-decoration:none; background: #0f172a; border: 1px solid #38bdf8; color: #38bdf8; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(56,189,248,0.2);" title="Quay lại trang Quản lý tài khoản Robot Admin">
+          ⬅️ Danh sách Robot
         </a>
         <button class="primary" onclick="switchSection('remoteControl')" style="background: #1e3a8a; border: 1px solid #3b82f6; color: #93c5fd; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;">
           🎮 Lái Robot
@@ -2166,77 +2166,6 @@ body {
 </div>
 
 <!-- ============================================================== -->
-<!-- CARD CHUYÊN DỤNG: QUẢN TRỊ & QUẢN LÝ TÀI KHOẢN THIẾT BỊ (WEBSOCKET) -->
-<!-- ============================================================== -->
-<div class="card" id="deviceManagerCard" style="display: none;">
-    <div style="background: linear-gradient(135deg, #07152b 0%, #0c1a35 100%); border: 1px solid rgba(59,130,246,0.35); border-radius: 16px; padding: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px;">
-            <div>
-                <h3 style="margin: 0; font-size: 20px; color: #f8fafc; display: flex; align-items: center; gap: 10px;">
-                    <span>👥</span> <span>Quản Lý Tài Khoản Thiết Bị Robot</span>
-                    <span id="allDevicesCountBadge" style="background: rgba(59,130,246,0.25); color: #93c5fd; border: 1px solid #3b82f6; font-size: 12px; padding: 3px 12px; border-radius: 14px; font-weight: 700;">1 thiết bị</span>
-                </h3>
-                <div style="font-size: 13px; color: #94a3b8; margin-top: 5px;">
-                    Thêm, xem thông tin chi tiết, chỉnh sửa cấu hình, kích hoạt và xóa tài khoản robot kết nối WebSocket thời gian thực.
-                </div>
-            </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button onclick="requestDevicesOverWs()" style="padding: 9px 16px; font-size: 12.5px; font-weight: 700; border-radius: 8px; background: #1e293b; color: #93c5fd; border: 1px solid #3b82f6; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                    🔄 Tải lại (WebSocket)
-                </button>
-                <button onclick="showAuthModal('register')" style="padding: 9px 18px; font-size: 12.5px; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #059669, #10b981); color: white; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(16,185,129,0.35);">
-                    ➕ Thêm tài khoản mới
-                </button>
-            </div>
-        </div>
-
-        <!-- BANNER QUYỀN HẠN ADMIN NỔI BẬT -->
-        <div id="adminModeBanner" style="background: linear-gradient(135deg, rgba(217,119,6,0.18), rgba(245,158,11,0.08)); border: 1px solid #f59e0b; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="font-size: 28px;">👑</div>
-                <div>
-                    <div style="font-size: 14.5px; font-weight: 800; color: #fbbf24; display: flex; align-items: center; gap: 8px;">
-                        <span>TÀI KHOẢN QUẢN TRỊ VIÊN (SUPER ADMIN)</span>
-                        <span id="adminSessionStatusBadge" style="background: #d97706; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px;">Toàn Quyền Quản Trị</span>
-                    </div>
-                    <div style="font-size: 12px; color: #fde68a; margin-top: 2px;">
-                        Bạn có toàn quyền xem thông tin chi tiết, cấu hình prompt AI, đổi mật khẩu, đổi mã PIN, model LLM và xóa mọi tài khoản robot.
-                    </div>
-                </div>
-            </div>
-            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                <button onclick="openChangeAdminPasswordModal()" style="padding: 7px 14px; border-radius: 8px; background: rgba(245,158,11,0.25); border: 1px solid #f59e0b; color: #fde047; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                    🔑 Đổi Mật Khẩu Admin
-                </button>
-                <button id="btnSwitchAdminMode" onclick="toggleAdminLoginLogout()" style="padding: 7px 14px; border-radius: 8px; background: #1e293b; border: 1px solid #475569; color: #cbd5e1; font-size: 12px; font-weight: 600; cursor: pointer;">
-                    🚪 Đăng xuất Admin
-                </button>
-            </div>
-        </div>
-
-        <!-- THANH TÌM KIẾM TÀI KHOẢN -->
-        <div style="margin-bottom: 20px;">
-            <input type="text" id="deviceSearchInput" oninput="filterDeviceAccounts(this.value)" placeholder="🔍 Tìm kiếm tài khoản theo Tên Robot, Mã PIN 6 số, Địa chỉ MAC..." style="width: 100%; padding: 12px 16px; border-radius: 10px; background: #061124; border: 1px solid rgba(255,255,255,0.15); color: white; font-size: 13.5px; box-sizing: border-box; outline: none;">
-        </div>
-
-        <!-- DANH SÁCH LƯỚI CARD TÀI KHOẢN THIẾT BỊ -->
-        <div id="allDevicesCardsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
-            <!-- Render động bằng JavaScript -->
-        </div>
-
-        <!-- HƯỚNG DẪN NHANH CHO NGƯỜI QUẢN TRỊ -->
-        <div style="margin-top: 24px; padding: 16px; background: rgba(30,58,138,0.15); border: 1px solid rgba(59,130,246,0.25); border-radius: 12px; font-size: 12.5px; color: #cbd5e1; line-height: 1.6;">
-            <strong style="color: #93c5fd;">💡 Hướng dẫn quản trị:</strong>
-            <ul style="margin: 6px 0 0 0; padding-left: 20px;">
-                <li>Bấm <strong>"🎯 Kích hoạt"</strong> trên robot muốn chuyển sang điều khiển bánh xe, cấu hình AI hoặc chat.</li>
-                <li>Bấm <strong>"👁️ Chi tiết"</strong> để xem đầy đủ thông số (PIN, MAC, Prompt) và lấy đường link WebSocket nạp vào ESP32.</li>
-                <li>Bấm <strong>"✏️ Sửa"</strong> để đổi tên, mật khẩu, PIN, Model AI LLM, Giọng TTS, Âm lượng loa robot.</li>
-                <li>Bấm <strong>"🗑️"</strong> để xóa tài khoản robot khỏi máy chủ.</li>
-            </ul>
-        </div>
-    </div>
-</div>
-
 <div class="card" id="aiRoleSelectCard" style="display:none;">
     <h3>🎭 Chọn vai trò cho AI</h3>
 
@@ -3533,6 +3462,8 @@ Ví dụ:
 
       // Hiện card tương ứng
       const targetMap = {
+        'overview': ['deviceProfileCard'],
+        'deviceProfile': ['deviceProfileCard'],
         'deviceManager': ['deviceProfileCard'],
         'devices': ['deviceProfileCard'],
         'secDashboard': ['deviceProfileCard'],
@@ -5746,7 +5677,13 @@ Ví dụ:
       }
       hideAuthModal();
 
-      switchSection('devices', document.getElementById('btnNavOverview'));
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryId = urlParams.get('id');
+      if (queryId) {
+        activeDeviceId = queryId;
+        localStorage.setItem("gehihi_active_robot_id", queryId);
+      }
+      switchSection('overview', document.getElementById('btnNavOverview'));
       loadDevices();
       loadMyXiaozhiConfig();
       // Tự động làm mới trạng thái online mỗi 6 giây

@@ -1921,7 +1921,6 @@ async def generate_opus_frames_pyav(text: str, voice: str = None, sample_rate: i
                     frame_count += 1
                     yield opus_pkt
 
-        # Bù byte 0 (padding) ở cuối câu cho đủ 1 frame rồi encode nốt
         if pcm_buffer:
             pcm_buffer.extend(b"\x00" * (frame_bytes - len(pcm_buffer)))
             opus_pkt = encoder.encode(bytes(pcm_buffer), samples_per_frame)
@@ -1948,13 +1947,8 @@ async def tts_to_opus(text: str, voice: str = None, sample_rate: int = 24000) ->
     return frames
 
 WHISPER_HALLUCINATION_KEYWORDS = [
-    "ghiền mì gõ", "ghien mi go", "subscribe", "subcribe", "đăng ký kênh",
-    "đăng kí kênh", "ủng hộ kênh", "theo dõi kênh", "bấm chuông", "nhấn chuông",
-    "không bỏ lỡ những video", "không bỏ lỡ các video", "video hấp dẫn", "video tiếp theo",
-    "cảm ơn các bạn đã theo dõi", "cảm ơn các bạn đã xem", "cảm ơn quý vị đã theo dõi",
-    "chúc các bạn xem video", "like và sub", "like & sub", "fap tv", "kênh youtube",
-    "kênh của mình", "chia sẻ video", "đừng quên like",
-    "la la school", "lala school", "phim ca nhạc", "phim ngắn", "tập tiếp theo",
+    "Gehihi thông minh", "Gehihi luôn lắng nghe", "Tôi là Ghehihi", "Hãy yêu quý tôi", "Gehihi thân thiện",
+    "Gehihi luôn yêu bạn", "Gehihi luôn ủng hộ bạn", "hãy làm bạn nhé", "nghe ca nhạc", "Gehihi kể truyện",
     "xin chào, bạn có khỏe không",
     "chúc một ngày tốt lành", "cảm ơn và hẹn gặp lại", "tạm biệt và hẹn gặp lại",
     "tôi là gehihi",
@@ -2363,7 +2357,6 @@ async def stream_llm_tokens(user_text: str, system_prompt: str = None, provider:
     if not system_prompt:
         system_prompt = get_active_system_prompt()
 
-    # 1. Groq (Llama / Qwen - Siêu tốc < 350ms)
     if provider == "groq":
         api_key = get_provider_key("groq")
         url = "https://api.groq.com/openai/v1/chat/completions"
@@ -2397,7 +2390,6 @@ async def stream_llm_tokens(user_text: str, system_prompt: str = None, provider:
         except Exception as e:
             logger.warning(f"Groq stream error: {e}. Falling back to default reply...")
 
-    # 2. DeepSeek
     elif provider == "deepseek":
         api_key = get_provider_key("deepseek")
         url = "https://api.deepseek.com/chat/completions"
@@ -2431,7 +2423,6 @@ async def stream_llm_tokens(user_text: str, system_prompt: str = None, provider:
         except Exception as e:
             logger.warning(f"DeepSeek stream error: {e}")
 
-    # 3. OpenAI
     elif provider == "openai":
         api_key = get_provider_key("openai")
         url = "https://api.openai.com/v1/chat/completions"
@@ -2465,7 +2456,6 @@ async def stream_llm_tokens(user_text: str, system_prompt: str = None, provider:
         except Exception as e:
             logger.warning(f"OpenAI stream error: {e}")
 
-    # Fallback cuối cùng
     b_txt, _ = await call_groq_llm(user_text, system_prompt=system_prompt)
     if b_txt:
         yield b_txt
@@ -2618,7 +2608,7 @@ async def ws_handler(websocket):
             init_payload = {
                 "type": "init",
                 "current": {
-                    "device_name": "Robot Gehihi AI (Mạch tím)",
+                    "device_name": "Robot Gehihi AI",
                     "last_text": LIVE_DIAGNOSTICS.get("last_user_text", ""),
                     "last_reply": LIVE_DIAGNOSTICS.get("last_bot_text", ""),
                     "status": "online" if LIVE_DIAGNOSTICS.get("device_connected") else "idle"
@@ -2628,7 +2618,7 @@ async def ws_handler(websocket):
                         "id": d.get("id", "DEV_001"),
                         "device_code": d.get("pin", "927184"),
                         "pin": d.get("pin", "927184"),
-                        "name": d.get("name", "Robot Gehihi AI ESP32-S3 (Mạch tím)"),
+                        "name": d.get("name", "Robot Gehihi AI"),
                         "mac": d.get("macAddress", mac.upper()),
                         "device_mac": d.get("macAddress", mac.upper()),
                         "macAddress": d.get("macAddress", mac.upper()),
@@ -2727,14 +2717,12 @@ async def ws_handler(websocket):
     session_active = True
     opus_decoder = None
 
-    # Biến quản trị hội thoại song song & ngắt lời tức thì (Real-time Barge-in)
     active_llm_task = None
     active_tts_task = None
     tts_queue = asyncio.Queue()
     is_speaking = False
 
     async def cancel_current_speech(reason: str = "barge-in"):
-        """Cơ chế Ngắt lời Thời gian thực (Real-time Barge-in): Hủy ngay task LLM, task TTS và ngắt loa robot"""
         nonlocal active_llm_task, active_tts_task, is_speaking, processing_ai
         if active_llm_task and not active_llm_task.done():
             active_llm_task.cancel()
@@ -2844,7 +2832,6 @@ async def ws_handler(websocket):
         nonlocal processing_ai, cooldown_until, last_user_activity, last_bot_reply
         nonlocal active_llm_task, active_tts_task, tts_queue, is_speaking
 
-        # Hủy lượt phát trước nếu còn đang dở dang
         await cancel_current_speech(reason="new_turn")
 
         processing_ai = True
@@ -2874,7 +2861,6 @@ async def ws_handler(websocket):
                     pass
                 return
 
-            # 1. ASR siêu tốc qua Groq Whisper Large v3 Turbo (HTTPX Keep-Alive)
             t0_asr = time.time()
             u_text = await transcribe_audio_groq(wav_bytes)
             t_asr = time.time() - t0_asr
@@ -2898,14 +2884,12 @@ async def ws_handler(websocket):
                     "timestamp": time.strftime("%H:%M:%S")
                 }))
 
-            # Hiển thị ngay lời người dùng lên màn hình OLED robot
             await websocket.send(json.dumps({
                 "type": "stt",
                 "text": u_text,
                 "session_id": session_id
             }))
 
-            # Kiểm tra lệnh phát nhạc / dừng nhạc bằng giọng nói
             u_clean = u_text.lower().strip()
             stop_triggers = ["dừng nhạc", "tắt nhạc", "ngừng nhạc", "thôi phát nhạc", "dừng phát", "im lặng", "tắt đi", "dừng lại", "stop music", "stop"]
             play_triggers = [
@@ -2963,7 +2947,6 @@ async def ws_handler(websocket):
                 logger.info(f"Ignoring mic echo while music is streaming: '{u_text}'")
                 return
 
-            # Dữ liệu ngữ cảnh thời tiết / tin tức / giờ giấc
             extra_context = ""
             weather_kws = ["thời tiết", "trời mưa", "nhiệt độ", "nắng không", "mưa không", "dự báo thời tiết", "thoi tiet", "nhiet do"]
             news_kws = ["tin tức", "tin mới", "tin hôm nay", "thời sự", "tin tức mới", "tin tuc", "thoi su"]
@@ -2989,11 +2972,9 @@ async def ws_handler(websocket):
             active_voice = dev.get("voice") or agent.get("ttsVoiceName") or agent.get("ttsVoiceId") or "vi-female"
             robot_sample_rate = 24000
 
-            # KHỞI CHẠY ASYNC STREAMING PIPELINE: LLM -> SENTENCE BUFFER -> TTS WORKER
             tts_queue = asyncio.Queue()
             accumulated_bot_text = []
 
-            # Task 1: TTS Worker điều tiết nhịp gửi âm thanh (Audio Pacing)
             async def tts_worker_task():
                 nonlocal is_speaking, last_bot_reply
                 is_first_sentence = True
@@ -3010,7 +2991,6 @@ async def ws_handler(websocket):
                             tts_queue.task_done()
                             continue
 
-                        # 1. Gửi bản tin JSON sentence_start trước mỗi câu
                         await websocket.send(json.dumps({
                             "type": "tts",
                             "state": "sentence_start",
@@ -3027,7 +3007,6 @@ async def ws_handler(websocket):
                             is_speaking = True
                             is_first_sentence = False
 
-                        # 2. Sinh và gửi frame Opus bằng PyAV trên RAM (Zero Subprocess)
                         frame_idx = 0
                         next_frame_time = time.perf_counter()
                         async for opus_frame in generate_opus_frames_pyav(clause_clean, voice=active_voice, sample_rate=robot_sample_rate):
@@ -3035,11 +3014,9 @@ async def ws_handler(websocket):
                                 break
                             encoded_pkt = encode_robot_audio_frame(opus_frame, protocol_version)
                             if frame_idx < 3:
-                                # Pre-buffer 3 frame đầu tiên: gửi ngay lập tức để robot phát tiếng tức thì
                                 await websocket.send(encoded_pkt)
                                 next_frame_time = time.perf_counter() + 0.060
                             else:
-                                # Từ frame thứ 4 trở đi, điều tiết nhịp gửi chính xác 60ms
                                 wait_sec = next_frame_time - time.perf_counter()
                                 if wait_sec > 0:
                                     await asyncio.sleep(wait_sec)
@@ -3064,7 +3041,6 @@ async def ws_handler(websocket):
                             pass
                     is_speaking = False
 
-            # Task 2: LLM Token Stream Producer -> Sentence Chunker
             async def llm_producer_task():
                 nonlocal accumulated_bot_text
                 sentence_buffer = ""
@@ -3079,7 +3055,6 @@ async def ws_handler(websocket):
                         sentence_buffer += token
                         accumulated_bot_text.append(token)
 
-                        # Tách câu thông minh
                         while True:
                             ready_clause, sentence_buffer = extract_ready_sentence(sentence_buffer)
                             if ready_clause:
@@ -3087,7 +3062,6 @@ async def ws_handler(websocket):
                             else:
                                 break
 
-                    # Đẩy nốt phần còn lại của câu cuối
                     leftover = sentence_buffer.strip()
                     if leftover:
                         await tts_queue.put(leftover)

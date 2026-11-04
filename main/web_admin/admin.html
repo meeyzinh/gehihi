@@ -921,7 +921,7 @@
               </button>
 
               <!-- NÚT CHI TIẾT THEO YÊU CẦU: VÀO TRANG QUẢN TRỊ CỦA ROBOT ĐÓ -->
-              <a href="robot.html?id=${encodeURIComponent(d.id)}" class="btn-detail" title="Vào trang điều khiển, D-Pad, micro và cài đặt của riêng robot này">
+              <a href="robot.html?id=${encodeURIComponent(d.id)}" onclick="localStorage.setItem('gehihi_active_robot_id', '${d.id}')" class="btn-detail" title="Vào trang điều khiển, D-Pad, micro và cài đặt của riêng robot này">
                 👁️ Chi tiết
               </a>
 
