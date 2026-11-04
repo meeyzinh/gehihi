@@ -1894,7 +1894,7 @@ body {
     <div class="logo">
       <div style="font-size: 16px; font-weight: bold; padding-bottom: 8px;">GEHIHI AI</div>
       <div class="user-box">
-        <div class="user-name" id="sidebarRobotName" style="font-size:15px;font-weight:bold;color:#f8fafc;">Ông Robot (ESP32-S3)</div>
+        <div class="user-name" id="sidebarRobotName" style="font-size:15px;font-weight:bold;color:#f8fafc;">Robot Gehihi</div>
         <div class="user-device" id="sidebarRobotMac" style="font-size:12px;color:#94a3b8;font-family:monospace;">14:c1:9f:c4:ee:d0</div>
         <div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:6px;">
           <span class="status-dot connected" id="sidebarStatusDot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;"></span>
@@ -4365,7 +4365,7 @@ Ví dụ:
       const dotEl = document.getElementById("sidebarStatusDot");
       const textEl = document.getElementById("sidebarStatusText");
 
-      if (nameEl) nameEl.innerText = `${dev.name} (ESP32-S3)`;
+      if (nameEl) nameEl.innerText = dev.name || "Robot Gehihi";
       const pinCode = dev.pin || dev.device_code || '927184';
       const macAddr = dev.device_mac || dev.mac || dev.macAddress || '14:C1:9F:C4:EE:D0';
       if (macEl) macEl.innerText = `PIN: ${pinCode} (${macAddr})`;

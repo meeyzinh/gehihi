@@ -235,7 +235,7 @@ DB_DEVICES = {
         "device_code": "927184",
         "username": "gehihi",
         "password": "123456",
-        "name": "Robot Gehihi AI ESP32-S3 (Mạch tím)",
+        "name": "Robot Gehihi",
         "boardType": "ESP32-S3-N16R8",
         "version": "2.5.0",
         "status": 0,
@@ -3419,7 +3419,7 @@ AI_HTML_TEMPLATE = r"""<!DOCTYPE html>
       <p class="subtitle">Chuyển đổi tức thời giữa Groq (Siêu tốc), DeepSeek, OpenAI và Google Gemini mà không cần khởi động lại robot.</p>
     </header>
     <div class="status-bar">
-      <div class="status-card"><div class="status-icon">🤖</div><div class="status-info"><h4>Thiết bị ESP32</h4><p>Mạch Tím (14:C1:9F:C4:EE:D0)</p></div></div>
+      <div class="status-card"><div class="status-icon">🤖</div><div class="status-info"><h4>Thiết bị ESP32</h4><p>Robot Gehihi (14:C1:9F:C4:EE:D0)</p></div></div>
       <div class="status-card"><div class="status-icon">🚀</div><div class="status-info"><h4>AI Đang Dùng</h4><p id="active-lbl">__ACTIVE_UPPER__</p></div></div>
       <div class="status-card"><div class="status-icon">⏱️</div><div class="status-info"><h4>Độ Trễ Phản Hồi</h4><p>< 1.5 giây</p></div></div>
     </div>
@@ -3637,7 +3637,7 @@ async def handle_api_auth_accounts(request):
         mac_addr = dev.get("macAddress", mac.upper())
         accounts.append({
             "id": dev.get("id", "DEV_001"),
-            "name": dev.get("name", "Robot Gehihi AI ESP32-S3 (Mạch tím)"),
+            "name": dev.get("name", "Robot Gehihi"),
             "device_code": pin_code,
             "pin": pin_code,
             "mac": mac_addr,
@@ -3939,7 +3939,7 @@ async def handle_api_device_by_id(request):
     # GET
     if found_key:
         dev = dict(DB_DEVICES[found_key])
-        dev.setdefault("name", "Robot Gehihi AI ESP32-S3 (Mạch tím)")
+        dev.setdefault("name", "Robot Gehihi")
         dev.setdefault("model_id", "gemini-3.8-flash")
         dev.setdefault("model", "gemini-3.8-flash")
         dev.setdefault("voice", "vi-VN-HoaiMyNeural")
