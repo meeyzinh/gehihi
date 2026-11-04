@@ -4994,13 +4994,21 @@ async def handle_api_learning_task_solve(request):
 
 # Static fallback for Web Admin
 async def handle_static_web_admin(request):
-    path = request.match_info.get("tail", "index.html")
+    req_path = request.path.lstrip("/")
+    path = request.match_info.get("tail") or req_path or "admin.html"
     if not path or path == "/":
-        path = "index.html"
+        path = "admin.html"
+    if path == "admin":
+        path = "admin.html"
+    if path == "robot":
+        path = "robot.html"
     file_path = os.path.join(WEB_ADMIN_DIR, path)
     if os.path.exists(file_path) and os.path.isfile(file_path):
         return web.FileResponse(file_path)
-    # Default index.html
+    # Default admin.html or index.html
+    adm_path = os.path.join(WEB_ADMIN_DIR, "admin.html")
+    if os.path.exists(adm_path):
+        return web.FileResponse(adm_path)
     idx_path = os.path.join(WEB_ADMIN_DIR, "index.html")
     if os.path.exists(idx_path):
         return web.FileResponse(idx_path)
@@ -5337,6 +5345,10 @@ async def run_http_server():
 
     # ========== Web Admin & REST API ==========
     app.router.add_get("/", handle_static_web_admin)
+    app.router.add_get("/admin.html", handle_static_web_admin)
+    app.router.add_get("/admin", handle_static_web_admin)
+    app.router.add_get("/robot.html", handle_static_web_admin)
+    app.router.add_get("/robot", handle_static_web_admin)
     app.router.add_get("/index.html", handle_static_web_admin)
     app.router.add_get("/english-tutor-app.html", handle_static_web_admin)
     app.router.add_get("/english-tutor.html", handle_static_web_admin)

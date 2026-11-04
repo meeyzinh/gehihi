@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quản Lý Tài Khoản Thiết Bị Robot - Super Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #040d1a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* TOAST NOTIFICATION */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      border-radius: 10px;
+      background: #0f2140;
+      color: white;
+      font-size: 13.5px;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      border: 1px solid #38bdf8;
+      display: none;
+      z-index: 99999;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* HEADER */
+    .top-navbar {
+      height: 64px;
+      background: rgba(6, 18, 36, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: white;
+    }
+    .brand-logo .logo-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #2563eb, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    .brand-logo h1 {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+    .brand-logo span {
+      font-size: 11px;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      padding: 2px 7px;
+      border-radius: 6px;
+      margin-left: 6px;
+    }
+
+    /* CONTAINER */
+    .main-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 28px 20px;
+      width: 100%;
+      flex: 1;
+    }
+
+    /* LOGIN SCREEN */
+    #loginView {
+      max-width: 440px;
+      margin: 60px auto;
+      background: linear-gradient(145deg, #0b1a33 0%, #061224 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 18px;
+      padding: 32px 28px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    }
+    .login-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .login-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(217, 119, 6, 0.18);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+    }
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 7px;
+    }
+    .form-control {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #040c1a;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: white;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .form-control:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    }
+    .btn-submit {
+      width: 100%;
+      padding: 13px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #d97706, #f59e0b);
+      color: white;
+      font-size: 14px;
+      font-weight: 800;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(217, 119, 6, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn-submit:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(217, 119, 6, 0.5);
+    }
+
+    /* ADMIN DASHBOARD */
+    #dashboardView {
+      display: none;
+    }
+    .admin-banner {
+      background: linear-gradient(135deg, rgba(30, 27, 75, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 14px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .admin-banner-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .admin-banner-icon {
+      font-size: 26px;
+    }
+    .admin-banner-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .admin-banner-desc {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 3px;
+    }
+
+    /* ACTION BAR */
+    .action-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .search-box {
+      flex: 1;
+      min-width: 260px;
+      position: relative;
+    }
+    .search-input {
+      width: 100%;
+      padding: 11px 14px 11px 38px;
+      border-radius: 10px;
+      background: #09152a;
+      border: 1px solid rgba(255,255,255,0.12);
+      color: white;
+      font-size: 13.5px;
+      outline: none;
+    }
+    .search-input:focus {
+      border-color: #38bdf8;
+    }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #64748b;
+    }
+
+    /* BUTTONS */
+    .btn {
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: white;
+      box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+    }
+    .btn-secondary {
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #475569;
+    }
+    .btn-secondary:hover { color: white; background: #334155; }
+    .btn-warning {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid #f59e0b;
+      color: #fbbf24;
+    }
+
+    /* DEVICE CARDS GRID */
+    .devices-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+    .device-card {
+      background: linear-gradient(145deg, #0b1a33 0%, #081426 100%);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 16px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      position: relative;
+      transition: all 0.2s ease;
+    }
+    .device-card:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      transform: translateY(-2px);
+    }
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .card-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .card-avatar {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      border-radius: 12px;
+      background: #1e3a8a;
+      color: #38bdf8;
+      font-size: 19px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+    }
+    .card-title {
+      font-size: 15.5px;
+      font-weight: 800;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-meta {
+      font-size: 11.5px;
+      color: #94a3b8;
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 3px;
+      display: flex;
+      gap: 8px;
+    }
+    .online-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .online-badge.online {
+      background: rgba(34, 197, 94, 0.18);
+      color: #4ade80;
+      border: 1px solid #22c55e;
+    }
+    .online-badge.offline {
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+      border: 1px solid #475569;
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+    .dot.green { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+    .dot.gray { background: #94a3b8; }
+
+    /* PARAMS TABLE */
+    .card-params {
+      background: rgba(4, 13, 28, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .param-label { color: #64748b; font-size: 11px; }
+    .param-val { font-weight: 700; font-size: 12px; }
+
+    /* CARD ACTIONS */
+    .card-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .btn-detail {
+      flex: 1.2;
+      padding: 9px 12px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: white;
+      font-size: 12px;
+      font-weight: 800;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-detail:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(2, 132, 199, 0.5);
+    }
+    .btn-edit {
+      padding: 9px 12px;
+      border-radius: 8px;
+      background: #1e293b;
+      border: 1px solid #f59e0b;
+      color: #fbbf24;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-del {
+      padding: 9px 11px;
+      border-radius: 8px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      padding: 16px;
+    }
+    .modal-content {
+      background: #09152a;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 16px;
+      max-width: 520px;
+      width: 100%;
+      padding: 24px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .modal-title { font-size: 16px; font-weight: 800; color: #f8fafc; }
+    .btn-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 18px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOAST -->
+  <div id="toast"></div>
+
+  <!-- TOP NAVBAR -->
+  <header class="top-navbar">
+    <a href="admin.html" class="brand-logo">
+      <div class="logo-icon">🤖</div>
+      <div>
+        <h1>GEHIHI ROBOT</h1>
+      </div>
+      <span>Super Admin Portal</span>
+    </a>
+
+    <div id="navUserArea" style="display: none; align-items: center; gap: 12px;">
+      <span style="font-size: 12.5px; color: #fbbf24; font-weight: 700; display: flex; align-items: center; gap: 5px;">
+        👑 Super Admin
+      </span>
+      <button onclick="openChangePasswordModal()" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11.5px;">
+        🔑 Đổi Mật Khẩu
+      </button>
+      <button onclick="handleAdminLogout()" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11.5px; color: #f87171; border-color: rgba(239,68,68,0.4);">
+        🚪 Đăng Xuất
+      </button>
+    </div>
+  </header>
+
+  <main class="main-container">
+
+    <!-- 1. MÀN HÌNH ĐĂNG NHẬP SUPER ADMIN -->
+    <section id="loginView">
+      <div class="login-header">
+        <div class="login-badge">👑 XÁC THỰC QUẢN TRỊ VIÊN</div>
+        <h2 style="font-size: 20px; font-weight: 800; color: white; margin-bottom: 6px;">Đăng Nhập Quản Trị Hệ Thống</h2>
+        <p style="font-size: 12.5px; color: #94a3b8;">Nhập tài khoản Super Admin để quản lý danh sách robot</p>
+      </div>
+
+      <form onsubmit="handleAdminLoginSubmit(event)">
+        <div class="form-group">
+          <label>Tên đăng nhập Admin:</label>
+          <input type="text" id="adminUser" class="form-control" value="admin" required placeholder="admin">
+        </div>
+
+        <div class="form-group">
+          <label>Mật khẩu Super Admin:</label>
+          <input type="password" id="adminPass" class="form-control" value="admin123" required placeholder="Nhập mật khẩu...">
+          <div style="font-size: 11px; color: #64748b; margin-top: 5px;">
+            💡 Mặc định: <code>admin</code> / <code>admin123</code>
+          </div>
+        </div>
+
+        <div id="loginAlert" style="display:none; padding: 10px; border-radius: 8px; font-size: 12.5px; margin-bottom: 14px; background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid #ef4444;"></div>
+
+        <button type="submit" class="btn-submit">
+          🔐 ĐĂNG NHẬP VÀO CỔNG QUẢN TRỊ
+        </button>
+      </form>
+    </section>
+
+    <!-- 2. MÀN HÌNH QUẢN LÝ TÀI KHOẢN ROBOT -->
+    <section id="dashboardView">
+
+      <!-- BANNER SUPER ADMIN -->
+      <div class="admin-banner">
+        <div class="admin-banner-left">
+          <div class="admin-banner-icon">👑</div>
+          <div>
+            <div class="admin-banner-title">
+              TÀI KHOẢN QUẢN TRỊ VIÊN (SUPER ADMIN)
+              <span style="font-size: 11px; background: #d97706; color: white; padding: 2px 8px; border-radius: 12px; font-weight: 700;">Toàn Quyền Quản Trị (Admin Live)</span>
+            </div>
+            <div class="admin-banner-desc">
+              Bạn có toàn quyền xem thông tin chi tiết, cấu hình prompt AI, đổi mật khẩu, đổi mã PIN, model LLM và quản trị các robot.
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button onclick="openChangePasswordModal()" class="btn btn-warning" style="font-size: 12px;">
+            🔑 Đổi Mật Khẩu Admin
+          </button>
+          <button onclick="handleAdminLogout()" class="btn btn-secondary" style="font-size: 12px;">
+            🚪 Đăng xuất Admin
+          </button>
+        </div>
+      </div>
+
+      <!-- TIÊU ĐỀ & NÚT TÁC VỤ -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 800; color: white; display: flex; align-items: center; gap: 8px;">
+            👥 Quản Lý Tài Khoản Thiết Bị Robot
+            <span id="deviceCountBadge" style="font-size: 12px; background: #1e3a8a; color: #38bdf8; padding: 2px 8px; border-radius: 10px;">1 thiết bị</span>
+          </h2>
+          <p style="font-size: 12.5px; color: #94a3b8; margin-top: 3px;">
+            Bấm <strong>"👁️ Chi tiết"</strong> trên từng robot để vào trang điều khiển, D-Pad, micro và cài đặt của riêng robot đó.
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button onclick="loadDevicesList()" class="btn btn-secondary">
+            🔄 Tải lại
+          </button>
+          <button onclick="openCreateDeviceModal()" class="btn btn-primary">
+            ➕ Thêm tài khoản mới
+          </button>
+        </div>
+      </div>
+
+      <!-- SEARCH BOX -->
+      <div class="action-bar">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" class="search-input" placeholder="Tìm kiếm tài khoản theo Tên Robot, Mã PIN 6 số, Địa chỉ MAC..." oninput="handleSearchDevices(this.value)">
+        </div>
+      </div>
+
+      <!-- DANH SÁCH THẺ ROBOT -->
+      <div id="devicesContainer" class="devices-grid">
+        <!-- Render động từ API -->
+      </div>
+
+      <!-- HƯỚNG DẪN QUẢN TRỊ -->
+      <div style="background: rgba(15, 33, 64, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 16px 20px; font-size: 13px; line-height: 1.6; color: #94a3b8;">
+        <strong style="color: #fde047; display: block; margin-bottom: 6px;">💡 Hướng dẫn quản trị:</strong>
+        <ul style="padding-left: 20px; margin: 0;">
+          <li>Bấm <strong style="color: #38bdf8;">"👁️ Chi tiết"</strong> để vào thẳng trang quản trị riêng của robot với đầy đủ tính năng: D-Pad, mic, chat, phát nhạc, cấu hình prompt.</li>
+          <li>Bấm <strong style="color: #fbbf24;">"✏️ Sửa"</strong> để đổi tên hiển thị, mã PIN, model AI (Gemini/DeepSeek/Groq), kiểu giọng đọc Xiaozhi hoặc âm lượng loa.</li>
+          <li>Bấm <strong style="color: #f87171;">"🗑️"</strong> để xóa tài khoản robot khỏi máy chủ.</li>
+        </ul>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- MODAL SỬA CẤU HÌNH THIẾT BỊ -->
+  <div id="editDeviceModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">✏️ Chỉnh Sửa Tài Khoản Thiết Bị</h3>
+        <button class="btn-close" onclick="closeEditModal()">✕</button>
+      </div>
+
+      <form onsubmit="handleSaveEditDevice(event)">
+        <input type="hidden" id="editDevId">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">🤖 Tên hiển thị Robot</label>
+            <input type="text" id="editDevName" class="form-control" required>
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">🔒 Mật khẩu tài khoản</label>
+            <input type="text" id="editDevPass" class="form-control" placeholder="123456">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">🔑 Mã PIN kết nối (6 số)</label>
+            <input type="text" id="editDevPin" class="form-control">
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">📡 Địa chỉ MAC ESP32</label>
+            <input type="text" id="editDevMac" class="form-control" readonly style="opacity: 0.7;">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">🧠 Mô hình AI (LLM)</label>
+            <select id="editDevModel" class="form-control">
+              <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (Siêu nhanh ~1s)</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash (Thông minh toàn diện)</option>
+              <option value="deepseek-chat">DeepSeek V3 (deepseek-chat)</option>
+              <option value="gpt-4o-mini">ChatGPT GPT-4o Mini (OpenAI)</option>
+              <option value="groq">Groq (Qwen 2.5 72B - Siêu tốc 450ms)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">🗣️ Giọng đọc trợ lý (TTS)</label>
+            <select id="editDevVoice" class="form-control">
+              <optgroup label="🇻🇳 Tiếng Việt (Phong cách Xiaozhi)">
+                <option value="vi-female">👩 Giọng nữ (Female Voice)</option>
+                <option value="vi-male">👨 giọng nam (Male Voice)</option>
+                <option value="vi-young-girl">👧 cô gái trẻ (Young Girl)</option>
+                <option value="vi-male-host">🎙️ chủ nhà nam (Male Host)</option>
+                <option value="vi-young-man">👦 chàng trai trẻ (Young Man)</option>
+                <option value="vi-hoaimy">🧪 Thử nghiệm · Hoài My</option>
+                <option value="vi-namminh">🧪 Thử nghiệm · Nam Minh</option>
+                <option value="vi-little-girl">🎀 cô bé / bé gái (Little Girl)</option>
+                <option value="vi-little-boy">⚽ cậu bé / bé trai (Little Boy)</option>
+                <option value="vi-female-host">📻 Nữ phát thanh viên / MC</option>
+                <option value="vi-storyteller">📖 Kể chuyện dịu dàng (Storyteller)</option>
+                <option value="vi-robot">🤖 Robot công nghệ (Tech Robot)</option>
+                <option value="vi-maingoc">🌸 Giọng nữ miền Nam (Mai Ngọc)</option>
+                <option value="vi-VN-HoaiMyNeural">Hoài My (EdgeTTS gốc)</option>
+                <option value="vi-VN-NamMinhNeural">Nam Minh (EdgeTTS gốc)</option>
+              </optgroup>
+              <optgroup label="🇺🇸 English (US)">
+                <option value="en-jenny">Jenny (Nữ Mỹ)</option>
+                <option value="en-guy">Guy (Nam Mỹ)</option>
+                <option value="en-aria">Aria (Biểu cảm)</option>
+                <option value="en-ana">Ana (Bé gái)</option>
+                <option value="en-christopher">Christopher (Nam trẻ)</option>
+              </optgroup>
+              <optgroup label="🇨🇳 Trung / 🇯🇵 Nhật / 🇰🇷 Hàn">
+                <option value="zh-xiaoxiao">Xiaoxiao (Nữ Trung)</option>
+                <option value="zh-yunxi">Yunxi (Nam Trung)</option>
+                <option value="ja-nanami">Nanami (Nữ Nhật)</option>
+                <option value="ja-keita">Keita (Nam Nhật)</option>
+                <option value="ko-sunhi">SunHi (Nữ Hàn)</option>
+                <option value="ko-injoon">InJoon (Nam Hàn)</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8;">🔊 Âm lượng loa robot (1 - 10):</label>
+            <span id="editDevVolText" style="font-size: 12.5px; color: #fde047; font-weight: 700;">Mức 8</span>
+          </div>
+          <input type="range" id="editDevVol" min="1" max="10" value="8" style="width: 100%; cursor: pointer;" oninput="document.getElementById('editDevVolText').innerText = 'Mức ' + this.value">
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">📜 Prompt Vai trò & Tính cách AI</label>
+          <textarea id="editDevPrompt" class="form-control" rows="3" placeholder="Nhập hướng dẫn vai trò prompt cho robot..."></textarea>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Hủy</button>
+          <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #2563eb, #3b82f6);">
+            💾 Lưu Cập Nhật (Qua WebSocket)
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL ĐỔI MẬT KHẨU ADMIN -->
+  <div id="pwdModal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔑 Đổi Mật Khẩu Super Admin</h3>
+        <button class="btn-close" onclick="closePwdModal()">✕</button>
+      </div>
+      <form onsubmit="handleChangePasswordSubmit(event)">
+        <div class="form-group">
+          <label>Mật khẩu mới:</label>
+          <input type="password" id="newAdminPass" class="form-control" required placeholder="Nhập mật khẩu mới...">
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button type="button" class="btn btn-secondary" onclick="closePwdModal()">Hủy</button>
+          <button type="submit" class="btn btn-warning">Xác nhận đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let currentDevicesList = [];
+
+    function showToast(msg, isSuccess = true) {
+      const t = document.getElementById("toast");
+      if (!t) return;
+      t.innerText = msg;
+      t.style.borderColor = isSuccess ? "#38bdf8" : "#ef4444";
+      t.style.color = isSuccess ? "#f8fafc" : "#fca5a5";
+      t.style.display = "block";
+      setTimeout(() => { t.style.display = "none"; }, 3500);
+    }
+
+    // ========== KIỂM TRA ĐĂNG NHẬP ADMIN ==========
+    function checkAdminSession() {
+      const token = localStorage.getItem("gehihi_admin_session");
+      const loginView = document.getElementById("loginView");
+      const dashboardView = document.getElementById("dashboardView");
+      const navUserArea = document.getElementById("navUserArea");
+
+      if (token) {
+        loginView.style.display = "none";
+        dashboardView.style.display = "block";
+        navUserArea.style.display = "flex";
+        loadDevicesList();
+      } else {
+        loginView.style.display = "block";
+        dashboardView.style.display = "none";
+        navUserArea.style.display = "none";
+      }
+    }
+
+    async function handleAdminLoginSubmit(e) {
+      e.preventDefault();
+      const user = document.getElementById("adminUser").value.trim();
+      const pwd = document.getElementById("adminPass").value.trim();
+      const alertBox = document.getElementById("loginAlert");
+
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "admin", username: user, password: pwd })
+        });
+        const data = await res.json();
+        if (res.ok && data.code === 0) {
+          localStorage.setItem("gehihi_admin_session", data.token || "admin-logged-in");
+          localStorage.setItem("gehihi_admin_user", user);
+          showToast("✓ Đăng nhập Super Admin thành công!");
+          checkAdminSession();
+        } else {
+          alertBox.innerText = data.message || "Tài khoản hoặc mật khẩu không chính xác!";
+          alertBox.style.display = "block";
+        }
+      } catch (err) {
+        alertBox.innerText = "Lỗi kết nối máy chủ: " + err.message;
+        alertBox.style.display = "block";
+      }
+    }
+
+    function handleAdminLogout() {
+      if (confirm("Bạn có chắc chắn muốn đăng xuất quyền Admin?")) {
+        localStorage.removeItem("gehihi_admin_session");
+        showToast("Đã đăng xuất Super Admin.");
+        checkAdminSession();
+      }
+    }
+
+    // ========== TẢI DANH SÁCH ROBOT ==========
+    async function loadDevicesList() {
+      const container = document.getElementById("devicesContainer");
+      const badge = document.getElementById("deviceCountBadge");
+      try {
+        const res = await fetch("/api/devices");
+        if (!res.ok) throw new Error("Lỗi tải API");
+        const list = await res.json();
+        currentDevicesList = Array.isArray(list) ? list : [];
+        if (badge) badge.innerText = `${currentDevicesList.length} thiết bị`;
+        renderDeviceCards(currentDevicesList);
+      } catch (err) {
+        if (container) container.innerHTML = `<div style="color:#ef4444;padding:20px;">Không thể tải danh sách thiết bị: ${err.message}</div>`;
+      }
+    }
+
+    const VOICE_NAME_MAP = {
+      "vi-female": "Giọng nữ (Female Voice)",
+      "vi-male": "giọng nam (Male Voice)",
+      "vi-young-girl": "cô gái trẻ (Young Girl)",
+      "vi-male-host": "chủ nhà nam (Male Host)",
+      "vi-young-man": "chàng trai trẻ (Young Man)",
+      "vi-hoaimy": "Thử nghiệm · Hoài My",
+      "vi-namminh": "Thử nghiệm · Nam Minh",
+      "vi-little-girl": "cô bé / bé gái (Little Girl)",
+      "vi-little-boy": "cậu bé / bé trai (Little Boy)",
+      "vi-female-host": "Nữ phát thanh viên / MC",
+      "vi-storyteller": "Kể chuyện dịu dàng",
+      "vi-robot": "Robot công nghệ",
+      "vi-maingoc": "Giọng nữ miền Nam (Mai Ngọc)",
+      "vi-VN-HoaiMyNeural": "Hoài My (Chuẩn)",
+      "vi-VN-NamMinhNeural": "Nam Minh (Chuẩn)",
+      "en-jenny": "Jenny (Nữ Mỹ)",
+      "en-guy": "Guy (Nam Mỹ)"
+    };
+
+    function renderDeviceCards(devices) {
+      const container = document.getElementById("devicesContainer");
+      if (!container) return;
+      if (!devices || devices.length === 0) {
+        container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#64748b;">Chưa có robot nào được gán vào hệ thống.</div>`;
+        return;
+      }
+
+      const activeId = localStorage.getItem("gehihi_active_robot_id") || "DEV_001";
+
+      container.innerHTML = devices.map(d => {
+        const isOnline = Boolean(d.online || d.is_online || d.status === 1);
+        const isSelected = d.id === activeId || d.device_code === activeId;
+        const initial = (d.name ? d.name[0] : "R").toUpperCase();
+        const pinCode = d.pin || d.device_code || "927184";
+        const macAddr = d.device_mac || d.mac || d.macAddress || "14:C1:9F:C4:EE:D0";
+
+        let modelText = d.model || d.model_id || "Gemini Flash";
+        if (modelText.includes("3.1") || modelText.includes("lite")) modelText = "Gemini Flash Lite";
+        else if (modelText.includes("2.5")) modelText = "Gemini 2.5 Flash";
+        else if (modelText.includes("deepseek")) modelText = "DeepSeek V3";
+        else if (modelText.includes("groq")) modelText = "Groq Cloud";
+        else if (modelText.includes("gpt")) modelText = "GPT-4o Mini";
+
+        const voiceKey = d.voice || d.voice_id || "vi-female";
+        const voiceText = VOICE_NAME_MAP[voiceKey] || d.voice_name || voiceKey;
+        const volVal = d.volume !== undefined ? d.volume : 8;
+
+        return `
+          <div class="device-card" style="${isSelected ? 'border-color:#38bdf8;box-shadow:0 0 20px rgba(56,189,248,0.3);' : ''}">
+            <div>
+              <div class="card-header">
+                <div class="card-title-group">
+                  <div class="card-avatar">${initial}</div>
+                  <div>
+                    <h4 class="card-title">
+                      ${d.name || 'Robot Gehihi'}
+                      ${isSelected ? '<span style="font-size:10px;background:#0284c7;color:white;padding:2px 7px;border-radius:6px;">👑 Đang chọn</span>' : ''}
+                    </h4>
+                    <div class="card-meta">
+                      <span style="color:#38bdf8;font-weight:700;">PIN: ${pinCode}</span>
+                      <span style="color:#64748b;">| MAC: ${macAddr}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <span class="online-badge ${isOnline ? 'online' : 'offline'}">
+                  <span class="dot ${isOnline ? 'green' : 'gray'}"></span>
+                  ${isOnline ? 'Trực tuyến' : 'Ngoại tuyến'}
+                </span>
+              </div>
+
+              <div class="card-params" style="margin-top:14px;">
+                <div>
+                  <span class="param-label">Mô hình AI:</span><br>
+                  <span class="param-val" style="color:#93c5fd;">${modelText}</span>
+                </div>
+                <div>
+                  <span class="param-label">Giọng đọc TTS:</span><br>
+                  <span class="param-val" style="color:#d8b4fe;">${voiceText}</span>
+                </div>
+                <div>
+                  <span class="param-label">Mật khẩu:</span><br>
+                  <code style="color:#cbd5e1;font-size:11.5px;">${d.password || '******'}</code>
+                </div>
+                <div>
+                  <span class="param-label">Âm lượng loa:</span><br>
+                  <span class="param-val" style="color:#fde047;">Mức ${volVal} / 10</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- NÚT THAO TÁC -->
+            <div class="card-actions">
+              <button onclick="setActiveRobot('${d.id}')" class="btn" style="flex:1;padding:9px 10px;background:${isSelected ? '#0284c7' : '#1e3a8a'};color:white;font-size:11.5px;border:1px solid #3b82f6;">
+                ${isSelected ? '✓ Đang chọn' : '🎯 Kích hoạt'}
+              </button>
+
+              <!-- NÚT CHI TIẾT THEO YÊU CẦU: VÀO TRANG QUẢN TRỊ CỦA ROBOT ĐÓ -->
+              <a href="robot.html?id=${encodeURIComponent(d.id)}" class="btn-detail" title="Vào trang điều khiển, D-Pad, micro và cài đặt của riêng robot này">
+                👁️ Chi tiết
+              </a>
+
+              <button onclick="openEditModal('${d.id}')" class="btn-edit" title="Chỉnh sửa cấu hình tài khoản">
+                ✏️ Sửa
+              </button>
+              <button onclick="deleteRobotDevice('${d.id}', '${d.name}')" class="btn-del" title="Xóa tài khoản này">
+                🗑️
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function setActiveRobot(devId) {
+      localStorage.setItem("gehihi_active_robot_id", devId);
+      renderDeviceCards(currentDevicesList);
+      showToast("✓ Đã chọn robot này làm mặc định!");
+    }
+
+    function handleSearchDevices(query) {
+      const q = (query || "").toLowerCase().trim();
+      if (!q) {
+        renderDeviceCards(currentDevicesList);
+        return;
+      }
+      const filtered = currentDevicesList.filter(d => 
+        (d.name || "").toLowerCase().includes(q) ||
+        (d.device_code || "").includes(q) ||
+        (d.pin || "").includes(q) ||
+        (d.mac || "").toLowerCase().includes(q) ||
+        (d.device_mac || "").toLowerCase().includes(q)
+      );
+      renderDeviceCards(filtered);
+    }
+
+    // ========== SỬA THIẾT BỊ ==========
+    function openEditModal(devId) {
+      const dev = currentDevicesList.find(d => d.id === devId || d.device_code === devId) || currentDevicesList[0];
+      if (!dev) return;
+      document.getElementById("editDevId").value = dev.id || "DEV_001";
+      document.getElementById("editDevName").value = dev.name || "Robot Gehihi";
+      document.getElementById("editDevPass").value = dev.password || "123456";
+      document.getElementById("editDevPin").value = dev.device_code || dev.pin || "927184";
+      document.getElementById("editDevMac").value = dev.device_mac || dev.mac || "14:C1:9F:C4:EE:D0";
+      document.getElementById("editDevModel").value = dev.model_id || dev.model || "gemini-3.1-flash-lite-preview";
+      document.getElementById("editDevVoice").value = dev.voice || dev.voice_id || "vi-female";
+      
+      const v = dev.volume !== undefined ? dev.volume : 8;
+      document.getElementById("editDevVol").value = v;
+      document.getElementById("editDevVolText").innerText = "Mức " + v;
+      document.getElementById("editDevPrompt").value = dev.prompt || dev.system_prompt || "Bạn là Gehihi, một trợ lý robot thông minh nói tiếng Việt tự nhiên và thân thiện.";
+
+      document.getElementById("editDeviceModal").style.display = "flex";
+    }
+
+    function closeEditModal() {
+      document.getElementById("editDeviceModal").style.display = "none";
+    }
+
+    async function handleSaveEditDevice(e) {
+      e.preventDefault();
+      const devId = document.getElementById("editDevId").value;
+      const payload = {
+        name: document.getElementById("editDevName").value.trim(),
+        password: document.getElementById("editDevPass").value.trim() || "123456",
+        device_code: document.getElementById("editDevPin").value.trim(),
+        model_id: document.getElementById("editDevModel").value,
+        model: document.getElementById("editDevModel").value,
+        voice: document.getElementById("editDevVoice").value,
+        voice_id: document.getElementById("editDevVoice").value,
+        volume: parseInt(document.getElementById("editDevVol").value) || 8,
+        prompt: document.getElementById("editDevPrompt").value,
+        system_prompt: document.getElementById("editDevPrompt").value
+      };
+
+      try {
+        const res = await fetch(`/api/devices/${encodeURIComponent(devId)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          showToast("✓ Đã lưu cấu hình và đồng bộ WebSocket tới robot!");
+          closeEditModal();
+          await loadDevicesList();
+        } else {
+          showToast("Không thể cập nhật cấu hình robot", false);
+        }
+      } catch (err) {
+        showToast("Lỗi kết nối khi cập nhật: " + err.message, false);
+      }
+    }
+
+    async function deleteRobotDevice(devId, devName) {
+      if (!confirm(`⚠️ Bạn có chắc chắn muốn XÓA robot "${devName}"?`)) return;
+      try {
+        const res = await fetch(`/api/devices/${encodeURIComponent(devId)}`, { method: "DELETE" });
+        if (res.ok) {
+          showToast(`✓ Đã xóa robot "${devName}"!`);
+          await loadDevicesList();
+        } else {
+          showToast("Không thể xóa robot", false);
+        }
+      } catch (err) {
+        showToast("Lỗi khi xóa: " + err.message, false);
+      }
+    }
+
+    function openCreateDeviceModal() {
+      const newName = prompt("Nhập tên hiển thị cho Robot mới:", "Robot Gehihi AI");
+      if (!newName) return;
+      const pin = prompt("Nhập mã PIN 6 số cho Robot:", Math.floor(100000 + Math.random() * 900000));
+      if (!pin) return;
+
+      fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newName,
+          device_code: pin,
+          device_mac: "14:C1:9F:" + Math.floor(10 + Math.random() * 89) + ":" + Math.floor(10 + Math.random() * 89) + ":" + Math.floor(10 + Math.random() * 89),
+          password: "123"
+        })
+      }).then(r => r.json()).then(d => {
+        showToast("✓ Đã thêm tài khoản robot mới!");
+        loadDevicesList();
+      }).catch(e => {
+        showToast("Lỗi thêm robot: " + e.message, false);
+      });
+    }
+
+    // ========== ĐỔI MẬT KHẨU ADMIN ==========
+    function openChangePasswordModal() {
+      document.getElementById("pwdModal").style.display = "flex";
+    }
+    function closePwdModal() {
+      document.getElementById("pwdModal").style.display = "none";
+    }
+    async function handleChangePasswordSubmit(e) {
+      e.preventDefault();
+      const newPass = document.getElementById("newAdminPass").value;
+      if (!newPass) return;
+      try {
+        const res = await fetch("/api/admin/change-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ new_password: newPass })
+        });
+        if (res.ok) {
+          showToast("✓ Đã đổi mật khẩu Super Admin thành công!");
+          closePwdModal();
+        } else {
+          showToast("Không thể đổi mật khẩu", false);
+        }
+      } catch (err) {
+        showToast("Lỗi đổi mật khẩu: " + err.message, false);
+      }
+    }
+
+    // Tự động kiểm tra đăng nhập khi mở trang
+    window.addEventListener("load", checkAdminSession);
+  </script>
+</body>
+</html>
