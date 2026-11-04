@@ -1948,9 +1948,61 @@ async def tts_to_opus(text: str, voice: str = None, sample_rate: int = 24000) ->
         frames.append(frame)
     return frames
 
+# ==================== BỘ LỌC ẢO GIÁC WHISPER (CHỐNG RÁC YOUTUBE / QUẢNG CÁO) ====================
+WHISPER_HARD_JUNK_PATTERNS = [
+    # 1. Kêu gọi subscribe, like, chia sẻ, nhấn chuông thông báo
+    r"subcri[bs]e",
+    r"subscribe",
+    r"subcribe",
+    r"đăng\s*ký\s*kênh",
+    r"dang\s*ky\s*kenh",
+    r"nhấn\s*chuông",
+    r"bấm\s*chuông",
+    r"chuông\s*thông\s*báo",
+    r"like\s*(?:và|va|&)?\s*sub",
+    r"ủng\s*hộ\s*kênh",
+    r"theo\s*dõi\s*kênh",
+    r"comment\s*bên\s*dưới",
+    r"bình\s*luận\s*bên\s*dưới",
+    r"chia\s*sẻ\s*video",
+    r"nhớ\s*like\s*(?:và|va)?\s*share",
+
+    # 2. Tên nhóm hài, series phim YouTube phổ biến bị overfit vào Whisper Vietnamese
+    r"(?:ghiền|nghiền|ghien|nghien)\s*m[ìỳ]\s*gõ",
+    r"m[ìỳ]\s*gõ",
+    r"la\s*la\s*school",
+    r"lala\s*school",
+    r"fap\s*tv",
+    r"faptv",
+    r"kem\s*xôi",
+    r"trắng\s*tv",
+    r"loa\s*phường",
+    r"cơm\s*nguội",
+
+    # 3. Lời kết video YouTube / Lời cảm ơn Outro / Dịch phụ đề
+    r"cảm\s*ơn\s*(?:các\s*bạn|quý\s*vị|mọi\s*người|khán\s*giả)?\s*đã\s*(?:theo\s*dõi|lắng\s*nghe|xem\s*video|ủng\s*hộ)",
+    r"cam\s*on\s*(?:cac\s*ban|quy\s*vi)?\s*da\s*theo\s*doi",
+    r"hẹn\s*gặp\s*lại\s*(?:các\s*bạn|quý\s*vị|mọi\s*người)?\s*(?:trong|ở)?\s*(?:các|những)?\s*video\s*tiếp\s*theo",
+    r"chúc\s*các\s*bạn\s*xem\s*(?:phim|video|clip)\s*vui\s*vẻ",
+    r"đón\s*xem\s*tập\s*tiếp\s*theo",
+    r"vietsub\s*by",
+    r"subtitles?\s*by",
+    r"amara\.org",
+    r"transcribe\s*by",
+
+    # 4. Outro tiếng Anh khi gặp khoảng lặng
+    r"thank\s*you\s*for\s*watching",
+    r"thanks\s*for\s*watching",
+    r"please\s*subscribe",
+    r"like\s*and\s*subscribe",
+    r"see\s*you\s*(?:in\s*the\s*)?next\s*video"
+]
+
+COMPILED_WHISPER_JUNK = [re.compile(p, re.IGNORECASE) for p in WHISPER_HARD_JUNK_PATTERNS]
+
 WHISPER_HALLUCINATION_KEYWORDS = [
-    "Gehihi thông minh", "Gehihi luôn lắng nghe", "Tôi là Ghehihi", "Hãy yêu quý tôi", "Gehihi thân thiện",
-    "Gehihi luôn yêu bạn", "Gehihi luôn ủng hộ bạn", "hãy làm bạn nhé", "nghe ca nhạc", "Gehihi kể truyện",
+    "gehihi thông minh", "gehihi luôn lắng nghe", "tôi là ghehihi", "hãy yêu quý tôi", "gehihi thân thiện",
+    "gehihi luôn yêu bạn", "gehihi luôn ủng hộ bạn", "hãy làm bạn nhé", "nghe ca nhạc", "gehihi kể truyện",
     "xin chào, bạn có khỏe không",
     "chúc một ngày tốt lành", "cảm ơn và hẹn gặp lại", "tạm biệt và hẹn gặp lại",
     "tôi là gehihi",
@@ -1960,12 +2012,15 @@ WHISPER_HALLUCINATION_KEYWORDS = [
 ]
 
 def is_whisper_hallucination(text: str) -> bool:
-    """Phát hiện các cụm từ ảo giác quảng cáo YouTube của Whisper khi gặp khoảng lặng"""
+    """Phát hiện các cụm từ ảo giác quảng cáo YouTube của Whisper khi gặp khoảng lặng hoặc tiếng thở"""
     if not text or not text.strip():
         return False
-    if len(text.strip()) <= 1:
+    t = text.strip().lower()
+    if len(t) <= 1:
         return True
-    t = text.lower()
+    for pat in COMPILED_WHISPER_JUNK:
+        if pat.search(t):
+            return True
     for kw in WHISPER_HALLUCINATION_KEYWORDS:
         if kw in t:
             return True
