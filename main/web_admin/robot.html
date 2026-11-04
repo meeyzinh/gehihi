@@ -1962,13 +1962,12 @@ body {
           <span>Server Render: Trực tuyến (wss://)</span>
         </div>
         
-        <!-- BADGE ROBOT ĐANG QUẢN TRỊ TRÊN TOPBAR KÈM NÚT ĐỔI TÀI KHOẢN -->
-        <div id="topRobotAccountBadge" onclick="showAuthModal()" style="display: flex; align-items: center; gap: 8px; background: #0c1a32; border: 1px solid #3b82f6; padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.3);" title="Bấm để đổi sang quản trị Robot khác">
+        <!-- BADGE ROBOT ĐANG QUẢN TRỊ TRÊN TOPBAR -->
+        <div id="topRobotAccountBadge" style="display: flex; align-items: center; gap: 8px; background: rgba(12, 26, 50, 0.6); border: 1px solid rgba(59, 130, 246, 0.35); padding: 4px 12px; border-radius: 20px; font-size: 12px;">
           <span style="font-size: 13px;">🤖</span>
-          <span style="color: #94a3b8;">Tài khoản:</span>
-          <strong id="topRobotNameDisplay" style="color: #38bdf8;">Ông Robot</strong>
+          <span style="color: #94a3b8;">Robot:</span>
+          <strong id="topRobotNameDisplay" style="color: #38bdf8;">Robot Gehihi</strong>
           <span id="topRobotPinDisplay" style="background: rgba(56,189,248,0.2); color: #7dd3fc; padding: 1px 6px; border-radius: 6px; font-family: monospace; font-size: 11px; font-weight: bold;">927184</span>
-          <span style="color: #94a3b8; font-size: 10px;">(Đổi ▾)</span>
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 8px;">
@@ -2001,21 +2000,9 @@ body {
                 Tài khoản quản trị chuyên biệt qua WebSocket • Mã PIN: <strong id="dashRobotPinSubtitle" style="color: #38bdf8; font-family: monospace;">927184</strong>
             </div>
         </div>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <a href="admin.html" style="text-decoration:none; padding: 8px 14px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-                ⬅️ Quản lý tài khoản
-            </a>
-            <button class="secondary" onclick="loadDevices()" style="padding: 8px 14px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #1e293b; color: #e2e8f0; border: 1px solid #475569; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <div>
+            <button class="secondary" onclick="loadDevices()" style="padding: 7px 14px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #1e293b; color: #cbd5e1; border: 1px solid #475569; cursor: pointer; display: flex; align-items: center; gap: 6px;" title="Cập nhật trạng thái mới nhất từ server">
                 🔄 Làm mới
-            </button>
-            <button class="secondary" onclick="showAuthModal('login')" style="padding: 8px 14px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #0c1a32; color: #93c5fd; border: 1px solid #3b82f6; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                🔄 Đổi tài khoản Robot
-            </button>
-            <button class="primary" onclick="showAuthModal('register')" style="padding: 8px 16px; font-size: 12px; font-weight: bold; border-radius: 8px; background: linear-gradient(135deg, #059669, #10b981); color: white; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">
-                ➕ Thêm / Kích hoạt Robot mới
-            </button>
-            <button onclick="logoutRobotAccount()" style="padding: 8px 14px; font-size: 12px; font-weight: bold; border-radius: 8px; background: rgba(239,68,68,0.15); border: 1px solid #ef4444; color: #fca5a5; cursor: pointer;">
-                🚪 Đăng xuất
             </button>
         </div>
     </div>
