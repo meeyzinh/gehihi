@@ -756,6 +756,7 @@
         dashboardView.style.display = "block";
         navUserArea.style.display = "flex";
         loadDevicesList();
+        connectAdminMonitor();
       } else {
         loginView.style.display = "block";
         dashboardView.style.display = "none";
@@ -807,11 +808,17 @@
         const res = await fetch("/api/devices");
         if (!res.ok) throw new Error("Lỗi tải API");
         const list = await res.json();
-        currentDevicesList = Array.isArray(list) ? list : [];
-        if (badge) badge.innerText = `${currentDevicesList.length} thiết bị`;
-        renderDeviceCards(currentDevicesList);
+        const newList = Array.isArray(list) ? list : [];
+        const changed = JSON.stringify(newList) !== JSON.stringify(currentDevicesList) || !container.children.length;
+        if (changed) {
+          currentDevicesList = newList;
+          if (badge) badge.innerText = `${currentDevicesList.length} thiết bị`;
+          renderDeviceCards(currentDevicesList);
+        }
       } catch (err) {
-        if (container) container.innerHTML = `<div style="color:#ef4444;padding:20px;">Không thể tải danh sách thiết bị: ${err.message}</div>`;
+        if (container && (!currentDevicesList || currentDevicesList.length === 0)) {
+          container.innerHTML = `<div style="color:#ef4444;padding:20px;">Không thể tải danh sách thiết bị: ${err.message}</div>`;
+        }
       }
     }
 
@@ -1077,7 +1084,48 @@
     }
 
     // Tự động kiểm tra đăng nhập khi mở trang
+    
+    // Realtime WebSocket lắng nghe sự kiện Robot On/Off tức thì
+    let adminMonitorWs = null;
+    function connectAdminMonitor() {
+      if (adminMonitorWs && (adminMonitorWs.readyState === WebSocket.OPEN || adminMonitorWs.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+      try {
+        const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProto}//${window.location.host}/ws/mic-monitor`;
+        adminMonitorWs = new WebSocket(wsUrl);
+        adminMonitorWs.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'device_event' || data.type === 'device_status' || data.type === 'state_change') {
+              loadDevicesList();
+            }
+          } catch (e) {}
+        };
+        adminMonitorWs.onclose = () => {
+          adminMonitorWs = null;
+          setTimeout(connectAdminMonitor, 3000);
+        };
+        adminMonitorWs.onerror = () => {
+          try { adminMonitorWs.close(); } catch (e) {}
+          adminMonitorWs = null;
+        };
+      } catch (e) {
+        setTimeout(connectAdminMonitor, 5000);
+      }
+    }
+
+    // Auto-refresh thiết bị định kỳ mỗi 3 giây
+    setInterval(() => {
+      const token = localStorage.getItem('gehihi_admin_session');
+      if (token) {
+        loadDevicesList();
+      }
+    }, 3000);
+
     window.addEventListener("load", checkAdminSession);
   </script>
 </body>
 </html>
+

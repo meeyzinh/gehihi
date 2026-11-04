@@ -221,9 +221,9 @@ DB_DEVICES = {
         "name": "Robot Gehihi AI ESP32-S3 (Mạch tím)",
         "boardType": "ESP32-S3-N16R8",
         "version": "2.5.0",
-        "status": 1,
-        "online": True,
-        "is_online": True,
+        "status": 0,
+        "online": False,
+        "is_online": False,
         "lastActiveTime": int(time.time() * 1000)
     }
 }
@@ -2638,9 +2638,19 @@ async def ws_handler(websocket):
 
     if device_mac in DB_DEVICES:
         DB_DEVICES[device_mac]["online"] = True
+        DB_DEVICES[device_mac]["is_online"] = True
+        DB_DEVICES[device_mac]["status"] = 1
         DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
     CONNECTED_ROBOTS[device_mac] = websocket
     CONNECTED_ROBOT_PROTOCOLS[id(websocket)] = protocol_version
+    asyncio.create_task(broadcast_mic_monitor({
+        "type": "device_event",
+        "action": "online",
+        "mac": device_mac,
+        "online": True,
+        "is_online": True,
+        "status": 1
+    }))
 
     session_id = str(uuid.uuid4())
     pre_speech_ring = collections.deque(maxlen=6)
@@ -2662,16 +2672,25 @@ async def ws_handler(websocket):
     except Exception as e:
         logger.warning(f"Could not init opuslib_next decoder: {e}")
 
-    # Heartbeat keep-alive (native websocket ping mỗi 20s + JSON ping giữ robot không bị timeout idle)
+    # Heartbeat keep-alive (ping mỗi 5s để phát hiện mất nguồn ngay lập tức)
     async def heartbeat_worker():
         try:
             while session_active:
-                await asyncio.sleep(20)
+                await asyncio.sleep(5)
+                if not session_active:
+                    break
                 try:
                     if hasattr(websocket, "ping"):
-                        await websocket.ping()
-                    await websocket.send(json.dumps({"type": "ping"}))
-                except Exception:
+                        pong_waiter = await websocket.ping()
+                        await asyncio.wait_for(pong_waiter, timeout=4.0)
+                    else:
+                        await websocket.send(json.dumps({"type": "ping"}))
+                except Exception as e:
+                    logger.warning(f"Heartbeat ping timeout/error for {device_mac}: {e}. Closing socket.")
+                    try:
+                        await websocket.close()
+                    except Exception:
+                        pass
                     break
         except asyncio.CancelledError:
             pass
@@ -3073,9 +3092,19 @@ async def ws_handler(websocket):
         if inactivity_task and not inactivity_task.done():
             inactivity_task.cancel()
         if device_mac in DB_DEVICES:
-            # Keep online status active for robot
-            DB_DEVICES[device_mac]["online"] = True
-            DB_DEVICES[device_mac]["is_online"] = True
+            DB_DEVICES[device_mac]["online"] = False
+            DB_DEVICES[device_mac]["is_online"] = False
+            DB_DEVICES[device_mac]["status"] = 0
+            DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
+        logger.info(f"Robot {device_mac} disconnected -> marked OFFLINE")
+        asyncio.create_task(broadcast_mic_monitor({
+            "type": "device_event",
+            "action": "offline",
+            "mac": device_mac,
+            "online": False,
+            "is_online": False,
+            "status": 0
+        }))
 
 # ==================== MAIN HTTP RUNNER ====================
 
@@ -3471,6 +3500,18 @@ async def handle_api_devices_get_post(request):
         is_on = bool(d.get("online", True))
         pin_code = d.get("pin", "927184")
         mac_addr = d.get("macAddress", mac.upper())
+        
+        # Real-time check: robot is online IF AND ONLY IF its WebSocket is active in CONNECTED_ROBOTS
+        is_real_connected = False
+        for r_mac, r_ws in CONNECTED_ROBOTS.items():
+            if r_mac.lower() == mac.lower() or r_mac.replace(":", "").lower() == mac.replace(":", "").lower():
+                if not getattr(r_ws, "closed", False):
+                    is_real_connected = True
+                    break
+        d["online"] = is_real_connected
+        d["is_online"] = is_real_connected
+        d["status"] = 1 if is_real_connected else 0
+
         raw_vol = d.get("volume", 8)
         norm_vol = int(raw_vol / 10) if raw_vol > 10 else int(raw_vol)
         norm_vol = max(1, min(norm_vol, 10))
@@ -3486,9 +3527,9 @@ async def handle_api_devices_get_post(request):
             "device_mac": mac_addr,
             "name": d.get("name", "Robot Gehihi"),
             "avatar": d.get("avatar", "🤖"),
-            "status": 1 if is_on else 0,
-            "online": is_on,
-            "is_online": is_on,
+            "status": 1 if is_real_connected else 0,
+            "online": is_real_connected,
+            "is_online": is_real_connected,
             "ip": d.get("ip", "10.26.1.10"),
             "version": d.get("version", "2.5.0"),
             "volume": norm_vol,
@@ -5586,7 +5627,7 @@ async def run_http_server():
 
 async def run_ws_server():
     logger.info(f"WebSocket Server listening on port {WS_PORT}")
-    async with websockets.serve(ws_handler, "0.0.0.0", WS_PORT):
+    async with websockets.serve(ws_handler, "0.0.0.0", WS_PORT, ping_interval=10, ping_timeout=8):
         await asyncio.Future()
 
 async def run_render_keepalive():
