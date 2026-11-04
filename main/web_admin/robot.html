@@ -1972,7 +1972,8 @@ body {
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 8px;">
-        <a href="admin.html" style="text-decoration:none; background: #0f172a; border: 1px solid #38bdf8; color: #38bdf8; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(56,189,248,0.2);" title="Quay lại trang Quản lý tài khoản Robot Admin">
+        <span id="topRoleBadge" style="display:none; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 14px; font-size: 11.5px; font-weight: bold;"></span>
+        <a id="btnBackToAdmin" href="admin.html" style="text-decoration:none; background: #0f172a; border: 1px solid #38bdf8; color: #38bdf8; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(56,189,248,0.2);" title="Quay lại trang Quản lý tài khoản Robot Admin">
           ⬅️ Danh sách Robot
         </a>
         <button class="primary" onclick="switchSection('remoteControl')" style="background: #1e3a8a; border: 1px solid #3b82f6; color: #93c5fd; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;">
@@ -7324,22 +7325,75 @@ Ví dụ:
     });
 </script>
 <script>
-    // Tự động nhận diện Robot từ URL query ?id=... khi được chuyển từ trang admin.html
-    window.addEventListener("DOMContentLoaded", () => {
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const targetId = urlParams.get('id');
-        if (targetId) {
-          activeDeviceId = targetId;
-          localStorage.setItem("gehihi_active_robot_id", targetId);
-          console.log("Đã kích hoạt robot theo URL:", targetId);
-        }
-        // Luôn mở mặc định phần Tổng quan Robot (devices)
-        switchSection('devices', document.getElementById('btnNavOverview'));
-      } catch (e) {
-        console.warn("Lỗi đọc param robot:", e);
+// KIỂM TRA PHÂN QUYỀN ĐĂNG NHẬP (ADMIN VS ROBOT DEVICE)
+window.addEventListener("DOMContentLoaded", () => {
+  try {
+    const role = localStorage.getItem("gehihi_user_role");
+    const adminToken = localStorage.getItem("gehihi_admin_session");
+    const deviceToken = localStorage.getItem("gehihi_device_session");
+
+    // Nếu chưa đăng nhập bất kỳ tài khoản nào: chuyển về cổng đăng nhập index.html
+    if (!adminToken && !deviceToken) {
+      console.warn("Chưa đăng nhập! Đang chuyển hướng về cổng đăng nhập...");
+      window.location.href = "index.html";
+      return;
+    }
+
+    // Xử lý quyền truy cập nút quay về trang admin
+    const btnBack1 = document.getElementById("btnBackToAdmin");
+    const btnBack2 = document.getElementById("btnBackToAdmin2");
+    const badgeRole = document.getElementById("topRoleBadge");
+
+    if (role === "device") {
+      // TÀI KHOẢN ROBOT (gehihi):
+      // Tuyệt đối KHÔNG cho phép xem hoặc quay về trang quản lý danh sách tài khoản
+      if (btnBack1) btnBack1.style.display = "none";
+      if (btnBack2) btnBack2.style.display = "none";
+      if (badgeRole) {
+        badgeRole.style.display = "inline-flex";
+        badgeRole.innerText = "🤖 Tài khoản Robot: gehihi";
+        badgeRole.style.background = "rgba(34, 197, 94, 0.15)";
+        badgeRole.style.color = "#4ade80";
+        badgeRole.style.border = "1px solid #22c55e";
       }
-    });
+    } else if (role === "admin") {
+      // TÀI KHOẢN ADMIN: Cho phép quay lại trang quản lý tài khoản thiết bị
+      if (btnBack1) btnBack1.style.display = "inline-flex";
+      if (btnBack2) btnBack2.style.display = "inline-flex";
+      if (badgeRole) {
+        badgeRole.style.display = "inline-flex";
+        badgeRole.innerText = "👑 Quản trị viên (Admin)";
+        badgeRole.style.background = "rgba(234, 179, 8, 0.15)";
+        badgeRole.style.color = "#facc15";
+        badgeRole.style.border = "1px solid #eab308";
+      }
+    }
+
+    // Tự động nhận diện Robot từ URL query ?id=... khi được chuyển từ trang admin.html
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetId = urlParams.get('id');
+    if (targetId) {
+      activeDeviceId = targetId;
+      localStorage.setItem("gehihi_active_robot_id", targetId);
+      console.log("Đã kích hoạt robot theo URL:", targetId);
+    }
+    // Mở mặc định Tổng quan Robot
+    switchSection('devices', document.getElementById('btnNavOverview'));
+  } catch (e) {
+    console.warn("Lỗi kiểm tra session robot:", e);
+  }
+});
+
+// Hàm đăng xuất tài khoản trên trang robot
+function logoutRobotAccount() {
+  if (confirm("Bạn có chắc chắn muốn đăng xuất khỏi robot?")) {
+    localStorage.removeItem("gehihi_device_session");
+    localStorage.removeItem("gehihi_admin_session");
+    localStorage.removeItem("gehihi_user_role");
+    localStorage.removeItem("gehihi_user_name");
+    window.location.href = "index.html";
+  }
+}
 </script>
 </body>
 

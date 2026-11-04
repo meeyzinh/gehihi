@@ -233,6 +233,8 @@ DB_DEVICES = {
         "device_mac": "14:C1:9F:C4:EE:D0",
         "pin": "927184",
         "device_code": "927184",
+        "username": "gehihi",
+        "password": "123456",
         "name": "Robot Gehihi AI ESP32-S3 (Mạch tím)",
         "boardType": "ESP32-S3-N16R8",
         "version": "2.5.0",
@@ -3653,41 +3655,76 @@ async def handle_api_auth_login(request):
         data = await request.json()
     except Exception:
         data = {}
-    auth_type = data.get("type", "admin")
-    if auth_type == "admin":
-        user = data.get("username", "")
-        pwd = data.get("password", "")
-        if user == "admin" and (pwd == "admin123" or pwd == os.environ.get("ADMIN_PASSWORD", "admin123")):
+
+    user = str(data.get("username") or data.get("user") or data.get("identifier") or data.get("pin") or "").strip()
+    pwd = str(data.get("password") or data.get("pass") or "").strip()
+    auth_type = str(data.get("type", "")).lower().strip()
+
+    # 1. ADMIN LOGIN (Quản lý toàn bộ danh sách tài khoản thiết bị)
+    if user.lower() == "admin" or (auth_type == "admin" and (not user or user.lower() == "admin")):
+        admin_passwords = ["123456", "admin123", os.environ.get("ADMIN_PASSWORD", "123456")]
+        if pwd in admin_passwords:
+            token = "admin-token-" + uuid.uuid4().hex[:12]
             return cors_response({
                 "code": 0,
-                "msg": "Đăng nhập Admin thành công!",
-                "token": "admin-token-" + uuid.uuid4().hex[:12],
+                "msg": "Đăng nhập Quản trị viên (Admin) thành công!",
+                "token": token,
                 "isAdmin": True,
-                "user": {"name": "Super Admin", "role": "admin"}
+                "role": "admin",
+                "targetUrl": "admin.html",
+                "user": {"username": "admin", "name": "Super Admin", "role": "admin"}
             })
-        return cors_response({"code": 1, "message": "Sai tài khoản hoặc mật khẩu Admin!"}, status=401)
-    else:
-        # Robot PIN login
-        pin = str(data.get("pin", data.get("identifier", ""))).strip()
-        found_dev = None
-        for mac, dev in DB_DEVICES.items():
-            if str(dev.get("pin", "927184")) == pin or mac.lower() == pin.lower() or dev.get("id", "").lower() == pin.lower():
-                found_dev = dev
-                break
-        if found_dev:
+        return cors_response({"code": 1, "message": "Sai mật khẩu Quản trị viên (Admin)!"}, status=401)
+
+    # 2. DEVICE / ROBOT LOGIN (Tài khoản riêng của thiết bị robot, ví dụ: user 'gehihi', pass '123456')
+    found_dev = None
+    for mac, dev in DB_DEVICES.items():
+        dev_u = str(dev.get("username", "gehihi")).lower().strip()
+        dev_id = str(dev.get("id", "")).lower().strip()
+        dev_pin = str(dev.get("pin", "")).lower().strip()
+        dev_mac = str(dev.get("macAddress", mac)).lower().strip()
+        dev_name = str(dev.get("name", "")).lower().strip()
+
+        if (
+            user.lower() == dev_u
+            or (user.lower() in ("gehihi", "robot_gehihi", "robot-gehihi") and dev_id in ("dev_001", "ong-robot", ""))
+            or user.lower() == dev_pin
+            or user.lower() == dev_id
+            or user.lower() == dev_mac
+            or user.lower() in dev_name
+        ):
+            found_dev = dev
+            break
+
+    # Nếu không tìm thấy bằng vòng lặp và danh sách chỉ có 1 robot mặc định mà user là 'gehihi'
+    if not found_dev and len(DB_DEVICES) > 0 and user.lower() in ("gehihi", "robot"):
+        found_dev = list(DB_DEVICES.values())[0]
+
+    if found_dev:
+        expected_pwd = str(found_dev.get("password", "123456")).strip()
+        # Chấp nhận mật khẩu của thiết bị hoặc mặc định 123456
+        if pwd == expected_pwd or pwd == "123456" or (not expected_pwd and pwd == "123456"):
+            token = "robot-token-" + uuid.uuid4().hex[:12]
+            dev_id = found_dev.get("id", "DEV_001")
+            dev_name = found_dev.get("name", "Robot Gehihi")
             return cors_response({
                 "code": 0,
-                "msg": "Đăng nhập Robot thành công!",
-                "token": "robot-token-" + uuid.uuid4().hex[:12],
+                "msg": f"Đăng nhập Robot {dev_name} thành công!",
+                "token": token,
                 "isAdmin": False,
+                "role": "device",
+                "targetUrl": f"robot.html?id={dev_id}",
                 "device": {
-                    "id": found_dev.get("id"),
-                    "name": found_dev.get("name"),
-                    "device_code": found_dev.get("macAddress", "").lower(),
+                    "id": dev_id,
+                    "name": dev_name,
+                    "username": found_dev.get("username", "gehihi"),
+                    "device_code": str(found_dev.get("macAddress", "")).lower(),
                     "pin": found_dev.get("pin", "927184")
                 }
             })
-        return cors_response({"code": 1, "message": "Mã PIN Robot không đúng!"}, status=401)
+        return cors_response({"code": 1, "message": "Sai mật khẩu thiết bị Robot!"}, status=401)
+
+    return cors_response({"code": 1, "message": f"Không tìm thấy tài khoản '{user}' trên hệ thống!"}, status=401)
 
 async def handle_api_auth_logout(request):
     return cors_response({"code": 0, "msg": "Đã đăng xuất"})
@@ -3781,6 +3818,7 @@ async def handle_api_devices_get_post(request):
             "voice": act_voice,
             "voice_id": act_voice,
             "voice_name": d.get("voice_name") or act_voice,
+            "username": d.get("username", "gehihi"),
             "password": d.get("password", "123456"),
             "battery": 95,
             "lastActiveTime": d.get("lastActiveTime", int(time.time() * 1000))

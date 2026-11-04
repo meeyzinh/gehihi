@@ -499,34 +499,46 @@
 
   <main class="main-container">
 
-    <!-- 1. MÀN HÌNH ĐĂNG NHẬP SUPER ADMIN -->
+    <!-- 1. MÀN HÌNH ĐĂNG NHẬP HỆ THỐNG (PHÂN QUYỀN ADMIN & ROBOT) -->
     <section id="loginView">
       <div class="login-header">
-        <div class="login-badge">👑 XÁC THỰC QUẢN TRỊ VIÊN</div>
-        <h2 style="font-size: 20px; font-weight: 800; color: white; margin-bottom: 6px;">Đăng Nhập Quản Trị Hệ Thống</h2>
-        <p style="font-size: 12.5px; color: #94a3b8;">Nhập tài khoản Super Admin để quản lý danh sách robot</p>
+        <div class="login-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">🚀 HỆ THỐNG ROBOT GEHIHI AI</div>
+        <h2 style="font-size: 22px; font-weight: 800; color: white; margin-bottom: 6px;">Đăng Nhập Quản Trị Hệ Thống</h2>
+        <p style="font-size: 13px; color: #94a3b8;">Đăng nhập để vào trang quản trị tương ứng theo vai trò tài khoản</p>
       </div>
 
-      <form onsubmit="handleAdminLoginSubmit(event)">
+      <form onsubmit="handleUnifiedLoginSubmit(event)">
         <div class="form-group">
-          <label>Tên đăng nhập Admin:</label>
-          <input type="text" id="adminUser" class="form-control" value="admin" required placeholder="admin">
+          <label>Tên đăng nhập / Tài khoản:</label>
+          <input type="text" id="loginUser" class="form-control" required placeholder="Nhập admin hoặc gehihi..." autocomplete="username">
         </div>
 
         <div class="form-group">
-          <label>Mật khẩu Super Admin:</label>
-          <input type="password" id="adminPass" class="form-control" value="admin123" required placeholder="Nhập mật khẩu...">
-          <div style="font-size: 11px; color: #64748b; margin-top: 5px;">
-            💡 Mặc định: <code>admin</code> / <code>admin123</code>
-          </div>
+          <label>Mật khẩu:</label>
+          <input type="password" id="loginPass" class="form-control" required placeholder="Nhập mật khẩu (ví dụ: 123456)..." autocomplete="current-password">
         </div>
 
-        <div id="loginAlert" style="display:none; padding: 10px; border-radius: 8px; font-size: 12.5px; margin-bottom: 14px; background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid #ef4444;"></div>
+        <div id="loginAlert" style="display:none; padding: 10px 14px; border-radius: 8px; font-size: 12.5px; margin-bottom: 14px; background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid #ef4444;"></div>
 
-        <button type="submit" class="btn-submit">
-          🔐 ĐĂNG NHẬP VÀO CỔNG QUẢN TRỊ
+        <button type="submit" class="btn-submit" id="btnLoginSubmit">
+          🔐 ĐĂNG NHẬP VÀO HỆ THỐNG
         </button>
       </form>
+
+      <!-- HƯỚNG DẪN TÀI KHOẢN VÀ ĐIỀU HƯỚNG PHÂN QUYỀN -->
+      <div style="margin-top: 20px; padding: 12px 14px; background: rgba(15, 23, 42, 0.7); border: 1px solid #334155; border-radius: 8px; font-size: 12px; line-height: 1.6;">
+        <div style="font-weight: bold; color: #38bdf8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span>💡</span> <span>Tài khoản truy cập theo phân quyền:</span>
+        </div>
+        <div style="margin-bottom: 8px; color: #cbd5e1;">
+          👑 <strong style="color: #facc15;">Quản trị viên (Admin):</strong> User: <code style="color: #38bdf8; background: #1e293b; padding: 2px 6px; border-radius: 4px;">admin</code> | Pass: <code style="color: #38bdf8; background: #1e293b; padding: 2px 6px; border-radius: 4px;">123456</code><br>
+          <span style="color: #94a3b8; font-size: 11px;">👉 Vào trang <strong>Quản lý tài khoản thiết bị</strong> (danh sách robot, CRUD, đổi cấu hình, thêm mới).</span>
+        </div>
+        <div style="color: #cbd5e1;">
+          🤖 <strong style="color: #4ade80;">Thiết bị Robot Gehihi:</strong> User: <code style="color: #38bdf8; background: #1e293b; padding: 2px 6px; border-radius: 4px;">gehihi</code> | Pass: <code style="color: #38bdf8; background: #1e293b; padding: 2px 6px; border-radius: 4px;">123456</code><br>
+          <span style="color: #94a3b8; font-size: 11px;">👉 Vào trực tiếp trang <strong>Quản trị & Điều khiển riêng của Robot Gehihi</strong> (D-Pad, mic, chat AI, học tiếng Anh).</span>
+        </div>
+      </div>
     </section>
 
     <!-- 2. MÀN HÌNH QUẢN LÝ TÀI KHOẢN ROBOT -->
@@ -744,49 +756,96 @@
       setTimeout(() => { t.style.display = "none"; }, 3500);
     }
 
-    // ========== KIỂM TRA ĐĂNG NHẬP ADMIN ==========
-    function checkAdminSession() {
-      const token = localStorage.getItem("gehihi_admin_session");
+    // ========== KIỂM TRA ĐĂNG NHẬP & PHÂN QUYỀN HỆ THỐNG ==========
+    function checkSessionAndRole() {
+      const role = localStorage.getItem("gehihi_user_role");
+      const adminToken = localStorage.getItem("gehihi_admin_session");
+      const deviceToken = localStorage.getItem("gehihi_device_session");
+
       const loginView = document.getElementById("loginView");
       const dashboardView = document.getElementById("dashboardView");
       const navUserArea = document.getElementById("navUserArea");
 
-      if (token) {
-        loginView.style.display = "none";
-        dashboardView.style.display = "block";
-        navUserArea.style.display = "flex";
+      // Nếu người dùng đã đăng nhập bằng tài khoản thiết bị (robot như 'gehihi'):
+      // Chặn không cho xem trang quản lý tài khoản, tự động chuyển về trang điều khiển riêng của robot!
+      if (role === "device" && deviceToken) {
+        const robotId = localStorage.getItem("gehihi_active_robot_id") || "DEV_001";
+        console.log("Tài khoản thiết bị Robot đang đăng nhập. Chuyển hướng sang robot.html?id=" + robotId);
+        window.location.href = "robot.html?id=" + encodeURIComponent(robotId);
+        return;
+      }
+
+      // Nếu là tài khoản Admin: Hiển thị trang quản lý tài khoản thiết bị
+      if (role === "admin" && adminToken) {
+        if (loginView) loginView.style.display = "none";
+        if (dashboardView) dashboardView.style.display = "block";
+        if (navUserArea) navUserArea.style.display = "flex";
         loadDevicesList();
         connectAdminMonitor();
       } else {
-        loginView.style.display = "block";
-        dashboardView.style.display = "none";
-        navUserArea.style.display = "none";
+        // Chưa đăng nhập: hiển thị màn hình đăng nhập chung
+        if (loginView) loginView.style.display = "block";
+        if (dashboardView) dashboardView.style.display = "none";
+        if (navUserArea) navUserArea.style.display = "none";
       }
     }
 
-    async function handleAdminLoginSubmit(e) {
+    async function handleUnifiedLoginSubmit(e) {
       e.preventDefault();
-      const user = document.getElementById("adminUser").value.trim();
-      const pwd = document.getElementById("adminPass").value.trim();
+      const user = document.getElementById("loginUser").value.trim();
+      const pwd = document.getElementById("loginPass").value.trim();
       const alertBox = document.getElementById("loginAlert");
+      const submitBtn = document.getElementById("btnLoginSubmit");
+
+      if (!user || !pwd) {
+        alertBox.innerText = "Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!";
+        alertBox.style.display = "block";
+        return;
+      }
+
+      alertBox.style.display = "none";
+      submitBtn.disabled = true;
+      submitBtn.innerText = "⏳ Đang xác thực...";
 
       try {
         const res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "admin", username: user, password: pwd })
+          body: JSON.stringify({ username: user, password: pwd })
         });
         const data = await res.json();
+        submitBtn.disabled = false;
+        submitBtn.innerText = "🔐 ĐĂNG NHẬP VÀO HỆ THỐNG";
+
         if (res.ok && data.code === 0) {
-          localStorage.setItem("gehihi_admin_session", data.token || "admin-logged-in");
-          localStorage.setItem("gehihi_admin_user", user);
-          showToast("✓ Đăng nhập Super Admin thành công!");
-          checkAdminSession();
+          if (data.role === "admin") {
+            // 1. Quản trị viên Admin -> Vào trang quản lý tài khoản thiết bị
+            localStorage.setItem("gehihi_user_role", "admin");
+            localStorage.setItem("gehihi_admin_session", data.token || "admin-session");
+            localStorage.setItem("gehihi_admin_user", user);
+            localStorage.removeItem("gehihi_device_session");
+            showToast("✓ Đăng nhập Quản trị viên (Admin) thành công!");
+            checkSessionAndRole();
+          } else if (data.role === "device") {
+            // 2. Tài khoản Robot Thiết bị (gehihi) -> Vào trực tiếp trang điều khiển robot
+            localStorage.setItem("gehihi_user_role", "device");
+            localStorage.setItem("gehihi_device_session", data.token || "device-session");
+            const devId = (data.device && data.device.id) ? data.device.id : "DEV_001";
+            localStorage.setItem("gehihi_active_robot_id", devId);
+            localStorage.setItem("gehihi_user_name", (data.device && data.device.name) ? data.device.name : user);
+            localStorage.removeItem("gehihi_admin_session");
+            showToast("✓ Đăng nhập Robot Gehihi thành công! Đang chuyển hướng...");
+            setTimeout(() => {
+              window.location.href = data.targetUrl || ("robot.html?id=" + encodeURIComponent(devId));
+            }, 500);
+          }
         } else {
           alertBox.innerText = data.message || "Tài khoản hoặc mật khẩu không chính xác!";
           alertBox.style.display = "block";
         }
       } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "🔐 ĐĂNG NHẬP VÀO HỆ THỐNG";
         alertBox.innerText = "Lỗi kết nối máy chủ: " + err.message;
         alertBox.style.display = "block";
       }
@@ -795,8 +854,11 @@
     function handleAdminLogout() {
       if (confirm("Bạn có chắc chắn muốn đăng xuất quyền Admin?")) {
         localStorage.removeItem("gehihi_admin_session");
-        showToast("Đã đăng xuất Super Admin.");
-        checkAdminSession();
+        localStorage.removeItem("gehihi_device_session");
+        localStorage.removeItem("gehihi_user_role");
+        localStorage.removeItem("gehihi_admin_user");
+        showToast("Đã đăng xuất khỏi cổng quản trị.");
+        checkSessionAndRole();
       }
     }
 
@@ -904,8 +966,12 @@
                   <span class="param-val" style="color:#d8b4fe;">${voiceText}</span>
                 </div>
                 <div>
+                  <span class="param-label">Tài khoản:</span><br>
+                  <code style="color:#38bdf8;font-size:11.5px;font-weight:bold;">${d.username || 'gehihi'}</code>
+                </div>
+                <div>
                   <span class="param-label">Mật khẩu:</span><br>
-                  <code style="color:#cbd5e1;font-size:11.5px;">${d.password || '******'}</code>
+                  <code style="color:#cbd5e1;font-size:11.5px;">${d.password || '123456'}</code>
                 </div>
                 <div>
                   <span class="param-label">Âm lượng loa:</span><br>
@@ -1124,7 +1190,7 @@
       }
     }, 3000);
 
-    window.addEventListener("load", checkAdminSession);
+    window.addEventListener("load", checkSessionAndRole);
   </script>
 </body>
 </html>
