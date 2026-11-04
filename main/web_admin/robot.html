@@ -1620,7 +1620,7 @@ body {
               📡 WebSocket Server URL nạp vào firmware Robot Gehihi:
             </div>
             <div style="display: flex; gap: 6px;">
-              <input readonly value="wss://gehihi.onrender.com/xiaozhi/v1/" id="authWssUrlInput" style="flex: 1; padding: 7px 10px; border-radius: 6px; border: 1px solid #1e3a8a; background: #040d1a; color: #38bdf8; font-family: monospace; font-size: 12px; margin: 0;">
+              <input readonly value="wss://gehihi.onrender.com/gehihi/v1/" id="authWssUrlInput" style="flex: 1; padding: 7px 10px; border-radius: 6px; border: 1px solid #1e3a8a; background: #040d1a; color: #38bdf8; font-family: monospace; font-size: 12px; margin: 0;">
               <button type="button" onclick="copyModalWssUrl()" style="padding: 7px 12px; border-radius: 6px; background: #2563eb; color: white; font-size: 12px; font-weight: bold; border: none; cursor: pointer; white-space: nowrap;">
                 📋 Sao chép
               </button>
@@ -1745,7 +1745,7 @@ body {
       <div style="background: rgba(30,58,138,0.25); border: 1px solid rgba(59,130,246,0.3); border-radius: 10px; padding: 12px; margin-bottom: 20px;">
         <div style="font-size: 11.5px; color: #93c5fd; margin-bottom: 4px; font-weight: 600;">🔗 WebSocket URL để cấu hình nạp vào firmware ESP32:</div>
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-          <code id="viewDevWsUrl" style="color: #38bdf8; font-family: monospace; font-size: 12px; word-break: break-all;">wss://gehihi.onrender.com/xiaozhi/v1/</code>
+          <code id="viewDevWsUrl" style="color: #38bdf8; font-family: monospace; font-size: 12px; word-break: break-all;">wss://gehihi.onrender.com/gehihi/v1/</code>
           <button onclick="copyModalWssText(document.getElementById('viewDevWsUrl').innerText, 'Đã sao chép WebSocket URL!')" style="background: #2563eb; color: white; border: none; padding: 5px 12px; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; white-space: nowrap;">Copy URL</button>
         </div>
       </div>
@@ -2077,7 +2077,7 @@ body {
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; background: rgba(30,58,138,0.25); border: 1px solid rgba(59,130,246,0.25); border-radius: 10px; padding: 10px 14px; flex-wrap: wrap;">
             <div style="font-size: 12px; color: #93c5fd; display: flex; align-items: center; gap: 6px;">
                 <span>📡</span> <span>Địa chỉ WebSocket Render của Robot:</span>
-                <code style="color: #38bdf8; font-weight: 700; font-family: monospace;">wss://gehihi.onrender.com/xiaozhi/v1/</code>
+                <code style="color: #38bdf8; font-weight: 700; font-family: monospace;">wss://gehihi.onrender.com/gehihi/v1/</code>
             </div>
             <button onclick="copyModalWssUrl()" style="padding: 6px 12px; border-radius: 6px; background: #2563eb; color: white; font-size: 11.5px; font-weight: bold; border: none; cursor: pointer;">
                 📋 Sao chép URL
@@ -2160,7 +2160,7 @@ body {
         <div id="profileGuideContent" style="display: none; padding: 18px; font-size: 13px; line-height: 1.6; color: #cbd5e1; border-top: 1px solid rgba(255,255,255,0.06);">
             <ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px;">
                 <li><strong>Bước 1:</strong> Nhấn giữ nút BOOT khi cắm nguồn robot để robot phát ra WiFi cài đặt (ví dụ <code>Gehihi-XXXX</code>). Dùng điện thoại kết nối vào WiFi này rồi vào trình duyệt mở <code>192.168.4.1</code>.</li>
-                <li><strong>Bước 2:</strong> Tại ô WebSocket URL / Server Address, dán: <code style="color: #38bdf8; background: #1e293b; padding: 2px 6px; border-radius: 4px;">wss://gehihi.onrender.com/xiaozhi/v1/</code>. Nhập WiFi nhà bạn rồi bấm Lưu & Khởi động lại.</li>
+                <li><strong>Bước 2:</strong> Tại ô WebSocket URL / Server Address, dán: <code style="color: #38bdf8; background: #1e293b; padding: 2px 6px; border-radius: 4px;">wss://gehihi.onrender.com/gehihi/v1/</code>. Nhập WiFi nhà bạn rồi bấm Lưu & Khởi động lại.</li>
             </ol>
         </div>
     </div>
@@ -3247,13 +3247,13 @@ Ví dụ:
     </div>
 
     <div class="xiaozhi-config-tabs">
-        <button type="button" id="xiaozhiConfigTabGmbotBtn" class="xiaozhi-config-tab-btn active" onclick="switchXiaozhiConfigTab('gehihi')">⚙️ Cấu hình Gehihi</button>
-        <button type="button" id="xiaozhiConfigTabSpeakerBtn" class="xiaozhi-config-tab-btn" onclick="switchXiaozhiConfigTab('speaker')">👤 Nhận dạng người nói</button>
+        <button type="button" id="xiaozhiConfigTabGmbotBtn" class="xiaozhi-config-tab-btn active" onclick="switchGehihiConfigTab('gehihi')">⚙️ Cấu hình Gehihi</button>
+        <button type="button" id="xiaozhiConfigTabSpeakerBtn" class="xiaozhi-config-tab-btn" onclick="switchGehihiConfigTab('speaker')">👤 Nhận dạng người nói</button>
     </div>
 
     <div id="xiaozhiConfigTabGmbot" class="xiaozhi-config-tab-content active">
         <div style="margin-bottom:12px;">
-            <button class="secondary full-width" onclick="loadMyXiaozhiConfig(true)">🔄 Tải cấu hình hiện tại</button>
+            <button class="secondary full-width" onclick="loadMyGehihiConfig(true)">🔄 Tải cấu hình hiện tại</button>
         </div>
     <div class="form-group">
         <label>Tên của robot - mặc định là Sophia - có thể đổi thành tên bất kỳ</label>
@@ -3293,8 +3293,8 @@ Ví dụ:
 
     <div class="form-group">
         <label>Chọn ngôn ngữ nói của Gehihi</label>
-        <select id="xiaozhiLanguage" onchange="onMyXiaozhiLanguageChange()">
-            <option value="vi" selected>Tiếng Việt (Phong cách Xiaozhi)</option>
+        <select id="xiaozhiLanguage" onchange="onMyGehihiLanguageChange()">
+            <option value="vi" selected>Tiếng Việt (Phong cách Gehihi)</option>
             <option value="en">English (US)</option>
             <option value="zh">Tiếng Trung (中文)</option>
             <option value="ja">Tiếng Nhật (日本語)</option>
@@ -3312,7 +3312,7 @@ Ví dụ:
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
             <select id="xiaozhiTtsVoice" style="flex: 1;" onchange="stopPreviewIfPlaying()">
-                <optgroup label="🇻🇳 Tiếng Việt (Phong cách Xiaozhi)">
+                <optgroup label="🇻🇳 Tiếng Việt (Phong cách Gehihi)">
                     <option value="vi-female" selected>👩 Giọng nữ (Female Voice)</option>
                     <option value="vi-male">👨 giọng nam (Male Voice)</option>
                     <option value="vi-young-girl">👧 cô gái trẻ (Young Girl)</option>
@@ -3382,13 +3382,13 @@ Ví dụ:
 
     <div class="form-group">
         <label> Mô tả Vai trò - tính cách của Gehihi AI - LƯU Ý: Nếu đổi ngôn ngữ của AI thì phần mô tả phải viết bằng đúng ngôn ngữ đã chọn . Bắt buộc giữ lại dòng: [VAI TRÒ VÀ TÍNH CÁCH]</label>
-        <textarea id="xiaozhiCharacter" style="min-height:220px;" placeholder="Nhập mô tả vai trò và tính cách..." oninput="handleXiaozhiCharacterInput(); updateXiaozhiCharacterCounter()"></textarea>
+        <textarea id="xiaozhiCharacter" style="min-height:220px;" placeholder="Nhập mô tả vai trò và tính cách..." oninput="handleGehihiCharacterInput(); updateGehihiCharacterCounter()"></textarea>
 
 <div id="xiaozhiCharacterCounter" class="helper-note"></div>
     </div>
 
         <div class="action-row" style="margin-top:12px;">
-            <button class="primary" onclick="saveMyXiaozhiConfig()">💾 Lưu cấu hình</button>
+            <button class="primary" onclick="saveMyGehihiConfig()">💾 Lưu cấu hình</button>
             <button class="secondary" onclick="resetDefaultAiPrompt('xiaozhiConfig')">↩️ Quay trở lại cấu hình AI mặc định</button>
         </div>
         <div id="xiaozhiConfigMessage" style="margin-top:12px;"></div>
@@ -3402,8 +3402,8 @@ Ví dụ:
                     <div class="helper-note">Sau khi thêm người nói ở phần này, robot sẽ phân biệt được ai đang trò chuyện với mình để xưng hô và giao tiếp chính xác. Bấm "Làm mới" để tải cuộc trò chuyện mới nhất, sau đó bấm "Thêm người nói". Có thể thêm tối đa 5 người.</div>
                 </div>
                 <div class="xiaozhi-speaker-header-actions">
-                    <button class="secondary" type="button" onclick="loadMyXiaozhiSpeakers(true)">Làm mới</button>
-                    <button class="primary" type="button" id="xiaozhiAddSpeakerButton" onclick="openMyXiaozhiSpeakerEditor()">+ Thêm người nói</button>
+                    <button class="secondary" type="button" onclick="loadMyGehihiSpeakers(true)">Làm mới</button>
+                    <button class="primary" type="button" id="xiaozhiAddSpeakerButton" onclick="openMyGehihiSpeakerEditor()">+ Thêm người nói</button>
                 </div>
             </div>
 
@@ -3424,9 +3424,9 @@ Ví dụ:
                 <div class="helper-note">Bấm chọn một đoạn hội thoại. Nếu chưa có hội thoại, hãy nói chuyện với robot, sau đó nói "Tạm biệt" để robot tự kết thúc trò chuyện thì giọng nói của bạn mới được lưu vào server giọng nói. Sau đó bấm "Làm mới" để tải lại giọng nói. Bấm "Nghe mẫu" để nghe lại giọng nói. Chọn mẫu giọng nói là một câu hoàn chỉnh dài, nói rõ ràng, thì robot sẽ nhận dạng người nói chính xác hơn.</div>
             </div>
             <div class="action-row">
-                <button class="primary" type="button" onclick="saveMyXiaozhiSpeaker()">Lưu người nói</button>
-                <button class="secondary" type="button" onclick="closeMyXiaozhiSpeakerEditor()">Hủy</button>
-                <button class="secondary" type="button" onclick="previewSelectedMyXiaozhiEmbedding()">Nghe mẫu</button>
+                <button class="primary" type="button" onclick="saveMyGehihiSpeaker()">Lưu người nói</button>
+                <button class="secondary" type="button" onclick="closeMyGehihiSpeakerEditor()">Hủy</button>
+                <button class="secondary" type="button" onclick="previewSelectedMyGehihiEmbedding()">Nghe mẫu</button>
             </div>
         </div>
 
@@ -3489,7 +3489,7 @@ Ví dụ:
       if (sectionId === 'youtubeMusic') {
         checkMusicStatus();
       } else if (sectionId === 'xiaozhiConfig') {
-        loadMyXiaozhiConfig();
+        loadMyGehihiConfig();
       }
 
       const targets = targetMap[sectionId] || [sectionId];
@@ -4049,7 +4049,7 @@ Ví dụ:
           showToast(`✓ Đăng nhập thành công vào: ${data.device ? data.device.name : 'Robot'}!`);
 
           await loadDevices();
-          loadMyXiaozhiConfig();
+          loadMyGehihiConfig();
         } else {
           if (alertBox) {
             alertBox.style.display = "block";
@@ -4271,7 +4271,7 @@ Ví dụ:
           showToast(`✓ Đã kích hoạt và đăng nhập vào: ${data.device.name}!`);
 
           await loadDevices();
-          loadMyXiaozhiConfig();
+          loadMyGehihiConfig();
         } else {
           if (alertBox) {
             alertBox.style.display = "block";
@@ -5051,7 +5051,7 @@ Ví dụ:
       }
       updateSidebarRobotInfo(currentDevices);
       switchSection('xiaozhiConfig');
-      loadMyXiaozhiConfig(true);
+      loadMyGehihiConfig(true);
     }
 
     function selectAndChatDevice(id) {
@@ -5241,7 +5241,7 @@ Ví dụ:
     }
 
     // 4. QUẢN LÝ CẤU HÌNH ROBOT (PROMPT, MODEL, VOICE, SPEED)
-    async function loadMyXiaozhiConfig(notify = false) {
+    async function loadMyGehihiConfig(notify = false) {
       try {
         let devId = activeDeviceId || localStorage.getItem("gehihi_active_robot_id") || "DEV_001";
         let res = await fetch(`/api/devices/${devId}`);
@@ -5323,7 +5323,7 @@ Ví dụ:
           pitchSelect.value = (dev.voice_pitch !== undefined && dev.voice_pitch !== null) ? String(dev.voice_pitch) : "0";
         }
 
-        updateXiaozhiCharacterCounter();
+        updateGehihiCharacterCounter();
         if (notify) showToast("✓ Đã tải cấu hình hiện tại của Robot!");
       } catch (e) {
         console.error("Lỗi tải cấu hình:", e);
@@ -5348,7 +5348,7 @@ Ví dụ:
       }
     }
 
-    async function saveMyXiaozhiConfig() {
+    async function saveMyGehihiConfig() {
       const name = document.getElementById("xiaozhiAssistantName")?.value || "Ông Robot";
       const prompt = document.getElementById("xiaozhiCharacter")?.value || "";
       const model = document.getElementById("xiaozhiLlmModel")?.value || "gemini-3.8-flash";
@@ -5395,7 +5395,7 @@ Ví dụ:
       }
     }
 
-    function updateXiaozhiCharacterCounter() {
+    function updateGehihiCharacterCounter() {
       const textarea = document.getElementById("xiaozhiCharacter");
       const counter = document.getElementById("xiaozhiCharacterCounter");
       if (textarea && counter) {
@@ -5403,11 +5403,11 @@ Ví dụ:
       }
     }
 
-    function handleXiaozhiCharacterInput() {
-      updateXiaozhiCharacterCounter();
+    function handleGehihiCharacterInput() {
+      updateGehihiCharacterCounter();
     }
 
-    function switchXiaozhiConfigTab(tab) {
+    function switchGehihiConfigTab(tab) {
       const btnGmbot = document.getElementById("xiaozhiConfigTabGmbotBtn");
       const btnSpeaker = document.getElementById("xiaozhiConfigTabSpeakerBtn");
       const contentGmbot = document.getElementById("xiaozhiConfigTabGmbot");
@@ -5423,12 +5423,12 @@ Ví dụ:
         if (btnGmbot) btnGmbot.classList.remove("active");
         if (contentSpeaker) contentSpeaker.classList.add("active");
         if (contentGmbot) contentGmbot.classList.remove("active");
-        loadMyXiaozhiSpeakers();
+        loadMyGehihiSpeakers();
       }
     }
 
     // 5. QUẢN LÝ NGƯỜI NÓI (SPEAKERS)
-    async function loadMyXiaozhiSpeakers() {
+    async function loadMyGehihiSpeakers() {
       const listEl = document.getElementById("xiaozhiSpeakerList");
       if (!listEl) return;
       listEl.innerHTML = "Đang tải danh sách người nói...";
@@ -5446,7 +5446,7 @@ Ví dụ:
                 <strong style="color:#f8fafc;font-size:14px;">${s.name}</strong>
                 <div style="font-size:12px;color:#94a3b8;margin-top:2px;">${s.description || 'Chưa có mô tả'}</div>
               </div>
-              <button onclick="deleteMyXiaozhiSpeaker('${s.id}')" style="padding:6px 10px;border-radius:6px;background:#450a0a;border:1px solid #991b1b;color:#fca5a5;font-size:12px;cursor:pointer;">
+              <button onclick="deleteMyGehihiSpeaker('${s.id}')" style="padding:6px 10px;border-radius:6px;background:#450a0a;border:1px solid #991b1b;color:#fca5a5;font-size:12px;cursor:pointer;">
                 Xóa
               </button>
             </div>
@@ -5457,14 +5457,14 @@ Ví dụ:
       }
     }
 
-    function openMyXiaozhiSpeakerEditor() {
+    function openMyGehihiSpeakerEditor() {
       const name = prompt("Nhập tên người nói mới (Ví dụ: Bố, Mẹ, Bé Bon):");
       if (!name || !name.trim()) return;
       const desc = prompt("Mô tả / vai trò của người nói:", `Đây là ${name.trim()}`);
-      saveMyXiaozhiSpeaker(name.trim(), desc || "");
+      saveMyGehihiSpeaker(name.trim(), desc || "");
     }
 
-    async function saveMyXiaozhiSpeaker(name, desc) {
+    async function saveMyGehihiSpeaker(name, desc) {
       try {
         const res = await fetch("/api/speakers", {
           method: "POST",
@@ -5473,20 +5473,20 @@ Ví dụ:
         });
         if (res.ok) {
           showToast(`✓ Đã thêm người nói: ${name}`);
-          loadMyXiaozhiSpeakers();
+          loadMyGehihiSpeakers();
         }
       } catch (e) {
         showToast("Lỗi thêm người nói", false);
       }
     }
 
-    async function deleteMyXiaozhiSpeaker(id) {
+    async function deleteMyGehihiSpeaker(id) {
       if (!confirm("Bạn có chắc chắn muốn xóa người nói này?")) return;
       try {
         const res = await fetch(`/api/speakers/${id}`, { method: "DELETE" });
         if (res.ok) {
           showToast("Đã xóa người nói");
-          loadMyXiaozhiSpeakers();
+          loadMyGehihiSpeakers();
         }
       } catch (e) {
         showToast("Lỗi xóa", false);
@@ -5513,7 +5513,7 @@ Ví dụ:
 
     function copyWsServerUrl() {
       const input = document.getElementById("wsServerUrlDisplay");
-      const url = input ? input.value : "wss://gehihi.onrender.com/xiaozhi/v1/";
+      const url = input ? input.value : "wss://gehihi.onrender.com/gehihi/v1/";
       navigator.clipboard.writeText(url).then(() => {
         const copyText = document.getElementById("copyText");
         const copyIcon = document.getElementById("copyIcon");
@@ -5686,7 +5686,7 @@ Ví dụ:
       }
       switchSection('overview', document.getElementById('btnNavOverview'));
       loadDevices();
-      loadMyXiaozhiConfig();
+      loadMyGehihiConfig();
       // Tự động làm mới trạng thái online mỗi 6 giây
       setInterval(loadDevices, 3000);
     });
@@ -6200,39 +6200,39 @@ Ví dụ:
         });
         if (res.ok) {
           showToast("✓ Đã khôi phục cấu hình AI mặc định!");
-          loadMyXiaozhiConfig(true);
+          loadMyGehihiConfig(true);
         }
       } catch (e) {
         showToast("Lỗi khôi phục", false);
       }
     }
 
-    function closeMyXiaozhiSpeakerEditor() {
+    function closeMyGehihiSpeakerEditor() {
       const editor = document.getElementById("xiaozhiSpeakerEditor");
       if (editor) editor.style.display = "none";
     }
 
-    function previewSelectedMyXiaozhiEmbedding() {
+    function previewSelectedMyGehihiEmbedding() {
       showToast("Đang phát mẫu giọng nói nhận dạng...");
     }
 
     const GEHIHI_ALL_VOICES = [
-      { id: "vi-female", name: "👩 Giọng nữ (Female Voice)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-male", name: "👨 giọng nam (Male Voice)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-young-girl", name: "👧 cô gái trẻ (Young Girl)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-male-host", name: "🎙️ chủ nhà nam (Male Host)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-young-man", name: "👦 chàng trai trẻ (Young Man)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-hoaimy", name: "🧪 Thử nghiệm · Hoài My", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-namminh", name: "🧪 Thử nghiệm · Nam Minh", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-little-girl", name: "🎀 cô bé / bé gái (Little Girl)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-little-boy", name: "⚽ cậu bé / bé trai (Little Boy)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-female-host", name: "📻 Nữ phát thanh viên / MC", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-storyteller", name: "📖 Kể chuyện dịu dàng (Storyteller)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-robot", name: "🤖 Robot công nghệ (Tech Robot)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-maingoc", name: "🌸 Giọng nữ miền Nam (Mai Ngọc)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-VN-MaiNgocNeural", name: "🌸 Giọng nữ miền Nam (Mai Ngọc - Legacy)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-VN-HoaiMyNeural", name: "🎙️ Hoài My (Nữ chuẩn EdgeTTS)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
-      { id: "vi-VN-NamMinhNeural", name: "🎙️ Nam Minh (Nam chuẩn EdgeTTS)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-female", name: "👩 Giọng nữ (Female Voice)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-male", name: "👨 giọng nam (Male Voice)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-young-girl", name: "👧 cô gái trẻ (Young Girl)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-male-host", name: "🎙️ chủ nhà nam (Male Host)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-young-man", name: "👦 chàng trai trẻ (Young Man)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-hoaimy", name: "🧪 Thử nghiệm · Hoài My", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-namminh", name: "🧪 Thử nghiệm · Nam Minh", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-little-girl", name: "🎀 cô bé / bé gái (Little Girl)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-little-boy", name: "⚽ cậu bé / bé trai (Little Boy)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-female-host", name: "📻 Nữ phát thanh viên / MC", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-storyteller", name: "📖 Kể chuyện dịu dàng (Storyteller)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-robot", name: "🤖 Robot công nghệ (Tech Robot)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-maingoc", name: "🌸 Giọng nữ miền Nam (Mai Ngọc)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-VN-MaiNgocNeural", name: "🌸 Giọng nữ miền Nam (Mai Ngọc - Legacy)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-VN-HoaiMyNeural", name: "🎙️ Hoài My (Nữ chuẩn EdgeTTS)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
+      { id: "vi-VN-NamMinhNeural", name: "🎙️ Nam Minh (Nam chuẩn EdgeTTS)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Gehihi)" },
 
       { id: "en-jenny", name: "👩 Jenny (Nữ tự nhiên)", lang: "en", group: "🇺🇸 English (US)" },
       { id: "en-guy", name: "👨 Guy (Nam trầm ấm)", lang: "en", group: "🇺🇸 English (US)" },
@@ -6333,7 +6333,7 @@ Ví dụ:
       };
     }
 
-    function onMyXiaozhiLanguageChange() {
+    function onMyGehihiLanguageChange() {
       const lang = document.getElementById("xiaozhiLanguage")?.value || "vi";
       const curVoice = document.getElementById("xiaozhiTtsVoice")?.value || "vi-female";
       stopPreviewIfPlaying();
@@ -7273,7 +7273,7 @@ Ví dụ:
     // ==========================================
     async function syncTopAiProvider() {
       try {
-        const res = await fetch("/xiaozhi/ai/provider");
+        const res = await fetch("/gehihi/ai/provider");
         if (res.ok) {
           const data = await res.json();
           const active = data.data ? data.data.active : (data.active || "groq");
@@ -7292,7 +7292,7 @@ Ví dụ:
     async function changeTopAiProvider(provider) {
       try {
         showToast("Đang chuyển đổi AI sang " + provider.toUpperCase() + "...", true);
-        const res = await fetch("/xiaozhi/ai/provider", {
+        const res = await fetch("/gehihi/ai/provider", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ provider: provider })
@@ -7311,7 +7311,7 @@ Ví dụ:
     function updateDynamicWssUrls() {
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
-      const fullWsUrl = `${proto}//${host}/xiaozhi/v1/`;
+      const fullWsUrl = `${proto}//${host}/gehihi/v1/`;
       document.querySelectorAll('#authWssUrlInput, #wsServerUrlDisplay, #viewDevWsUrl').forEach(el => {
         if (el.tagName === 'INPUT') el.value = fullWsUrl;
         else el.innerText = fullWsUrl;

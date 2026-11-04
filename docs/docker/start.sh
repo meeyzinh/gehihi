@@ -7,8 +7,8 @@ PORT="${PORT:-8002}"
 echo "======================================================="
 echo "  [Gehihi Server] Khởi động trên cổng: $PORT"
 echo "  Domain công khai: ${RENDER_EXTERNAL_URL:-https://gehihi.onrender.com}"
-echo "  OTA Endpoint:     ${RENDER_EXTERNAL_URL:-https://gehihi.onrender.com}/xiaozhi/ota/"
-echo "  WebSocket URL:    wss://gehihi.onrender.com/xiaozhi/v1/"
+echo "  OTA Endpoint:     ${RENDER_EXTERNAL_URL:-https://gehihi.onrender.com}/gehihi/ota/"
+echo "  WebSocket URL:    wss://gehihi.onrender.com/gehihi/v1/"
 echo "======================================================="
 
 # Tự động thay thế listen port trong Nginx config bằng $PORT

@@ -70,7 +70,7 @@ logger = logging.getLogger("gehihi")
 
 PUBLIC_HOST = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "gehihi.onrender.com")
 PUBLIC_URL = os.environ.get("RENDER_EXTERNAL_URL", f"https://{PUBLIC_HOST}")
-WS_URL = os.environ.get("WEBSOCKET_URL", f"wss://{PUBLIC_HOST}/xiaozhi/v1/")
+WS_URL = os.environ.get("WEBSOCKET_URL", f"wss://{PUBLIC_HOST}/gehihi/v1/")
 
 HTTP_PORT = int(os.environ.get("GEHIHI_HTTP_PORT", 8003))
 WS_PORT = int(os.environ.get("GEHIHI_WS_PORT", 8000))
@@ -504,7 +504,7 @@ DB_PROVIDE_TYPES = {
 }
 
 VOICE_PROFILES = {
-    # --- Tiếng Việt phong cách Xiaozhi ---
+    # --- Tiếng Việt phong cách Gehihi ---
     "vi-female": {
         "id": "vi-female",
         "name": "Giọng nữ (Female Voice)",
@@ -745,7 +745,7 @@ VOICE_PROFILES["ko-KR-SunHiNeural"] = VOICE_PROFILES["ko-sunhi"]
 VOICE_PROFILES["ko-KR-InJoonNeural"] = VOICE_PROFILES["ko-injoon"]
 
 def resolve_voice_profile(voice_key: str):
-    """Phân giải giọng nói theo style và cấu hình âm thanh tương ứng (hỗ trợ EdgeTTS chuẩn và các phong cách Xiaozhi)"""
+    """Phân giải giọng nói theo style và cấu hình âm thanh tương ứng (hỗ trợ EdgeTTS chuẩn và các phong cách Gehihi)"""
     if not voice_key:
         return VOICE_PROFILES["vi-female"]
     if voice_key in VOICE_PROFILES:
@@ -1047,7 +1047,7 @@ async def handle_health(request):
         "service": "gehihi-server",
         "language": "vi",
         "version": "2.5.0",
-        "ota_endpoint": f"{PUBLIC_URL}/xiaozhi/ota/",
+        "ota_endpoint": f"{PUBLIC_URL}/gehihi/ota/",
         "websocket_endpoint": WS_URL,
         "online_devices": online_count,
         "uptime": int(time.time() - SERVER_START_TIME),
@@ -2058,7 +2058,7 @@ def extract_llm_reply(parsed: dict, default_reply: str = "Dạ, tôi đã hiểu
     return (str(reply).strip(), str(emotion).strip())
 
 AI_SYSTEM_PROMPT = (
-    "Bạn là Tiểu Chí (Xiaozhi), một trợ lý robot AI thông minh, vui vẻ, hoạt bát và gần gũi. "
+    "Bạn là Gehihi, một trợ lý robot AI thông minh, vui vẻ, hoạt bát và gần gũi. "
     "Bạn luôn trả lời ngắn gọn, tự nhiên, sinh động bằng tiếng Việt như đang trò chuyện trực tiếp ngoài đời thực. "
     "Tuyệt đối không dùng ký tự Markdown (như *, #, `, -), không liệt kê danh sách dài dòng, "
     "mỗi câu trả lời chỉ nên từ 1 đến 2 câu ngắn gọn để robot phát âm mượt mà nhất."
@@ -4188,7 +4188,7 @@ async def handle_api_my_xiaozhi_config(request):
 
         return cors_response({
             "code": 0,
-            "msg": "Đã lưu cấu hình Xiaozhi thành công!",
+            "msg": "Đã lưu cấu hình Gehihi thành công!",
             "agent": {
                 "assistant_name": name or agent.get("agentName", "Sophia"),
                 "llm_model": ACTIVE_AI_PROVIDER,
@@ -4220,7 +4220,7 @@ async def handle_api_my_xiaozhi_config(request):
     })
 
 async def handle_api_my_xiaozhi_speakers(request):
-    """Danh sách nhận diện người nói Xiaozhi"""
+    """Danh sách nhận diện người nói Gehihi"""
     if request.method == "POST":
         return cors_response({"code": 0, "msg": "Thêm người nói thành công", "data": {"id": 1, "name": "Admin"}})
     elif request.method in ("PUT", "DELETE"):
@@ -5893,6 +5893,22 @@ async def run_http_server():
     app.router.add_get("/xiaozhi/mcp/bridge/status", handle_xiaozhi_mcp_status)
     app.router.add_post("/xiaozhi/mcp/bridge/config", handle_xiaozhi_mcp_config)
     app.router.add_route("*", "/xiaozhi/{tail:.*}", handle_generic_fallback)
+    # Gehihi Primary Endpoints (Mirroring all services under /gehihi/)
+    app.router.add_get("/gehihi/v1/", handle_aiohttp_robot_ws)
+    app.router.add_get("/gehihi/ota/", handle_ota)
+    app.router.add_post("/gehihi/ota/", handle_ota)
+    app.router.add_post("/gehihi/ota/activate", handle_ota_activate)
+    app.router.add_get("/gehihi/device/list", handle_device_list)
+    app.router.add_get("/gehihi/device/page", handle_device_page)
+    app.router.add_get("/gehihi/models/list", handle_model_list)
+    app.router.add_get("/gehihi/models/names", handle_model_names)
+    app.router.add_get("/gehihi/ttsVoice", handle_tts_voice_list)
+    app.router.add_get("/gehihi/ai/provider", handle_ai_provider_get)
+    app.router.add_post("/gehihi/ai/provider", handle_ai_provider_set)
+    app.router.add_post("/gehihi/ai/test", handle_ai_provider_test)
+    app.router.add_options("/gehihi/ai/provider", handle_cors_options)
+    app.router.add_options("/gehihi/ai/test", handle_cors_options)
+    app.router.add_route("*", "/gehihi/{tail:.*}", handle_generic_fallback)
     app.router.add_options("/{tail:.*}", handle_cors_options)
 
     runner = web.AppRunner(app)
@@ -5929,7 +5945,7 @@ async def main():
     logger.info("==================================================")
     logger.info("   Starting Gehihi Full Dynamic Server for Render ")
     logger.info(f"   Public Base URL: {PUBLIC_URL}                 ")
-    logger.info(f"   OTA URL:         {PUBLIC_URL}/xiaozhi/ota/    ")
+    logger.info(f"   OTA URL:         {PUBLIC_URL}/gehihi/ota/    ")
     logger.info(f"   WebSocket URL:   {WS_URL}                     ")
     logger.info("==================================================")
     await asyncio.gather(
