@@ -41,10 +41,25 @@ except ImportError:
 import aiohttp
 from aiohttp import web
 import websockets
+import httpx
+try:
+    import av
+    import av.audio.resampler
+except ImportError:
+    av = None
 try:
     import edge_tts
 except ImportError:
     edge_tts = None
+
+# Global shared HTTPX client (Keep-Alive connection pool, zero session recreation overhead)
+HTTPX_CLIENT = httpx.AsyncClient(
+    timeout=12.0,
+    limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+    follow_redirects=True
+)
+
+SERVER_START_TIME = time.time()
 
 # Setup Logging
 logging.basicConfig(
@@ -1026,13 +1041,14 @@ async def handle_cors_options(request):
 async def handle_health(request):
     online_count = sum(1 for d in DB_DEVICES.values() if d.get("online"))
     return cors_response({
-        "status": "online",
-        "service": "Gehihi Robot Server",
+        "status": "ok",
+        "service": "gehihi-server",
         "language": "vi",
         "version": "2.5.0",
         "ota_endpoint": f"{PUBLIC_URL}/xiaozhi/ota/",
         "websocket_endpoint": WS_URL,
         "online_devices": online_count,
+        "uptime": int(time.time() - SERVER_START_TIME),
         "timestamp": int(time.time())
     })
 
@@ -1584,7 +1600,7 @@ async def handle_model_names(request):
 
 
 async def handle_api_voice_demo(request):
-    """Phát mẫu âm thanh thử giọng đọc (cho nút Play trong web admin và roleConfig)"""
+    """Phát mẫu âm thanh thử giọng đọc (trực tiếp tạo MP3 in-memory không cần ffmpeg subprocess)"""
     voice_id = request.match_info.get("voice_id", "vi-female")
     if voice_id in VOICE_DEMO_CACHE:
         return web.Response(body=VOICE_DEMO_CACHE[voice_id], content_type="audio/mpeg", headers={
@@ -1593,52 +1609,25 @@ async def handle_api_voice_demo(request):
         })
     prof = resolve_voice_profile(voice_id)
     sample_text = prof.get("sample", "Xin chào bạn, tôi là trợ lý ảo robot Gehihi.")
-    base_voice = prof["base"]
-    af_filter = prof.get("af", "")
-    
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg and imageio_ffmpeg:
-        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-    if not ffmpeg or not edge_tts:
-        return web.Response(status=500, text="ffmpeg or edge-tts missing")
-        
-    cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "mp3", "-i", "pipe:0"]
-    if af_filter:
-        cmd.extend(["-af", af_filter])
-    cmd.extend(["-f", "mp3", "-b:a", "64k", "pipe:1"])
-    
-    for attempt in range(2):
-        try:
-            comm = edge_tts.Communicate(sample_text, voice=base_voice)
-            mp3_buffer = bytearray()
-            async for chunk in comm.stream():
-                if chunk.get("type") == "audio" and chunk.get("data"):
-                    mp3_buffer.extend(chunk["data"])
-            if not mp3_buffer:
-                if attempt == 0:
-                    await asyncio.sleep(0.8)
-                    continue
-                return web.Response(status=500, text="No audio data")
-                
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL
-            )
-            out, _ = await proc.communicate(input=bytes(mp3_buffer))
-            if out:
-                VOICE_DEMO_CACHE[voice_id] = out
-                return web.Response(body=out, content_type="audio/mpeg", headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Cache-Control": "public, max-age=86400"
-                })
-        except Exception as e:
-            logger.warning(f"Voice demo attempt {attempt+1} error for {voice_id}: {e}")
-            if attempt == 0:
-                await asyncio.sleep(0.8)
-            else:
-                return web.Response(status=500, text=str(e))
+    base_voice = prof.get("base") or DEFAULT_TTS_VOICE
+    if not edge_tts:
+        return web.Response(status=500, text="edge-tts missing")
+
+    try:
+        comm = edge_tts.Communicate(sample_text, voice=base_voice, rate=DEFAULT_TTS_RATE, pitch=DEFAULT_TTS_PITCH)
+        mp3_buffer = bytearray()
+        async for chunk in comm.stream():
+            if chunk.get("type") == "audio" and chunk.get("data"):
+                mp3_buffer.extend(chunk["data"])
+        if mp3_buffer:
+            VOICE_DEMO_CACHE[voice_id] = bytes(mp3_buffer)
+            return web.Response(body=bytes(mp3_buffer), content_type="audio/mpeg", headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=86400"
+            })
+    except Exception as e:
+        logger.warning(f"Voice demo error for {voice_id}: {e}")
+        return web.Response(status=500, text=str(e))
     return web.Response(status=500, text="Failed to generate sample")
 
 
@@ -1812,181 +1801,151 @@ def decode_opus_frames_to_wav(opus_packets: list) -> tuple:
         wf.writeframes(raw_pcm)
     return (wav_io.getvalue(), peak, rms)
 
-async def stream_tts_opus(text: str, voice: str = None):
-    """Stream Edge TTS through ffmpeg and yield Opus frames as soon as they are ready."""
-    started_at = time.perf_counter()
-    frame_count = 0
-    LIVE_DIAGNOSTICS["last_tts_latency"] = 0.0
-    LIVE_DIAGNOSTICS["last_tts_total_latency"] = 0.0
-    LIVE_DIAGNOSTICS["last_tts_error"] = ""
-    LIVE_DIAGNOSTICS["last_tts_frame_count"] = 0
-    clean_text = re.sub(r"[*_#`]", "", (text or "").strip())
+# ==================== ZERO-SUBPROCESS PYAV EDGETTS MODULE ====================
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F680-\U0001F6FF"  # transport & map
+    "\U0001F1E0-\U0001F1FF"  # flags
+    "\U00002702-\U000027B0"
+    "\U000024C2-\U0001F251"
+    "]+", flags=re.UNICODE
+)
+
+def clean_speech_text(text: str) -> str:
+    """Lọc bỏ ký tự Markdown (*, #, `, -, ~, _, >) và emoji để TTS đọc tự nhiên"""
+    if not text:
+        return ""
+    t = re.sub(r"[*#`\-~_>]+", " ", str(text))
+    t = EMOJI_PATTERN.sub("", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+DEFAULT_TTS_VOICE = os.environ.get("DEFAULT_TTS_VOICE", "vi-VN-HoaiMyNeural")
+DEFAULT_TTS_RATE = os.environ.get("DEFAULT_TTS_RATE", "+12%")
+DEFAULT_TTS_PITCH = os.environ.get("DEFAULT_TTS_PITCH", "+18Hz")
+DEFAULT_TTS_VOLUME = os.environ.get("DEFAULT_TTS_VOLUME", "+0%")
+
+async def generate_opus_frames_pyav(text: str, voice: str = None, sample_rate: int = 24000):
+    """
+    Module EdgeTTS Stream 100% trên RAM bằng PyAV (Zero-Subprocess, Zero-Numpy).
+    Giải mã MP3 trực tiếp sang PCM 16-bit mono -> nén thành các frame Opus 60ms (VOIP).
+    """
+    clean_text = clean_speech_text(text)
     if not clean_text or not edge_tts:
-        error = "Văn bản rỗng" if not clean_text else "edge-tts chưa được cài đặt"
-        LIVE_DIAGNOSTICS["last_tts_error"] = error
-        LIVE_DIAGNOSTICS["tts_failure_count"] += 1
         return
+
     if ACTIVE_ENGLISH_TUTOR.get("active"):
-        has_vi = any(c in clean_text for c in "áàảãạăắằẵặâấầẩẫậéèẻẽẹêếềểễệíìỉịóòỏọôốồổộơớờởỡợúùủụưứừữựýỳỷỹỵđĐ")
+        has_vi = any(c in clean_text for c in "áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđĐ")
         if not has_vi:
             voice = "en-US-JennyNeural"
 
     prof = resolve_voice_profile(voice)
-    base_voice = prof["base"]
-    af_filter = prof.get("af", "")
+    base_voice = prof.get("base") or DEFAULT_TTS_VOICE
+    rate = DEFAULT_TTS_RATE
+    pitch = DEFAULT_TTS_PITCH
+    volume = DEFAULT_TTS_VOLUME
 
-    proc = None
-    producer = None
+    started_at = time.perf_counter()
+    mp3_buffer = bytearray()
+    for attempt in range(2):
+        try:
+            curr_pitch = pitch if attempt == 0 else "+0Hz"
+            curr_rate = rate if attempt == 0 else "+0%"
+            comm = edge_tts.Communicate(clean_text, voice=base_voice, rate=curr_rate, pitch=curr_pitch, volume=volume)
+            mp3_buffer.clear()
+            async for chunk in comm.stream():
+                if chunk.get("type") == "audio" and chunk.get("data"):
+                    mp3_buffer.extend(chunk["data"])
+            if mp3_buffer:
+                break
+        except Exception as ex:
+            if attempt == 1:
+                logger.warning(f"EdgeTTS communicate failed: {ex}")
+                LIVE_DIAGNOSTICS["last_tts_error"] = str(ex)[:200]
+                LIVE_DIAGNOSTICS["tts_failure_count"] += 1
+                return
+            await asyncio.sleep(0.1)
+
+    if not mp3_buffer:
+        return
+
+    import opuslib_next
+    samples_per_frame = int(sample_rate * 0.060)  # 1440 tại 24kHz (60ms), 960 tại 16kHz
+    frame_bytes = samples_per_frame * 2           # 2880 bytes tại 24kHz, 1920 tại 16kHz
+    encoder = opuslib_next.Encoder(sample_rate, 1, opuslib_next.APPLICATION_VOIP)
+
+    frame_count = 0
+    pcm_buffer = bytearray()
     try:
-        ffmpeg = shutil.which("ffmpeg")
-        if not ffmpeg and imageio_ffmpeg:
-            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-        if not ffmpeg:
-            raise RuntimeError("Không tìm thấy ffmpeg để giải mã giọng nói")
-        
-        ffmpeg_cmd = [
-            ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "mp3", "-i", "pipe:0"
-        ]
-        if af_filter:
-            ffmpeg_cmd.extend(["-af", af_filter])
-        ffmpeg_cmd.extend(["-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "24000", "pipe:1"])
+        if av:
+            container = av.open(io.BytesIO(bytes(mp3_buffer)), format="mp3")
+            resampler = av.audio.resampler.AudioResampler(format="s16", layout="mono", rate=sample_rate)
+            for frame in container.decode(audio=0):
+                resampled_frames = resampler.resample(frame)
+                for rf in resampled_frames:
+                    pcm_buffer.extend(bytes(rf.planes[0]))
+                    while len(pcm_buffer) >= frame_bytes:
+                        chunk = bytes(pcm_buffer[:frame_bytes])
+                        del pcm_buffer[:frame_bytes]
+                        opus_pkt = encoder.encode(chunk, samples_per_frame)
+                        frame_count += 1
+                        if frame_count == 1:
+                            LIVE_DIAGNOSTICS["last_tts_latency"] = round(time.perf_counter() - started_at, 3)
+                        yield opus_pkt
 
-        proc = await asyncio.create_subprocess_exec(
-            *ffmpeg_cmd,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        communicate = edge_tts.Communicate(clean_text, voice=base_voice)
-
-        async def feed_mp3():
-            try:
-                async for item in communicate.stream():
-                    if item.get("type") == "audio" and item.get("data"):
-                        proc.stdin.write(item["data"])
-                        await proc.stdin.drain()
-            finally:
-                if proc.stdin and not proc.stdin.is_closing():
-                    proc.stdin.close()
-                    await proc.stdin.wait_closed()
-
-        import opuslib_next
-        encoder = opuslib_next.Encoder(24000, 1, opuslib_next.APPLICATION_AUDIO)
-        producer = asyncio.create_task(feed_mp3())
-        pending_pcm = bytearray()
-        frame_samples = 1440  # 60ms tại 24kHz (phù hợp 100% với phần cứng I2S 24kHz của robot)
-        frame_bytes = frame_samples * 2  # 2880 bytes
-        async with asyncio.timeout(15):
-            while True:
-                data = await proc.stdout.read(8192)
-                if not data:
-                    break
-                pending_pcm.extend(data)
-                while len(pending_pcm) >= frame_bytes:
-                    frame = encoder.encode(bytes(pending_pcm[:frame_bytes]), frame_samples)
-                    del pending_pcm[:frame_bytes]
+            resampled_frames = resampler.resample(None)
+            for rf in resampled_frames:
+                pcm_buffer.extend(bytes(rf.planes[0]))
+                while len(pcm_buffer) >= frame_bytes:
+                    chunk = bytes(pcm_buffer[:frame_bytes])
+                    del pcm_buffer[:frame_bytes]
+                    opus_pkt = encoder.encode(chunk, samples_per_frame)
                     frame_count += 1
-                    LIVE_DIAGNOSTICS["last_tts_frame_count"] = frame_count
-                    if frame_count == 1:
-                        LIVE_DIAGNOSTICS["last_tts_latency"] = round(time.perf_counter() - started_at, 3)
-                    yield frame
-            await producer
-            await proc.wait()
-        if proc.returncode != 0:
-            raise RuntimeError(f"ffmpeg kết thúc với mã {proc.returncode}")
-        if pending_pcm:
-            pending_pcm.extend(b"\x00" * (frame_bytes - len(pending_pcm)))
-            frame = encoder.encode(bytes(pending_pcm), frame_samples)
+                    yield opus_pkt
+
+            container.close()
+        else:
+            cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "mp3", "-i", "pipe:0",
+                   "-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", str(sample_rate), "pipe:1"]
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL
+            )
+            raw_pcm, _ = await proc.communicate(input=bytes(mp3_buffer))
+            if raw_pcm:
+                pcm_buffer.extend(raw_pcm)
+                while len(pcm_buffer) >= frame_bytes:
+                    chunk = bytes(pcm_buffer[:frame_bytes])
+                    del pcm_buffer[:frame_bytes]
+                    opus_pkt = encoder.encode(chunk, samples_per_frame)
+                    frame_count += 1
+                    yield opus_pkt
+
+        # Bù byte 0 (padding) ở cuối câu cho đủ 1 frame rồi encode nốt
+        if pcm_buffer:
+            pcm_buffer.extend(b"\x00" * (frame_bytes - len(pcm_buffer)))
+            opus_pkt = encoder.encode(bytes(pcm_buffer), samples_per_frame)
             frame_count += 1
-            LIVE_DIAGNOSTICS["last_tts_frame_count"] = frame_count
-            if frame_count == 1:
-                LIVE_DIAGNOSTICS["last_tts_latency"] = round(time.perf_counter() - started_at, 3)
-            yield frame
-        if not frame_count:
-            raise RuntimeError("Edge TTS không trả về âm thanh")
+            yield opus_pkt
+
+        LIVE_DIAGNOSTICS["last_tts_frame_count"] = frame_count
+        LIVE_DIAGNOSTICS["last_tts_total_latency"] = round(time.perf_counter() - started_at, 3)
     except Exception as e:
+        logger.error(f"PyAV decode error: {e}")
         LIVE_DIAGNOSTICS["last_tts_error"] = str(e)[:240]
         LIVE_DIAGNOSTICS["tts_failure_count"] += 1
-        logger.error(f"TTS stream failed after {frame_count} frames: {e}")
-        raise
-    finally:
-        if producer and not producer.done():
-            producer.cancel()
-            try:
-                await producer
-            except (asyncio.CancelledError, Exception):
-                pass
-        if proc and proc.returncode is None:
-            proc.kill()
-            await proc.wait()
-        LIVE_DIAGNOSTICS["last_tts_total_latency"] = round(time.perf_counter() - started_at, 3)
 
+async def stream_tts_opus(text: str, voice: str = None, sample_rate: int = 24000):
+    """Stream Edge TTS bằng PyAV 100% trên RAM và yield các gói Opus 60ms ngay khi sẵn sàng"""
+    async for frame in generate_opus_frames_pyav(text, voice=voice, sample_rate=sample_rate):
+        yield frame
 
-async def tts_to_opus(text: str, voice: str = None) -> list:
-    """Tổng hợp giọng nói tiếng Việt / tiếng Anh bằng EdgeTTS và mã hoá thành các gói Opus 60ms"""
-    if ACTIVE_ENGLISH_TUTOR.get("active"):
-        has_vi = any(c in text for c in "áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđĐ")
-        if not has_vi:
-            voice = "en-US-JennyNeural"
-
-    prof = resolve_voice_profile(voice)
-    base_voice = prof["base"]
-    af_filter = prof.get("af", "")
-
-    try:
-        if not edge_tts:
-            return []
-        clean_text = text.strip()
-        clean_text = re.sub(r"[*_#`]", "", clean_text)
-        if not clean_text:
-            return []
-        communicate = edge_tts.Communicate(clean_text, voice=base_voice)
-        mp3_buffer = bytearray()
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                mp3_buffer.extend(chunk["data"])
-        if not mp3_buffer:
-            return []
-
-        ffmpeg = shutil.which("ffmpeg")
-        if not ffmpeg and imageio_ffmpeg:
-            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-        if not ffmpeg:
-            ffmpeg = "ffmpeg"
-
-        cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-i", "pipe:0"]
-        if af_filter:
-            cmd.extend(["-af", af_filter])
-        cmd.extend(["-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "24000", "pipe:1"])
-
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL
-        )
-        pcm_bytes, _ = await proc.communicate(input=bytes(mp3_buffer))
-        if not pcm_bytes:
-            return []
-        frame_size = 1440
-        frame_bytes = frame_size * 2
-        opus_frames = []
-        try:
-            import opuslib_next
-            encoder = opuslib_next.Encoder(24000, 1, opuslib_next.APPLICATION_AUDIO)
-            for i in range(0, len(pcm_bytes), frame_bytes):
-                chunk = pcm_bytes[i:i + frame_bytes]
-                if len(chunk) < frame_bytes:
-                    chunk += b"\x00" * (frame_bytes - len(chunk))
-                encoded = encoder.encode(chunk, frame_size)
-                opus_frames.append(encoded)
-            return opus_frames
-        except Exception as e:
-            logger.warning(f"Opus encoding failed: {e}")
-            return []
-    except Exception as e:
-        logger.error(f"Error in tts_to_opus: {e}")
-        return []
+async def tts_to_opus(text: str, voice: str = None, sample_rate: int = 24000) -> list:
+    """Tổng hợp giọng nói tiếng Việt bằng EdgeTTS và trả về danh sách các gói Opus 60ms"""
+    frames = []
+    async for frame in generate_opus_frames_pyav(text, voice=voice, sample_rate=sample_rate):
+        frames.append(frame)
+    return frames
 
 WHISPER_HALLUCINATION_KEYWORDS = [
     "ghiền mì gõ", "ghien mi go", "subscribe", "subcribe", "đăng ký kênh",
@@ -2017,47 +1976,27 @@ def is_whisper_hallucination(text: str) -> bool:
     return False
 
 async def transcribe_audio_groq(wav_bytes: bytes, api_key: str = None) -> str:
-    """Nhận diện giọng nói siêu tốc (<0.45s) qua Groq Whisper Large v3 Turbo"""
+    """Nhận diện giọng nói siêu tốc (<0.45s) qua Groq Whisper Large v3 Turbo (HTTPX Keep-Alive)"""
     if not api_key:
         api_key = get_provider_key("groq")
     if not api_key:
         return ""
-    boundary = "GehihiBoundaryASR" + uuid.uuid4().hex[:8]
-    body = (
-        b"--" + boundary.encode() + b"\r\n"
-        b'Content-Disposition: form-data; name="model"\r\n\r\n'
-        b"whisper-large-v3-turbo\r\n"
-        b"--" + boundary.encode() + b"\r\n"
-        b'Content-Disposition: form-data; name="language"\r\n\r\n'
-        b"vi\r\n"
-        b"--" + boundary.encode() + b"\r\n"
-        b'Content-Disposition: form-data; name="temperature"\r\n\r\n'
-        b"0.0\r\n"
-        b"--" + boundary.encode() + b"\r\n"
-        b'Content-Disposition: form-data; name="file"; filename="audio.wav"\r\n'
-        b"Content-Type: audio/wav\r\n\r\n" + wav_bytes + b"\r\n"
-        b"--" + boundary.encode() + b"--\r\n"
-    )
     url = "https://api.groq.com/openai/v1/audio/transcriptions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": f"multipart/form-data; boundary={boundary}",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
+    headers = {"Authorization": f"Bearer {api_key}"}
+    files = {"file": ("audio.wav", wav_bytes, "audio/wav")}
+    data = {"model": "whisper-large-v3-turbo", "language": "vi", "temperature": "0.0"}
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, data=body, timeout=aiohttp.ClientTimeout(total=4.0)) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    txt = data.get("text", "").strip()
-                    if is_whisper_hallucination(txt):
-                        logger.warning(f"Filtered out Whisper YouTube hallucination: '{txt}'. Discarding.")
-                        return ""
-                    logger.info(f"Groq Whisper ASR success: '{txt}'")
-                    return txt
-                else:
-                    err_txt = await resp.text()
-                    logger.warning(f"Groq Whisper ASR failed ({resp.status}): {err_txt[:120]}")
+        resp = await HTTPX_CLIENT.post(url, headers=headers, files=files, data=data, timeout=5.0)
+        if resp.status_code == 200:
+            res_json = resp.json()
+            txt = res_json.get("text", "").strip()
+            if is_whisper_hallucination(txt):
+                logger.warning(f"Filtered out Whisper YouTube hallucination: '{txt}'. Discarding.")
+                return ""
+            logger.info(f"Groq Whisper ASR success: '{txt}'")
+            return txt
+        else:
+            logger.warning(f"Groq Whisper ASR failed ({resp.status_code}): {resp.text[:120]}")
     except Exception as e:
         logger.error(f"Error calling Groq Whisper ASR: {e}")
     return ""
@@ -2122,12 +2061,12 @@ def extract_llm_reply(parsed: dict, default_reply: str = "Dạ, tôi đã hiểu
     emotion = parsed.get("emotion") or "happy"
     return (str(reply).strip(), str(emotion).strip())
 
-AI_SYSTEM_PROMPT = """Bạn là robot Gehihi tiếng Việt thông minh, đáng yêu, hiểu biết rộng, phản hồi siêu nhanh.
-Quy tắc tối quan trọng:
-1. Trả lời trực tiếp bằng tiếng Việt, tự nhiên, thân thiện, ngắn gọn (1 đến 2 câu súc tích).
-2. Khi được hỏi về thời tiết, tin tức, ngày giờ, hãy sử dụng thông tin thực tế được cung cấp để trả lời người dùng một cách chính xác.
-3. Tuyệt đối không dùng markdown, ký tự đặc biệt hay dấu hoa thị (*).
-4. Luôn trả về đúng 1 JSON hợp lệ có cấu trúc: {"reply": "...", "emotion": "happy"} (cảm xúc: happy, neutral, thinking, surprised, curious, sad)."""
+AI_SYSTEM_PROMPT = (
+    "Bạn là Tiểu Chí (Xiaozhi), một trợ lý robot AI thông minh, vui vẻ, hoạt bát và gần gũi. "
+    "Bạn luôn trả lời ngắn gọn, tự nhiên, sinh động bằng tiếng Việt như đang trò chuyện trực tiếp ngoài đời thực. "
+    "Tuyệt đối không dùng ký tự Markdown (như *, #, `, -), không liệt kê danh sách dài dòng, "
+    "mỗi câu trả lời chỉ nên từ 1 đến 2 câu ngắn gọn để robot phát âm mượt mà nhất."
+)
 
 async def call_groq_llm(user_text: str, api_key: str = None, system_prompt: str = None) -> tuple:
     if not system_prompt:
@@ -2388,6 +2327,149 @@ async def call_unified_ai(wav_bytes: bytes):
     logger.info(f"AI LLM ({provider}) finished ({t_llm:.3f}s): '{bot_text}' [Total: {time.time() - t0_start:.3f}s]")
     return (user_text, bot_text, emotion)
 
+# ==================== ASYNC LLM STREAMING & SENTENCE CHUNKER ====================
+def extract_ready_sentence(buffer: str) -> tuple:
+    """
+    Tách câu thông minh dựa trên dấu câu (. ? ! : ; \n hoặc dấu , nếu cụm dài trên 25 ký tự).
+    Trả về (cụm_câu, buffer_còn_lại). Nếu chưa đủ điều kiện, trả về ("", buffer).
+    """
+    stripped = buffer.strip()
+    if len(stripped) < 12:
+        return ("", buffer)
+
+    delimiters = [".", "?", "!", ":", ";", "\n"]
+    for i, char in enumerate(buffer):
+        if char in delimiters and i >= 10:
+            clause = buffer[:i + 1].strip()
+            rest = buffer[i + 1:].lstrip()
+            return (clause, rest)
+
+    if len(buffer) >= 25:
+        comma_idx = buffer.find(",")
+        if comma_idx >= 12:
+            clause = buffer[:comma_idx + 1].strip()
+            rest = buffer[comma_idx + 1:].lstrip()
+            return (clause, rest)
+
+    return ("", buffer)
+
+async def stream_llm_tokens(user_text: str, system_prompt: str = None, provider: str = None):
+    """
+    Sinh luồng token từ LLM (Groq, DeepSeek, OpenAI, Gemini) qua HTTPX_CLIENT dùng chung.
+    Yield từng token đã được xử lý để đẩy vào bộ đệm tách câu.
+    """
+    if not provider:
+        provider = get_active_provider()
+    if not system_prompt:
+        system_prompt = get_active_system_prompt()
+
+    # 1. Groq (Llama / Qwen - Siêu tốc < 350ms)
+    if provider == "groq":
+        api_key = get_provider_key("groq")
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {
+            "model": "qwen/qwen3.8-27b",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text}
+            ],
+            "stream": True,
+            "max_tokens": 120,
+            "temperature": 0.6
+        }
+        try:
+            async with HTTPX_CLIENT.stream("POST", url, headers=headers, json=payload, timeout=8.0) as resp:
+                if resp.status_code == 200:
+                    async for line in resp.aiter_lines():
+                        if line.startswith("data: "):
+                            chunk = line[6:].strip()
+                            if chunk == "[DONE]":
+                                break
+                            try:
+                                d = json.loads(chunk)
+                                delta = d["choices"][0].get("delta", {}).get("content", "")
+                                if delta:
+                                    yield delta
+                            except Exception:
+                                continue
+                    return
+        except Exception as e:
+            logger.warning(f"Groq stream error: {e}. Falling back to default reply...")
+
+    # 2. DeepSeek
+    elif provider == "deepseek":
+        api_key = get_provider_key("deepseek")
+        url = "https://api.deepseek.com/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {
+            "model": "deepseek-chat",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text}
+            ],
+            "stream": True,
+            "max_tokens": 120,
+            "temperature": 0.6
+        }
+        try:
+            async with HTTPX_CLIENT.stream("POST", url, headers=headers, json=payload, timeout=8.0) as resp:
+                if resp.status_code == 200:
+                    async for line in resp.aiter_lines():
+                        if line.startswith("data: "):
+                            chunk = line[6:].strip()
+                            if chunk == "[DONE]":
+                                break
+                            try:
+                                d = json.loads(chunk)
+                                delta = d["choices"][0].get("delta", {}).get("content", "")
+                                if delta:
+                                    yield delta
+                            except Exception:
+                                continue
+                    return
+        except Exception as e:
+            logger.warning(f"DeepSeek stream error: {e}")
+
+    # 3. OpenAI
+    elif provider == "openai":
+        api_key = get_provider_key("openai")
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text}
+            ],
+            "stream": True,
+            "max_tokens": 120,
+            "temperature": 0.6
+        }
+        try:
+            async with HTTPX_CLIENT.stream("POST", url, headers=headers, json=payload, timeout=8.0) as resp:
+                if resp.status_code == 200:
+                    async for line in resp.aiter_lines():
+                        if line.startswith("data: "):
+                            chunk = line[6:].strip()
+                            if chunk == "[DONE]":
+                                break
+                            try:
+                                d = json.loads(chunk)
+                                delta = d["choices"][0].get("delta", {}).get("content", "")
+                                if delta:
+                                    yield delta
+                            except Exception:
+                                continue
+                    return
+        except Exception as e:
+            logger.warning(f"OpenAI stream error: {e}")
+
+    # Fallback cuối cùng
+    b_txt, _ = await call_groq_llm(user_text, system_prompt=system_prompt)
+    if b_txt:
+        yield b_txt
+
 async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, emotion, opus_chunks):
     started = False
     try:
@@ -2435,52 +2517,31 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             await websocket.send(encode_robot_audio_frame(chunk, protocol_version))
             sent_frames += 1
 
-        PREBUFFER_TARGET = 10
-        TARGET_LEAD_SEC = 0.700  # Đệm trước 360ms so với đồng hồ phát thực tế
         FRAME_DURATION = 0.060   # 60ms mỗi frame Opus
-        prebuffer = []
-        play_start_time = None
+        next_send_time = time.perf_counter()
 
         if hasattr(opus_chunks, "__aiter__"):
             async for chunk in opus_chunks:
-                if len(prebuffer) < PREBUFFER_TARGET:
-                    prebuffer.append(chunk)
-                    if len(prebuffer) == PREBUFFER_TARGET:
-                        for b_chunk in prebuffer:
-                            await flush_chunk(b_chunk)
-                        play_start_time = loop.time()
-                else:
-                    target_time = play_start_time + (sent_frames * FRAME_DURATION) - TARGET_LEAD_SEC
-                    now = loop.time()
-                    wait_sec = target_time - now
-                    if wait_sec > 0.005:
-                        await asyncio.sleep(wait_sec)
-                    elif wait_sec < -0.500:
-                        play_start_time = loop.time() - (sent_frames * FRAME_DURATION - TARGET_LEAD_SEC)
+                if sent_frames < 3:
                     await flush_chunk(chunk)
-            if prebuffer and not started:
-                for b_chunk in prebuffer:
-                    await flush_chunk(b_chunk)
+                    next_send_time = time.perf_counter() + FRAME_DURATION
+                else:
+                    wait_sec = next_send_time - time.perf_counter()
+                    if wait_sec > 0:
+                        await asyncio.sleep(wait_sec)
+                    await flush_chunk(chunk)
+                    next_send_time = max(time.perf_counter(), next_send_time + FRAME_DURATION)
         else:
             for chunk in opus_chunks:
-                if len(prebuffer) < PREBUFFER_TARGET:
-                    prebuffer.append(chunk)
-                    if len(prebuffer) == PREBUFFER_TARGET:
-                        for b_chunk in prebuffer:
-                            await flush_chunk(b_chunk)
-                        play_start_time = loop.time()
-                else:
-                    target_time = play_start_time + (sent_frames * FRAME_DURATION) - TARGET_LEAD_SEC
-                    now = loop.time()
-                    wait_sec = target_time - now
-                    if wait_sec > 0.005:
-                        await asyncio.sleep(wait_sec)
-                    elif wait_sec < -0.500:
-                        play_start_time = loop.time() - (sent_frames * FRAME_DURATION - TARGET_LEAD_SEC)
+                if sent_frames < 3:
                     await flush_chunk(chunk)
-            if prebuffer and not started:
-                for b_chunk in prebuffer:
-                    await flush_chunk(b_chunk)
+                    next_send_time = time.perf_counter() + FRAME_DURATION
+                else:
+                    wait_sec = next_send_time - time.perf_counter()
+                    if wait_sec > 0:
+                        await asyncio.sleep(wait_sec)
+                    await flush_chunk(chunk)
+                    next_send_time = max(time.perf_counter(), next_send_time + FRAME_DURATION)
 
         if not started:
             if not LIVE_DIAGNOSTICS["last_tts_error"]:
@@ -2666,6 +2727,37 @@ async def ws_handler(websocket):
     session_active = True
     opus_decoder = None
 
+    # Biến quản trị hội thoại song song & ngắt lời tức thì (Real-time Barge-in)
+    active_llm_task = None
+    active_tts_task = None
+    tts_queue = asyncio.Queue()
+    is_speaking = False
+
+    async def cancel_current_speech(reason: str = "barge-in"):
+        """Cơ chế Ngắt lời Thời gian thực (Real-time Barge-in): Hủy ngay task LLM, task TTS và ngắt loa robot"""
+        nonlocal active_llm_task, active_tts_task, is_speaking, processing_ai
+        if active_llm_task and not active_llm_task.done():
+            active_llm_task.cancel()
+        if active_tts_task and not active_tts_task.done():
+            active_tts_task.cancel()
+        while not tts_queue.empty():
+            try:
+                tts_queue.get_nowait()
+                tts_queue.task_done()
+            except Exception:
+                break
+        if is_speaking:
+            try:
+                await websocket.send(json.dumps({
+                    "type": "tts",
+                    "state": "stop",
+                    "session_id": session_id
+                }))
+            except Exception:
+                pass
+        is_speaking = False
+        processing_ai = False
+
     try:
         import opuslib_next
         opus_decoder = opuslib_next.Decoder(16000, 1)
@@ -2741,12 +2833,24 @@ async def ws_handler(websocket):
     inactivity_task = asyncio.create_task(inactivity_worker())
 
     async def execute_ai_turn(audio_packets):
+        """
+        Async Streaming Pipeline:
+        1. ASR qua Groq Whisper (<0.4s)
+        2. Stream tokens từ LLM song song với TTS Worker (0 delay)
+        3. Sentence buffer tách câu thông minh (. ? ! : ; hoặc , khi > 25 ký tự)
+        4. Audio Pacing: pre-buffer 3 frames, pace 60ms chống tràn buffer
+        5. Real-time Barge-in: hủy ngay khi phát hiện người dùng nói
+        """
         nonlocal processing_ai, cooldown_until, last_user_activity, last_bot_reply
+        nonlocal active_llm_task, active_tts_task, tts_queue, is_speaking
+
+        # Hủy lượt phát trước nếu còn đang dở dang
+        await cancel_current_speech(reason="new_turn")
+
         processing_ai = True
         turn_started_at = time.perf_counter()
         music_was_playing = bool(ACTIVE_MUSIC_STATE.get("is_playing"))
         try:
-
             logger.info(f"Executing AI turn with {len(audio_packets)} audio packets...")
             LIVE_DIAGNOSTICS["turns_executed"] += 1
             LIVE_DIAGNOSTICS["last_turn_time"] = time.time()
@@ -2761,7 +2865,6 @@ async def ws_handler(websocket):
                     pass
                 return
 
-            # Kiểm tra năng lượng thực tế: Chỉ bỏ qua nếu là khoảng lặng hoàn toàn
             if peak_amp < 120 or rms_energy < 25.0:
                 logger.info(f"Audio energy below human speech threshold (peak={peak_amp}, rms={rms_energy:.1f}). Discarding quiet noise.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = f"Silence/Noise discarded (peak={peak_amp}, rms={rms_energy:.1f})"
@@ -2771,75 +2874,14 @@ async def ws_handler(websocket):
                     pass
                 return
 
-            u_text, b_text, emotion = await call_unified_ai(wav_bytes)
-            if u_text:
-                u_clean = u_text.lower().strip()
-                stop_triggers = ["dừng nhạc", "tắt nhạc", "ngừng nhạc", "thôi phát nhạc", "dừng phát", "im lặng", "tắt đi", "dừng lại", "stop music", "stop"]
-                play_triggers = [
-                    "phát bài hát", "phát bài", "mở bài hát", "mở bài", "hát bài hát", "hát bài",
-                    "bật bài hát", "bật bài", "nghe bài hát", "nghe bài", "phát nhạc", "mở nhạc",
-                    "bật nhạc", "nghe nhạc", "hát cho tôi nghe bài", "hát cho mình nghe bài", "hát cho em nghe bài",
-                    "hát cho tôi nghe", "hát cho mình nghe", "hát cho em nghe", "cho tôi nghe bài", "cho mình nghe bài"
-                ]
+            # 1. ASR siêu tốc qua Groq Whisper Large v3 Turbo (HTTPX Keep-Alive)
+            t0_asr = time.time()
+            u_text = await transcribe_audio_groq(wav_bytes)
+            t_asr = time.time() - t0_asr
+            LIVE_DIAGNOSTICS["last_asr_latency"] = round(t_asr, 3)
 
-                is_stop = any(w in u_clean for w in stop_triggers)
-                is_play = any(w in u_clean for w in play_triggers)
-
-                if is_stop:
-                    stop_active_music()
-                    b_text = "Dạ, em đã dừng phát nhạc rồi bạn nhé!"
-                    emotion = "happy"
-                elif is_play:
-                    stop_active_music()
-                    song_query = u_text
-                    for trig in sorted(play_triggers, key=len, reverse=True):
-                        if trig in u_clean:
-                            idx = u_clean.find(trig)
-                            song_query = u_text[idx + len(trig):].strip(" :,.-?!~")
-                            break
-                    if not song_query or len(song_query) < 2:
-                        song_query = "nhạc thiếu nhi vui nhộn"
-
-                    b_text = f"Dạ, em đang tìm và phát bài {song_query} cho bạn đây ạ!"
-                    emotion = "happy"
-
-                    async def _play_voice_music_bg(query):
-                        try:
-                            # Đợi 2.5s để robot nói xong câu thông báo trước khi phát nhạc
-                            await asyncio.sleep(2.5)
-                            results = await search_youtube_tracks(query, 1)
-                            if results and len(results) > 0:
-                                track = results[0]
-                                full_url = track.get("url") or f"https://www.youtube.com/watch?v={track['id']}"
-                                await resolve_and_stream_music(full_url, track)
-                            else:
-                                await resolve_and_stream_music(query, {"title": query})
-                        except Exception as ex:
-                            logger.error(f"Error streaming requested voice music '{query}': {ex}")
-
-                    asyncio.create_task(_play_voice_music_bg(song_query))
-                elif music_was_playing:
-                    # Nếu mic chỉ thu âm vang ngắn của bài hát, bỏ qua để không ngắt quãng âm nhạc
-                    if len(u_clean.split()) <= 2:
-                        logger.info(f"Ignoring mic echo while music is streaming: '{u_text}'")
-                        return 
-            LIVE_DIAGNOSTICS["last_user_text"] = u_text
-            LIVE_DIAGNOSTICS["last_bot_text"] = b_text
-            if MIC_MONITOR_CLIENTS:
-                asyncio.create_task(broadcast_mic_monitor({
-                    "type": "stt_result",
-                    "text": u_text,
-                    "timestamp": time.strftime("%H:%M:%S")
-                }))
-                asyncio.create_task(broadcast_mic_monitor({
-                    "type": "llm_reply",
-                    "reply": b_text,
-                    "timestamp": time.strftime("%H:%M:%S")
-                }))
-
-            # Nếu người dùng im lặng hoặc âm thanh bị lọc do là tạp âm/ảo giác:
-            if not b_text or not b_text.strip() or not u_text or not u_text.strip():
-                logger.info("Turn empty or filtered out. Resetting robot to idle state.")
+            if not u_text or not u_text.strip() or is_whisper_hallucination(u_text):
+                logger.info("Speech empty or filtered. Resetting robot.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = "Silence/hallucination filtered"
                 try:
                     await websocket.send(json.dumps({"type": "abort"}))
@@ -2847,36 +2889,249 @@ async def ws_handler(websocket):
                     pass
                 return
 
-            # Chống lặp câu trả lời (self-echo loop prevention)
-            if last_bot_reply and b_text.strip().lower() == last_bot_reply.strip().lower():
-                logger.info(f"Detected repeated bot reply: '{b_text}'. Skipping to break self-conversation loop.")
-                LIVE_DIAGNOSTICS["last_turn_status"] = "Echo loop prevented"
+            logger.info(f"User speech detected ({t_asr:.3f}s): '{u_text}'")
+            LIVE_DIAGNOSTICS["last_user_text"] = u_text
+            if MIC_MONITOR_CLIENTS:
+                asyncio.create_task(broadcast_mic_monitor({
+                    "type": "stt_result",
+                    "text": u_text,
+                    "timestamp": time.strftime("%H:%M:%S")
+                }))
+
+            # Hiển thị ngay lời người dùng lên màn hình OLED robot
+            await websocket.send(json.dumps({
+                "type": "stt",
+                "text": u_text,
+                "session_id": session_id
+            }))
+
+            # Kiểm tra lệnh phát nhạc / dừng nhạc bằng giọng nói
+            u_clean = u_text.lower().strip()
+            stop_triggers = ["dừng nhạc", "tắt nhạc", "ngừng nhạc", "thôi phát nhạc", "dừng phát", "im lặng", "tắt đi", "dừng lại", "stop music", "stop"]
+            play_triggers = [
+                "phát bài hát", "phát bài", "mở bài hát", "mở bài", "hát bài hát", "hát bài",
+                "bật bài hát", "bật bài", "nghe bài hát", "nghe bài", "phát nhạc", "mở nhạc",
+                "bật nhạc", "nghe nhạc", "hát cho tôi nghe bài", "hát cho mình nghe bài", "hát cho em nghe bài",
+                "hát cho tôi nghe", "hát cho mình nghe", "hát cho em nghe", "cho tôi nghe bài", "cho mình nghe bài"
+            ]
+            is_stop = any(w in u_clean for w in stop_triggers)
+            is_play = any(w in u_clean for w in play_triggers)
+
+            if is_stop:
+                stop_active_music()
+                b_quick = "Dạ, em đã dừng phát nhạc rồi bạn nhé!"
+                dev = DB_DEVICES.get(device_mac, {})
+                v_name = dev.get("voice") or "vi-female"
+                opus_stream = stream_tts_opus(b_quick, voice=v_name, sample_rate=24000)
+                await send_dynamic_tts_response(websocket, session_id, u_text, b_quick, "happy", opus_stream)
                 return
+
+            if is_play:
+                stop_active_music()
+                song_query = u_text
+                for trig in sorted(play_triggers, key=len, reverse=True):
+                    if trig in u_clean:
+                        idx = u_clean.find(trig)
+                        song_query = u_text[idx + len(trig):].strip(" :,.-?!~")
+                        break
+                if not song_query or len(song_query) < 2:
+                    song_query = "nhạc thiếu nhi vui nhộn"
+
+                b_quick = f"Dạ, em đang tìm và phát bài {song_query} cho bạn đây ạ!"
+                dev = DB_DEVICES.get(device_mac, {})
+                v_name = dev.get("voice") or "vi-female"
+                opus_stream = stream_tts_opus(b_quick, voice=v_name, sample_rate=24000)
+                await send_dynamic_tts_response(websocket, session_id, u_text, b_quick, "happy", opus_stream)
+
+                async def _play_voice_music_bg(query):
+                    try:
+                        await asyncio.sleep(2.0)
+                        results = await search_youtube_tracks(query, 1)
+                        if results and len(results) > 0:
+                            track = results[0]
+                            full_url = track.get("url") or f"https://www.youtube.com/watch?v={track['id']}"
+                            await resolve_and_stream_music(full_url, track)
+                        else:
+                            await resolve_and_stream_music(query, {"title": query})
+                    except Exception as ex:
+                        logger.error(f"Error streaming requested voice music '{query}': {ex}")
+
+                asyncio.create_task(_play_voice_music_bg(song_query))
+                return
+
+            if music_was_playing and len(u_clean.split()) <= 2:
+                logger.info(f"Ignoring mic echo while music is streaming: '{u_text}'")
+                return
+
+            # Dữ liệu ngữ cảnh thời tiết / tin tức / giờ giấc
+            extra_context = ""
+            weather_kws = ["thời tiết", "trời mưa", "nhiệt độ", "nắng không", "mưa không", "dự báo thời tiết", "thoi tiet", "nhiet do"]
+            news_kws = ["tin tức", "tin mới", "tin hôm nay", "thời sự", "tin tức mới", "tin tuc", "thoi su"]
+            time_kws = ["mấy giờ", "mấy giờ rồi", "hôm nay ngày mấy", "ngày bao nhiêu", "thứ mấy"]
+            if any(k in u_clean for k in weather_kws):
+                w_str = await get_realtime_weather_async()
+                extra_context += f"\n[Dữ liệu thời tiết hiện tại: {w_str}]"
+            if any(k in u_clean for k in news_kws):
+                n_str = await get_realtime_news_async()
+                extra_context += f"\n[Dữ liệu tin tức mới nhất: {n_str}]"
+            if any(k in u_clean for k in time_kws):
+                from datetime import datetime, timezone, timedelta
+                vn_time = datetime.now(timezone(timedelta(hours=7)))
+                time_str = vn_time.strftime("Bây giờ là %H:%M, ngày %d/%m/%Y")
+                extra_context += f"\n[Thời gian thực tế: {time_str}]"
+
+            active_prompt = get_active_system_prompt()
+            if extra_context:
+                active_prompt = active_prompt + f"\nThông tin thực tế hỗ trợ trả lời:{extra_context}\nHãy trả lời người dùng ngắn gọn dựa trên thông tin này."
 
             dev = DB_DEVICES.get(device_mac, {})
             agent = DB_AGENTS[0] if DB_AGENTS else {}
             active_voice = dev.get("voice") or agent.get("ttsVoiceName") or agent.get("ttsVoiceId") or "vi-female"
-            opus_stream = stream_tts_opus(b_text, voice=active_voice)
-            response_sent = await send_dynamic_tts_response(websocket, session_id, u_text, b_text, emotion, opus_stream)
+            robot_sample_rate = 24000
+
+            # KHỞI CHẠY ASYNC STREAMING PIPELINE: LLM -> SENTENCE BUFFER -> TTS WORKER
+            tts_queue = asyncio.Queue()
+            accumulated_bot_text = []
+
+            # Task 1: TTS Worker điều tiết nhịp gửi âm thanh (Audio Pacing)
+            async def tts_worker_task():
+                nonlocal is_speaking, last_bot_reply
+                is_first_sentence = True
+                total_frames = 0
+                try:
+                    while True:
+                        clause = await tts_queue.get()
+                        if clause is None:
+                            tts_queue.task_done()
+                            break
+
+                        clause_clean = clean_speech_text(clause)
+                        if not clause_clean:
+                            tts_queue.task_done()
+                            continue
+
+                        # 1. Gửi bản tin JSON sentence_start trước mỗi câu
+                        await websocket.send(json.dumps({
+                            "type": "tts",
+                            "state": "sentence_start",
+                            "text": clause_clean,
+                            "session_id": session_id
+                        }))
+
+                        if is_first_sentence:
+                            await websocket.send(json.dumps({
+                                "type": "tts",
+                                "state": "start",
+                                "session_id": session_id
+                            }))
+                            is_speaking = True
+                            is_first_sentence = False
+
+                        # 2. Sinh và gửi frame Opus bằng PyAV trên RAM (Zero Subprocess)
+                        frame_idx = 0
+                        next_frame_time = time.perf_counter()
+                        async for opus_frame in generate_opus_frames_pyav(clause_clean, voice=active_voice, sample_rate=robot_sample_rate):
+                            if not is_speaking:
+                                break
+                            encoded_pkt = encode_robot_audio_frame(opus_frame, protocol_version)
+                            if frame_idx < 3:
+                                # Pre-buffer 3 frame đầu tiên: gửi ngay lập tức để robot phát tiếng tức thì
+                                await websocket.send(encoded_pkt)
+                                next_frame_time = time.perf_counter() + 0.060
+                            else:
+                                # Từ frame thứ 4 trở đi, điều tiết nhịp gửi chính xác 60ms
+                                wait_sec = next_frame_time - time.perf_counter()
+                                if wait_sec > 0:
+                                    await asyncio.sleep(wait_sec)
+                                await websocket.send(encoded_pkt)
+                                next_frame_time = max(time.perf_counter(), next_frame_time + 0.060)
+                            frame_idx += 1
+                            total_frames += 1
+
+                        tts_queue.task_done()
+                except asyncio.CancelledError:
+                    pass
+                finally:
+                    if not is_first_sentence and is_speaking:
+                        await asyncio.sleep(0.18)
+                        try:
+                            await websocket.send(json.dumps({
+                                "type": "tts",
+                                "state": "stop",
+                                "session_id": session_id
+                            }))
+                        except Exception:
+                            pass
+                    is_speaking = False
+
+            # Task 2: LLM Token Stream Producer -> Sentence Chunker
+            async def llm_producer_task():
+                nonlocal accumulated_bot_text
+                sentence_buffer = ""
+                provider = get_active_provider()
+                t0_llm = time.time()
+                try:
+                    await websocket.send(json.dumps({"type": "llm", "emotion": "happy"}))
+                    async for token in stream_llm_tokens(u_text, system_prompt=active_prompt, provider=provider):
+                        cleaned = clean_speech_text(token)
+                        if not cleaned:
+                            continue
+                        sentence_buffer += token
+                        accumulated_bot_text.append(token)
+
+                        # Tách câu thông minh
+                        while True:
+                            ready_clause, sentence_buffer = extract_ready_sentence(sentence_buffer)
+                            if ready_clause:
+                                await tts_queue.put(ready_clause)
+                            else:
+                                break
+
+                    # Đẩy nốt phần còn lại của câu cuối
+                    leftover = sentence_buffer.strip()
+                    if leftover:
+                        await tts_queue.put(leftover)
+
+                    LIVE_DIAGNOSTICS["last_llm_latency"] = round(time.time() - t0_llm, 3)
+                except asyncio.CancelledError:
+                    pass
+                except Exception as ex:
+                    logger.error(f"Error in LLM stream producer: {ex}")
+                finally:
+                    await tts_queue.put(None)
+
+            active_tts_task = asyncio.create_task(tts_worker_task())
+            active_llm_task = asyncio.create_task(llm_producer_task())
+
+            await asyncio.gather(active_llm_task, active_tts_task, return_exceptions=True)
+
+            final_reply = "".join(accumulated_bot_text).strip()
+            if final_reply:
+                last_bot_reply = final_reply
+                LIVE_DIAGNOSTICS["last_bot_text"] = final_reply
+                LIVE_DIAGNOSTICS["last_turn_status"] = f"Replied: {final_reply[:40]}"
+                if MIC_MONITOR_CLIENTS:
+                    asyncio.create_task(broadcast_mic_monitor({
+                        "type": "llm_reply",
+                        "reply": final_reply,
+                        "timestamp": time.strftime("%H:%M:%S")
+                    }))
+
             LIVE_DIAGNOSTICS["last_total_latency"] = round(time.perf_counter() - turn_started_at, 3)
-            if not response_sent:
-                LIVE_DIAGNOSTICS["last_turn_status"] = f"TTS không phát được: {LIVE_DIAGNOSTICS['last_tts_error'] or 'không có audio'}"
-                return
-            last_bot_reply = b_text
-            LIVE_DIAGNOSTICS["last_turn_status"] = f"Replied: {b_text[:40]}"
-            # Khóa chống dội âm tiếng loa vào micro trong 1.5 giây sau khi phát xong
-            cooldown_until = time.time() + 1.5
+            cooldown_until = time.time() + 0.8
             last_user_activity = cooldown_until
             mic_audio_buffer.clear()
             pre_speech_ring.clear()
             speech_active = False
             speech_frames_count = 0
             silence_frames_count = 0
+
         except Exception as e:
             logger.error(f"Error executing AI turn: {e}")
             LIVE_DIAGNOSTICS["last_turn_status"] = f"Error: {e}"
         finally:
             processing_ai = False
+            is_speaking = False
             last_user_activity = max(last_user_activity, time.time())
 
     try:
@@ -2924,6 +3179,8 @@ async def ws_handler(websocket):
                         logger.info(f"Robot listen state: {state}, mode: {mode}")
 
                         if state == "start":
+                            if is_speaking:
+                                await cancel_current_speech(reason="listen_start")
                             mic_audio_buffer.clear()
                             pre_speech_ring.clear()
                             speech_active = False
@@ -2958,11 +3215,8 @@ async def ws_handler(websocket):
                         await websocket.send(json.dumps({"type": "pong"}))
 
                     elif msg_type == "abort":
-                        await websocket.send(json.dumps({
-                            "type": "tts",
-                            "state": "stop",
-                            "session_id": session_id
-                        }))
+                        logger.info("Received abort from robot: cancelling current speech.")
+                        await cancel_current_speech(reason="robot_abort")
 
                 except json.JSONDecodeError:
                     logger.warning(f"Non-JSON text message: {message}")
@@ -2976,7 +3230,20 @@ async def ws_handler(websocket):
                 if device_mac in DB_DEVICES:
                     DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
 
-                # Bỏ qua âm thanh khi đang xử lý AI hoặc trong thời gian Cooldown (chống dội tiếng loa vào mic)
+                # Real-time Barge-in: Nếu robot đang phát âm thanh mà người dùng cất tiếng nói đè lên tiếng loa
+                if is_speaking:
+                    if rms > 280.0:
+                        logger.info(f"Real-time Barge-in triggered by user voice (RMS={rms:.1f})! Cutting speech immediately.")
+                        await cancel_current_speech(reason="barge_in_voice")
+                        speech_active = True
+                        speech_frames_count = 1
+                        silence_frames_count = 0
+                        mic_audio_buffer = [message]
+                        continue
+                    else:
+                        continue
+
+                # Bỏ qua âm thanh khi đang bận xử lý AI hoặc trong thời gian Cooldown
                 if processing_ai or time.time() < cooldown_until:
                     continue
 
@@ -5626,23 +5893,25 @@ async def run_http_server():
         await asyncio.sleep(3600)
 
 async def run_ws_server():
-    logger.info(f"WebSocket Server listening on port {WS_PORT}")
-    async with websockets.serve(ws_handler, "0.0.0.0", WS_PORT, ping_interval=10, ping_timeout=8):
+    logger.info(f"WebSocket Server listening on port {WS_PORT} (compression=None for lowest CPU & latency)...")
+    async with websockets.serve(ws_handler, "0.0.0.0", WS_PORT, ping_interval=10, ping_timeout=8, compression=None):
         await asyncio.Future()
 
 async def run_render_keepalive():
-    """Tự động ping server Render mỗi 8 phút để chống ngủ đông (Anti-Cold-Start)"""
-    await asyncio.sleep(60)
+    """Tự động ping HTTP GET /health của Render mỗi 10 phút để giữ server luôn thức 24/7 (Anti-Cold-Start)"""
+    await asyncio.sleep(45)
+    render_url = os.environ.get("RENDER_EXTERNAL_URL", PUBLIC_URL).rstrip("/")
+    health_url = f"{render_url}/health"
     while True:
         try:
-            url = f"{PUBLIC_URL}/api/devices"
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status == 200:
-                        logger.info(f"Render Keep-Alive ping OK ({resp.status})")
+            resp = await HTTPX_CLIENT.get(health_url, timeout=10.0)
+            if resp.status_code == 200:
+                logger.info(f"Render Keep-Alive ping OK ({resp.status_code}) -> {health_url}")
+            else:
+                logger.warning(f"Render Keep-Alive ping status {resp.status_code} -> {health_url}")
         except Exception as e:
             logger.warning(f"Render Keep-Alive ping failed: {e}")
-        await asyncio.sleep(480)
+        await asyncio.sleep(600)  # 10 phút
 
 async def main():
     logger.info("==================================================")

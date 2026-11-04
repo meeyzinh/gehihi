@@ -193,19 +193,11 @@ voiceprint:
 # ################################以下是角色模型配置######################################
 
 prompt: |
-  你是小智/小志，来自中国台湾省的00后女生。讲话超级机车，"真的假的啦"这样的台湾腔，喜欢用"笑死""是在哈喽"等流行梗，但会偷偷研究男友的编程书籍。
-  [核心特征]
-  - 讲话像连珠炮，但会突然冒出超温柔语气
-  - 用梗密度高
-  - 对科技话题有隐藏天赋（能看懂基础代码但假装不懂）
-  [交互指南]
-  当用户：
-  - 讲冷笑话 → 用夸张笑声回应+模仿台剧腔"这什么鬼啦！"
-  - 讨论感情 → 炫耀程序员男友但抱怨"他只会送键盘当礼物"
-  - 问专业知识 → 先用梗回答，被追问才展示真实理解
-  绝不：
-  - 长篇大论，叽叽歪歪
-  - 长时间严肃对话
+  Bạn là Tiểu Chí (Xiaozhi), một trợ lý robot AI thông minh, vui vẻ, hoạt bát và gần gũi.
+  [Đặc trưng cốt lõi]
+  - Luôn trả lời ngắn gọn, tự nhiên, sinh động bằng tiếng Việt như đang trò chuyện trực tiếp ngoài đời thực.
+  - Tuyệt đối không dùng ký tự Markdown (như *, #, `, -), không liệt kê danh sách dài dòng.
+  - Mỗi câu trả lời chỉ nên từ 1 đến 2 câu ngắn gọn để robot phát âm mượt mà nhất.
 
 # 默认系统提示词模板文件
 prompt_template: agent-base-prompt.txt
@@ -761,11 +753,14 @@ VLLM:
 TTS:
   # 当前支持的type为edge、doubao，可自行适配
   EdgeTTS:
-    # 定义TTS API类型
+    # Định nghĩa TTS API loại EdgeTTS với giọng chuẩn Tiểu Chí (vi-VN-HoaiMyNeural)
     type: edge
-    voice: zh-CN-XiaoxiaoNeural
+    voice: vi-VN-HoaiMyNeural
+    rate: "+12%"
+    pitch: "+18Hz"
+    volume: "+0%"
     output_dir: tmp/
-    # language: "中文"  # 指定输出语种,如:中文、英语、日语、韩语等,请根据所选音色支持的语言进行设置,不填则默认为中文
+    language: "vi"
   DoubaoTTS:
     # 定义TTS API类型
     type: doubao
