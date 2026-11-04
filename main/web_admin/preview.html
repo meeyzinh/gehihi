@@ -1822,8 +1822,39 @@ body {
           <div>
             <label style="display: block; font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">🗣️ Giọng đọc trợ lý (TTS)</label>
             <select id="editDeviceVoiceSelect" style="width: 100%; padding: 10px 12px; border-radius: 8px; background: #061224; border: 1px solid rgba(255,255,255,0.15); color: #d8b4fe; font-size: 13px; box-sizing: border-box;">
-              <option value="vi-VN-HoaiMyNeural">Hoài My - Giọng nữ truyền cảm miền Bắc</option>
-              <option value="vi-VN-NamMinhNeural">Nam Minh - Giọng nam trầm ấm miền Bắc</option>
+              <optgroup label="🇻🇳 Tiếng Việt">
+                <option value="vi-female">Giọng nữ (Female Voice)</option>
+                <option value="vi-male">giọng nam (Male Voice)</option>
+                <option value="vi-young-girl">cô gái trẻ (Young Girl)</option>
+                <option value="vi-male-host">chủ nhà nam (Male Host)</option>
+                <option value="vi-young-man">chàng trai trẻ (Young Man)</option>
+                <option value="vi-hoaimy">Thử nghiệm · Hoài My</option>
+                <option value="vi-namminh">Thử nghiệm · Nam Minh</option>
+                <option value="vi-little-girl">cô bé / bé gái (Little Girl)</option>
+                <option value="vi-little-boy">cậu bé / bé trai (Little Boy)</option>
+                <option value="vi-female-host">Nữ phát thanh viên / MC</option>
+                <option value="vi-storyteller">Kể chuyện dịu dàng (Storyteller)</option>
+                <option value="vi-robot">Robot công nghệ (Tech Robot)</option>
+                <option value="vi-maingoc">Giọng nữ miền Nam (Mai Ngọc)</option>
+                <option value="vi-VN-HoaiMyNeural">Hoài My (EdgeTTS gốc)</option>
+                <option value="vi-VN-NamMinhNeural">Nam Minh (EdgeTTS gốc)</option>
+                <option value="vi-VN-MaiNgocNeural">Mai Ngọc (EdgeTTS cũ)</option>
+              </optgroup>
+              <optgroup label="🇺🇸 English">
+                <option value="en-jenny">Jenny (Nữ Mỹ)</option>
+                <option value="en-guy">Guy (Nam Mỹ)</option>
+                <option value="en-aria">Aria (Biểu cảm)</option>
+                <option value="en-ana">Ana (Bé gái)</option>
+                <option value="en-christopher">Christopher (Nam trẻ)</option>
+              </optgroup>
+              <optgroup label="🇨🇳 中文 / 🇯🇵 日本語 / 🇰🇷 한국어">
+                <option value="zh-xiaoxiao">Xiaoxiao (Nữ Trung)</option>
+                <option value="zh-yunxi">Yunxi (Nam Trung)</option>
+                <option value="ja-nanami">Nanami (Nữ Nhật)</option>
+                <option value="ja-keita">Keita (Nam Nhật)</option>
+                <option value="ko-sunhi">SunHi (Nữ Hàn)</option>
+                <option value="ko-injoon">InJoon (Nam Hàn)</option>
+              </optgroup>
             </select>
           </div>
         </div>
@@ -3348,19 +3379,67 @@ Ví dụ:
     <div class="form-group">
         <label>Chọn ngôn ngữ nói của Gehihi</label>
         <select id="xiaozhiLanguage" onchange="onMyXiaozhiLanguageChange()">
-            <option value="vi" selected>Tiếng Việt</option>
+            <option value="vi" selected>Tiếng Việt (Phong cách Xiaozhi)</option>
             <option value="en">English (US)</option>
+            <option value="zh">Tiếng Trung (中文)</option>
+            <option value="ja">Tiếng Nhật (日本語)</option>
+            <option value="ko">Tiếng Hàn (한국어)</option>
+            <option value="all">Tất cả ngôn ngữ</option>
         </select>
     </div>
 
     <div class="form-group">
-        <label>Chọn Giọng nói của Gehihi</label>
-        <select id="xiaozhiTtsVoice">
-            <option value="vi-VN-HoaiMyNeural" selected>🎙️ Giọng nữ (Hoài My - Nữ miền Bắc)</option>
-            <option value="vi-VN-NamMinhNeural">🎙️ Giọng nam (Nam Minh - Nam miền Bắc)</option>
-            <option value="vi-VN-MaiNgocNeural">🎙️ Giọng nữ miền Nam (Mai Ngọc)</option>
-        </select>
-
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="margin: 0; font-weight: 600;">Chọn Giọng nói của Gehihi</label>
+            <button type="button" id="btnPreviewVoice" onclick="previewCurrentVoice('xiaozhiTtsVoice')" style="background: linear-gradient(135deg, #2563eb, #7c3aed); border: none; color: #ffffff; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 6px rgba(37,99,235,0.3); transition: all 0.2s;">
+                ▶️ Nghe thử giọng
+            </button>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <select id="xiaozhiTtsVoice" style="flex: 1;" onchange="stopPreviewIfPlaying()">
+                <optgroup label="🇻🇳 Tiếng Việt (Phong cách Xiaozhi)">
+                    <option value="vi-female" selected>👩 Giọng nữ (Female Voice)</option>
+                    <option value="vi-male">👨 giọng nam (Male Voice)</option>
+                    <option value="vi-young-girl">👧 cô gái trẻ (Young Girl)</option>
+                    <option value="vi-male-host">🎙️ chủ nhà nam (Male Host)</option>
+                    <option value="vi-young-man">👦 chàng trai trẻ (Young Man)</option>
+                    <option value="vi-hoaimy">🧪 Thử nghiệm · Hoài My</option>
+                    <option value="vi-namminh">🧪 Thử nghiệm · Nam Minh</option>
+                    <option value="vi-little-girl">🎀 cô bé / bé gái (Little Girl)</option>
+                    <option value="vi-little-boy">⚽ cậu bé / bé trai (Little Boy)</option>
+                    <option value="vi-female-host">📻 Nữ phát thanh viên / MC</option>
+                    <option value="vi-storyteller">📖 Kể chuyện dịu dàng (Storyteller)</option>
+                    <option value="vi-robot">🤖 Robot công nghệ (Tech Robot)</option>
+                    <option value="vi-maingoc">🌸 Giọng nữ miền Nam (Mai Ngọc)</option>
+                    <option value="vi-VN-MaiNgocNeural">🌸 Giọng nữ miền Nam (Mai Ngọc - Cũ)</option>
+                    <option value="vi-VN-HoaiMyNeural">🎙️ Hoài My (Nữ chuẩn EdgeTTS)</option>
+                    <option value="vi-VN-NamMinhNeural">🎙️ Nam Minh (Nam chuẩn EdgeTTS)</option>
+                </optgroup>
+                <optgroup label="🇺🇸 English (US)">
+                    <option value="en-jenny">👩 Jenny (Nữ tự nhiên)</option>
+                    <option value="en-guy">👨 Guy (Nam trầm ấm)</option>
+                    <option value="en-aria">✨ Aria (Nữ biểu cảm cao)</option>
+                    <option value="en-ana">👧 Ana (Bé gái)</option>
+                    <option value="en-christopher">👦 Christopher (Nam trẻ)</option>
+                </optgroup>
+                <optgroup label="🇨🇳 Tiếng Trung (中文)">
+                    <option value="zh-xiaoxiao">👩 Xiaoxiao (Nữ chuẩn)</option>
+                    <option value="zh-yunxi">👨 Yunxi (Nam trẻ)</option>
+                </optgroup>
+                <optgroup label="🇯🇵 Tiếng Nhật (日本語)">
+                    <option value="ja-nanami">👩 Nanami (Nữ anime)</option>
+                    <option value="ja-keita">👨 Keita (Nam)</option>
+                </optgroup>
+                <optgroup label="🇰🇷 Tiếng Hàn (한국어)">
+                    <option value="ko-sunhi">👩 SunHi (Nữ)</option>
+                    <option value="ko-injoon">👨 InJoon (Nam)</option>
+                </optgroup>
+            </select>
+            <button type="button" onclick="previewCurrentVoice('xiaozhiTtsVoice')" title="Nghe thử giọng đang chọn" style="background: #1e293b; border: 1px solid #475569; color: #38bdf8; border-radius: 8px; padding: 10px 14px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                🔊
+            </button>
+        </div>
+        <div id="voicePreviewStatus" style="font-size: 12px; color: #94a3b8; margin-top: 5px;"></div>
         <input id="xiaozhiCustomTtsVoice" placeholder="Voice ID tùy chỉnh, chỉ dùng khi cần test" style="display:none;">
     </div>
 
@@ -5277,20 +5356,12 @@ Ví dụ:
         }
 
         if (langSelect) {
-          langSelect.innerHTML = `
-            <option value="vi">Tiếng Việt</option>
-            <option value="en">English (US)</option>
-          `;
           langSelect.value = dev.language || "vi";
         }
 
         if (voiceSelect) {
-          voiceSelect.innerHTML = `
-            <option value="vi-VN-HoaiMyNeural">🔊 Giọng nữ (Hoài My - Nữ miền Bắc)</option>
-            <option value="vi-VN-NamMinhNeural">🔊 Giọng nam (Nam Minh - Nam miền Bắc)</option>
-            <option value="vi-VN-MaiNgocNeural">🔊 Giọng nữ miền Nam (Mai Ngọc)</option>
-          `;
-          voiceSelect.value = dev.voice || "vi-VN-HoaiMyNeural";
+          const curVoice = dev.voice || dev.voice_id || "vi-female";
+          renderVoiceSelectOptions("xiaozhiTtsVoice", langSelect ? langSelect.value : "vi", curVoice);
         }
 
         const speedSelect = document.getElementById("xiaozhiTtsSpeed");
@@ -6190,23 +6261,128 @@ Ví dụ:
       showToast("Đang phát mẫu giọng nói nhận dạng...");
     }
 
+    const GEHIHI_ALL_VOICES = [
+      { id: "vi-female", name: "👩 Giọng nữ (Female Voice)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-male", name: "👨 giọng nam (Male Voice)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-young-girl", name: "👧 cô gái trẻ (Young Girl)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-male-host", name: "🎙️ chủ nhà nam (Male Host)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-young-man", name: "👦 chàng trai trẻ (Young Man)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-hoaimy", name: "🧪 Thử nghiệm · Hoài My", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-namminh", name: "🧪 Thử nghiệm · Nam Minh", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-little-girl", name: "🎀 cô bé / bé gái (Little Girl)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-little-boy", name: "⚽ cậu bé / bé trai (Little Boy)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-female-host", name: "📻 Nữ phát thanh viên / MC", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-storyteller", name: "📖 Kể chuyện dịu dàng (Storyteller)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-robot", name: "🤖 Robot công nghệ (Tech Robot)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-maingoc", name: "🌸 Giọng nữ miền Nam (Mai Ngọc)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-VN-MaiNgocNeural", name: "🌸 Giọng nữ miền Nam (Mai Ngọc - Legacy)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-VN-HoaiMyNeural", name: "🎙️ Hoài My (Nữ chuẩn EdgeTTS)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+      { id: "vi-VN-NamMinhNeural", name: "🎙️ Nam Minh (Nam chuẩn EdgeTTS)", lang: "vi", group: "🇻🇳 Tiếng Việt (Phong cách Xiaozhi)" },
+
+      { id: "en-jenny", name: "👩 Jenny (Nữ tự nhiên)", lang: "en", group: "🇺🇸 English (US)" },
+      { id: "en-guy", name: "👨 Guy (Nam trầm ấm)", lang: "en", group: "🇺🇸 English (US)" },
+      { id: "en-aria", name: "✨ Aria (Nữ biểu cảm cao)", lang: "en", group: "🇺🇸 English (US)" },
+      { id: "en-ana", name: "👧 Ana (Bé gái)", lang: "en", group: "🇺🇸 English (US)" },
+      { id: "en-christopher", name: "👦 Christopher (Nam trẻ)", lang: "en", group: "🇺🇸 English (US)" },
+
+      { id: "zh-xiaoxiao", name: "👩 Xiaoxiao (Nữ chuẩn)", lang: "zh", group: "🇨🇳 Tiếng Trung (中文)" },
+      { id: "zh-yunxi", name: "👨 Yunxi (Nam trẻ)", lang: "zh", group: "🇨🇳 Tiếng Trung (中文)" },
+
+      { id: "ja-nanami", name: "👩 Nanami (Nữ anime)", lang: "ja", group: "🇯🇵 Tiếng Nhật (日本語)" },
+      { id: "ja-keita", name: "👨 Keita (Nam)", lang: "ja", group: "🇯🇵 Tiếng Nhật (日本語)" },
+
+      { id: "ko-sunhi", name: "👩 SunHi (Nữ)", lang: "ko", group: "🇰🇷 Tiếng Hàn (한국어)" },
+      { id: "ko-injoon", name: "👨 InJoon (Nam)", lang: "ko", group: "🇰🇷 Tiếng Hàn (한국어)" }
+    ];
+
+    function renderVoiceSelectOptions(targetSelectId, filterLang = "vi", currentVoice = "vi-female") {
+      const sel = document.getElementById(targetSelectId);
+      if (!sel) return;
+      let filtered = GEHIHI_ALL_VOICES;
+      if (filterLang && filterLang !== "all") {
+        filtered = GEHIHI_ALL_VOICES.filter(v => v.lang === filterLang);
+      }
+      const groups = {};
+      filtered.forEach(v => {
+        if (!groups[v.group]) groups[v.group] = [];
+        groups[v.group].push(v);
+      });
+      let html = "";
+      for (const [groupName, items] of Object.entries(groups)) {
+        html += `<optgroup label="${groupName}">`;
+        items.forEach(item => {
+          const isSel = (item.id === currentVoice || (currentVoice === "vi-VN-HoaiMyNeural" && item.id === "vi-female") || (currentVoice === "vi-VN-NamMinhNeural" && item.id === "vi-male") || (currentVoice === "vi-VN-MaiNgocNeural" && item.id === "vi-maingoc")) ? "selected" : "";
+          html += `<option value="${item.id}" ${isSel}>${item.name}</option>`;
+        });
+        html += `</optgroup>`;
+      }
+      sel.innerHTML = html;
+      if (currentVoice) {
+        const hasVal = Array.from(sel.options).some(o => o.value === currentVoice);
+        if (hasVal) sel.value = currentVoice;
+      }
+    }
+
+    let currentVoicePreviewAudio = null;
+    function stopPreviewIfPlaying() {
+      if (currentVoicePreviewAudio) {
+        currentVoicePreviewAudio.pause();
+        currentVoicePreviewAudio = null;
+        const btn = document.getElementById("btnPreviewVoice");
+        if (btn) btn.innerHTML = "▶️ Nghe thử giọng";
+        const statusDiv = document.getElementById("voicePreviewStatus");
+        if (statusDiv) statusDiv.innerHTML = "";
+      }
+    }
+
+    function previewCurrentVoice(selectId = "xiaozhiTtsVoice") {
+      const sel = document.getElementById(selectId);
+      const voiceId = sel?.value || "vi-female";
+      const btn = document.getElementById("btnPreviewVoice");
+      const statusDiv = document.getElementById("voicePreviewStatus");
+
+      if (currentVoicePreviewAudio) {
+        currentVoicePreviewAudio.pause();
+        currentVoicePreviewAudio = null;
+        if (btn) btn.innerHTML = "▶️ Nghe thử giọng";
+        if (statusDiv) statusDiv.innerHTML = "";
+        return;
+      }
+
+      if (btn) btn.innerHTML = "⏳ Đang tải...";
+      if (statusDiv) statusDiv.innerHTML = "<em>Đang tải mẫu âm thanh phát âm...</em>";
+
+      const audio = new Audio(`/api/voice-demo/${encodeURIComponent(voiceId)}?t=${Date.now()}`);
+      currentVoicePreviewAudio = audio;
+
+      audio.play().then(() => {
+        if (btn) btn.innerHTML = "⏸️ Dừng nghe";
+        const voiceText = sel && sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : voiceId;
+        if (statusDiv) statusDiv.innerHTML = "🔊 <span style='color:#38bdf8;'>Đang phát mẫu giọng: <strong>" + voiceText + "</strong></span>";
+      }).catch(err => {
+        console.warn("Lỗi phát audio:", err);
+        if (btn) btn.innerHTML = "▶️ Nghe thử giọng";
+        if (statusDiv) statusDiv.innerHTML = "<span style='color:#f87171;'>Bấm lại để nghe mẫu giọng</span>";
+        currentVoicePreviewAudio = null;
+      });
+
+      audio.onended = () => {
+        if (btn) btn.innerHTML = "▶️ Nghe thử giọng";
+        if (statusDiv) statusDiv.innerHTML = "";
+        currentVoicePreviewAudio = null;
+      };
+      audio.onerror = () => {
+        if (btn) btn.innerHTML = "▶️ Nghe thử giọng";
+        if (statusDiv) statusDiv.innerHTML = "<span style='color:#f87171;'>Không thể tải mẫu âm thanh từ server</span>";
+        currentVoicePreviewAudio = null;
+      };
+    }
+
     function onMyXiaozhiLanguageChange() {
       const lang = document.getElementById("xiaozhiLanguage")?.value || "vi";
-      const voiceSelect = document.getElementById("xiaozhiTtsVoice");
-      if (!voiceSelect) return;
-      if (lang === "en") {
-        voiceSelect.innerHTML = `
-          <option value="en-US-JennyNeural">🇺🇸 Jenny (Nữ Mỹ - Ngọt ngào, tự nhiên)</option>
-          <option value="en-US-GuyNeural">🇺🇸 Guy (Nam Mỹ - Trầm ấm, truyền cảm)</option>
-          <option value="en-US-AriaNeural">🇺🇸 Aria (Nữ Mỹ - Biểu cảm cao)</option>
-        `;
-      } else {
-        voiceSelect.innerHTML = `
-          <option value="vi-VN-HoaiMyNeural">🇻🇳 Giọng nữ (Hoài My - Nữ miền Bắc)</option>
-          <option value="vi-VN-NamMinhNeural">🇻🇳 Giọng nam (Nam Minh - Nam miền Bắc)</option>
-          <option value="vi-VN-MaiNgocNeural">🇻🇳 Giọng nữ miền Nam (Mai Ngọc)</option>
-        `;
-      }
+      const curVoice = document.getElementById("xiaozhiTtsVoice")?.value || "vi-female";
+      stopPreviewIfPlaying();
+      renderVoiceSelectOptions("xiaozhiTtsVoice", lang, curVoice);
     }
 
     // 7.7. CƠ SỞ TRI THỨC & OCR SCAN GIẢ LẬP VĂN BẢN

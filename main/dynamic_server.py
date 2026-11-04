@@ -596,6 +596,16 @@ VOICE_PROFILES = {
         "languages": "Tiếng Việt, vi-VN",
         "sample": "Hệ thống Robot Gehihi đã được khởi động và sẵn sàng nhận lệnh."
     },
+    "vi-maingoc": {
+        "id": "vi-maingoc",
+        "name": "Giọng nữ miền Nam (Mai Ngọc)",
+        "base": "vi-VN-HoaiMyNeural",
+        "af": "asetrate=24000*0.96,aresample=24000,atempo=1/0.96",
+        "gender": "Nữ",
+        "languages": "Tiếng Việt, vi-VN",
+        "sample": "Dạ em chào anh chị! Em là Mai Ngọc, giọng nữ nhẹ nhàng truyền cảm đây ạ."
+    },
+
     # --- Tiếng Anh ---
     "en-jenny": {
         "id": "en-jenny",
@@ -704,6 +714,7 @@ VOICE_PROFILES = {
 # Aliases for edge-tts raw names
 VOICE_PROFILES["vi-VN-HoaiMyNeural"] = VOICE_PROFILES["vi-female"]
 VOICE_PROFILES["vi-VN-NamMinhNeural"] = VOICE_PROFILES["vi-male"]
+VOICE_PROFILES["vi-VN-MaiNgocNeural"] = VOICE_PROFILES["vi-maingoc"]
 VOICE_PROFILES["en-US-JennyNeural"] = VOICE_PROFILES["en-jenny"]
 VOICE_PROFILES["en-US-GuyNeural"] = VOICE_PROFILES["en-guy"]
 VOICE_PROFILES["en-US-AriaNeural"] = VOICE_PROFILES["en-aria"]
@@ -749,6 +760,8 @@ def resolve_voice_profile(voice_key: str):
         return VOICE_PROFILES["vi-female-host"]
     if any(w in vk_lower for w in ["kể chuyện", "storyteller", "dịu dàng"]):
         return VOICE_PROFILES["vi-storyteller"]
+    if any(w in vk_lower for w in ["mai ngọc", "maingoc", "miền nam", "southern"]):
+        return VOICE_PROFILES["vi-maingoc"]
     if any(w in vk_lower for w in ["robot", "công nghệ"]):
         return VOICE_PROFILES["vi-robot"]
     if any(w in vk_lower for w in ["nam", "male", "namminh"]):
