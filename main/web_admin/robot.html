@@ -1908,11 +1908,7 @@ body {
     </div>
 
     <div class="menu">
-      <div class="menu-item active" onclick="switchSection('deviceManager', this)" style="background: rgba(16,185,129,0.18); border: 1px solid #10b981; color: #a7f3d0; font-weight: 700; display: flex; align-items: center; justify-content: space-between;">
-        <span>👥 Quản lý tài khoản Robot</span>
-        <span style="font-size: 10px; background: #059669; color: white; padding: 1px 6px; border-radius: 4px;">CRUD</span>
-      </div>
-      <div class="menu-item" onclick="switchSection('devices', this)">📡 Tổng quan Robot đang chọn</div>
+      <div class="menu-item active" id="btnNavOverview" onclick="switchSection('devices', this)">📡 Tổng quan Robot đang chọn</div>
       <div class="menu-item" onclick="switchSection('remoteControl', this)">🎮 Điều khiển D-Pad</div>
       <div class="menu-item" onclick="switchSection('micMonitor', this)">🎙️ Theo dõi Ghi âm Mic</div>
       <div class="menu-item" onclick="switchSection('youtubeMusic', this)">🎵 Phát nhạc YouTube Online</div>
@@ -1976,9 +1972,9 @@ body {
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 8px;">
-        <button onclick="switchSection('deviceManager')" style="background: linear-gradient(135deg, #059669, #10b981); border: 1px solid #34d399; color: white; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">
-          👥 Quản lý tài khoản
-        </button>
+        <a href="admin.html" style="text-decoration:none; background: #0f172a; border: 1px solid #38bdf8; color: #38bdf8; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(56,189,248,0.2);">
+          ⬅️ Quản lý tài khoản
+        </a>
         <button class="primary" onclick="switchSection('remoteControl')" style="background: #1e3a8a; border: 1px solid #3b82f6; color: #93c5fd; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;">
           🎮 Lái Robot
         </button>
@@ -2005,9 +2001,9 @@ body {
             </div>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button onclick="switchSection('deviceManager')" style="padding: 8px 14px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #047857; color: white; border: 1px solid #10b981; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">
-                👥 Quản lý tất cả tài khoản
-            </button>
+            <a href="admin.html" style="text-decoration:none; padding: 8px 14px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                ⬅️ Quản lý tài khoản
+            </a>
             <button class="secondary" onclick="loadDevices()" style="padding: 8px 14px; font-size: 12px; font-weight: bold; border-radius: 8px; background: #1e293b; color: #e2e8f0; border: 1px solid #475569; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                 🔄 Làm mới
             </button>
@@ -2023,19 +2019,7 @@ body {
         </div>
     </div>
 
-    <!-- BANNER CHUYỂN NHANH ĐẾN QUẢN LÝ TÀI KHOẢN -->
-    <div onclick="switchSection('deviceManager')" style="background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(5,150,105,0.25)); border: 1px solid #10b981; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(16,185,129,0.25)'" onmouseout="this.style.background='rgba(16,185,129,0.15)'">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-size: 26px;">👥</span>
-            <div>
-                <div style="font-size: 14.5px; font-weight: 700; color: #a7f3d0;">Trung Tâm Quản Lý Tài Khoản Robot (Thêm, Xem, Sửa, Xóa)</div>
-                <div style="font-size: 12px; color: #cbd5e1; margin-top: 2px;">Bấm vào đây để xem toàn bộ danh sách tài khoản, đổi mật khẩu, sửa PIN, MAC, giọng nói, model hoặc xóa robot.</div>
-            </div>
-        </div>
-        <button style="background: #059669; color: white; border: none; padding: 7px 16px; border-radius: 8px; font-size: 12.5px; font-weight: bold; cursor: pointer; white-space: nowrap;">
-            Mở Quản Lý →
-        </button>
-    </div>
+
 
     <!-- MAIN HERO: THÔNG TIN CHI TIẾT ROBOT HIỆN TẠI -->
     <div id="activeRobotHeroCard" style="background: linear-gradient(135deg, #07172e 0%, #0d2142 100%); border: 1px solid rgba(59,130,246,0.35); border-radius: 16px; padding: 22px; margin-bottom: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);">
@@ -2184,7 +2168,7 @@ body {
 <!-- ============================================================== -->
 <!-- CARD CHUYÊN DỤNG: QUẢN TRỊ & QUẢN LÝ TÀI KHOẢN THIẾT BỊ (WEBSOCKET) -->
 <!-- ============================================================== -->
-<div class="card" id="deviceManagerCard" style="display: block;">
+<div class="card" id="deviceManagerCard" style="display: none;">
     <div style="background: linear-gradient(135deg, #07152b 0%, #0c1a35 100%); border: 1px solid rgba(59,130,246,0.35); border-radius: 16px; padding: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px;">
             <div>
@@ -3549,8 +3533,9 @@ Ví dụ:
 
       // Hiện card tương ứng
       const targetMap = {
-        'deviceManager': ['deviceManagerCard'],
-        'devices': ['deviceManagerCard', 'deviceProfileCard'],
+        'deviceManager': ['deviceProfileCard'],
+        'devices': ['deviceProfileCard'],
+        'secDashboard': ['deviceProfileCard'],
         'remoteControl': ['remoteControlCard'],
         'micMonitor': ['micMonitorCard'],
         'youtubeMusic': ['youtubeMusicCard'],
@@ -5761,7 +5746,7 @@ Ví dụ:
       }
       hideAuthModal();
 
-      switchSection('deviceManager');
+      switchSection('devices', document.getElementById('btnNavOverview'));
       loadDevices();
       loadMyXiaozhiConfig();
       // Tự động làm mới trạng thái online mỗi 6 giây
@@ -7412,8 +7397,8 @@ Ví dụ:
           localStorage.setItem("gehihi_active_robot_id", targetId);
           console.log("Đã kích hoạt robot theo URL:", targetId);
         }
-        // Luôn mở mặc định phần Tổng quan Robot (secDashboard)
-        switchSection('secDashboard', document.getElementById('btnNavDashboard'));
+        // Luôn mở mặc định phần Tổng quan Robot (devices)
+        switchSection('devices', document.getElementById('btnNavOverview'));
       } catch (e) {
         console.warn("Lỗi đọc param robot:", e);
       }
