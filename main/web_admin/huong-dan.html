@@ -87,15 +87,6 @@
       transform: translateY(-1px);
       box-shadow: 0 6px 18px rgba(14, 165, 233, 0.4);
     }
-    .btn-return-admin {
-      background: linear-gradient(135deg, #4f46e5, #6366f1);
-      border: 1px solid #818cf8;
-    }
-    .btn-return-admin:hover {
-      background: linear-gradient(135deg, #4338ca, #4f46e5);
-      transform: translateY(-1px);
-      box-shadow: 0 6px 18px rgba(99, 102, 241, 0.4);
-    }
 
     /* MAIN LAYOUT */
     .layout {
@@ -111,22 +102,6 @@
       background: #050e1d;
       border-right: 1px solid var(--line);
       padding: 20px 14px;
-    }
-    .sidebar-back-box {
-      background: rgba(14, 165, 233, 0.08);
-      border: 1px dashed rgba(56, 189, 248, 0.35);
-      border-radius: 14px;
-      padding: 14px;
-      margin-bottom: 18px;
-      text-align: center;
-    }
-    .sidebar-back-title {
-      font-size: 11px;
-      font-weight: 800;
-      color: var(--cyan);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 10px;
     }
     .nav {
       display: flex;
@@ -354,44 +329,6 @@
     }
     tr:last-child td { border-bottom: none; }
 
-    /* FLOATING BACK BUTTON */
-    .floating-back-btn {
-      position: fixed;
-      right: 24px;
-      bottom: 24px;
-      z-index: 99;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .float-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: linear-gradient(135deg, #0284c7, #0ea5e9);
-      color: white;
-      border-radius: 999px;
-      padding: 12px 20px;
-      font-weight: 800;
-      font-size: 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-      border: 1px solid #38bdf8;
-      text-decoration: none !important;
-      transition: all 0.2s ease;
-    }
-    .float-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 14px 34px rgba(14, 165, 233, 0.5);
-    }
-    .float-top {
-      background: rgba(15, 23, 42, 0.85);
-      border-color: rgba(255,255,255,0.2);
-      color: #cbd5e1;
-      padding: 8px 16px;
-      font-size: 12.5px;
-      justify-content: center;
-    }
-
     @media (max-width: 960px) {
       .layout { display: block; }
       .sidebar { position: relative; height: auto; top: 0; }
@@ -403,20 +340,17 @@
 </head>
 <body>
 
-  <!-- TOP STICKY NAVIGATION BAR WITH PROMINENT RETURN BUTTONS -->
+  <!-- TOP STICKY NAVIGATION BAR WITH SINGLE RETURN BUTTON -->
   <header class="top-header">
     <div class="top-logo">
       <span>🤖</span>
       <span>GEHIHI AI · CẨM NANG HƯỚNG DẪN</span>
     </div>
 
-    <!-- BUTTONS QUAY LẠI TRANG QUẢN TRỊ THEO YÊU CẦU -->
+    <!-- DUY NHẤT 1 BUTTON QUAY LẠI QUẢN TRỊ ROBOT -->
     <div class="top-actions">
       <a id="btnTopReturnRobot" href="robot.html" class="btn-nav-return btn-return-robot" title="Quay lại bảng điều khiển, mic, D-Pad của Robot">
         ⬅ Quay lại Quản trị Robot
-      </a>
-      <a href="admin.html" class="btn-nav-return btn-return-admin" title="Vào trang Super Admin quản lý danh sách thiết bị">
-        🏠 Trang Admin (Thiết Bị)
       </a>
     </div>
   </header>
@@ -424,17 +358,6 @@
   <div class="layout">
     <!-- LEFT SIDEBAR -->
     <aside class="sidebar">
-      <!-- SIDEBAR RETURN SHORTCUTS -->
-      <div class="sidebar-back-box">
-        <div class="sidebar-back-title">Điều hướng quay lại</div>
-        <a id="btnSideReturnRobot" href="robot.html" class="btn-nav-return btn-return-robot" style="width: 100%; justify-content: center; margin-bottom: 8px; font-size: 13px;">
-          ⬅ Quản trị Robot
-        </a>
-        <a href="admin.html" class="btn-nav-return btn-return-admin" style="width: 100%; justify-content: center; font-size: 13px;">
-          🏠 Danh Sách Thiết Bị
-        </a>
-      </div>
-
       <nav class="nav">
         <a href="#bat-dau">🚀 Bắt đầu nhanh</a>
         <a href="#dang-nhap">🔐 1. Đăng nhập & Phân quyền</a>
@@ -727,19 +650,9 @@
     </main>
   </div>
 
-  <!-- FLOATING QUICK RETURN BUTTON (ALWAYS ACCESSIBLE) -->
-  <div class="floating-back-btn">
-    <a id="btnFloatReturnRobot" href="robot.html" class="float-btn" title="Quay lại Quản trị Robot ngay lập tức">
-      ⬅ Quay lại Quản trị Robot
-    </a>
-    <a href="#bat-dau" class="float-btn float-top" title="Lên đầu trang">
-      ↑ Đầu trang
-    </a>
-  </div>
-
-  <!-- JAVASCRIPT ĐỒNG BỘ ĐƯỜNG DẪN QUAY LẠI CHÍNH XÁC ROBOT ĐANG DÙNG -->
+  <!-- JAVASCRIPT ĐỒNG BỘ ĐƯỜNG DẪN QUAY LẠI ROBOT DUY NHẤT -->
   <script>
-    // Lấy ID robot đang chọn từ URL hoặc localStorage
+    // Lấy ID robot đang chọn từ URL hoặc localStorage và gán vào nút quay lại Quản trị Robot ở góc trên bên phải
     function syncBackButtons() {
       const urlParams = new URLSearchParams(window.location.search);
       const queryId = urlParams.get('id');
@@ -748,12 +661,7 @@
       const targetUrl = activeId ? `robot.html?id=${encodeURIComponent(activeId)}` : 'robot.html';
 
       const topBtn = document.getElementById('btnTopReturnRobot');
-      const sideBtn = document.getElementById('btnSideReturnRobot');
-      const floatBtn = document.getElementById('btnFloatReturnRobot');
-
       if (topBtn) topBtn.href = targetUrl;
-      if (sideBtn) sideBtn.href = targetUrl;
-      if (floatBtn) floatBtn.href = targetUrl;
     }
 
     // Active state highlighting on scroll
