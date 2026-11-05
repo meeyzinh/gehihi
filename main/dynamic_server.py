@@ -225,25 +225,7 @@ async def broadcast_mic_monitor(msg_dict):
     for ws in dead:
         MIC_MONITOR_CLIENTS.discard(ws)
 
-DB_DEVICES = {
-    "14:c1:9f:c4:ee:d0": {
-        "id": "DEV_001",
-        "macAddress": "14:C1:9F:C4:EE:D0",
-        "mac": "14:C1:9F:C4:EE:D0",
-        "device_mac": "14:C1:9F:C4:EE:D0",
-        "pin": "927184",
-        "device_code": "927184",
-        "username": "gehihi",
-        "password": "123456",
-        "name": "Robot Gehihi",
-        "boardType": "ESP32-S3-N16R8",
-        "version": "2.5.0",
-        "status": 1,
-        "online": False,
-        "is_online": False,
-        "lastActiveTime": int(time.time() * 1000)
-    }
-}
+DB_DEVICES = {}
 
 DB_AGENTS = [
     {
@@ -1100,7 +1082,7 @@ async def handle_tunnel_status(request):
 PENDING_ACTIVATIONS = {}
 
 async def handle_ota(request):
-    """Xử lý yêu cầu OTA - Cung cấp cấu hình WebSocket kết nối trực tiếp đến Gehihi Server"""
+    """Xử lý yêu cầu OTA & Luồng kích hoạt ghép nối thiết bị mới (PIN Activation Workflow)"""
     device_id = request.headers.get("Device-Id", "").lower().strip()
     client_id = request.headers.get("Client-Id", "")
     accept_lang = request.headers.get("Accept-Language", "vi-VN")
@@ -1109,31 +1091,35 @@ async def handle_ota(request):
         device_id = "14:c1:9f:c4:ee:d0"
 
     dev = DB_DEVICES.get(device_id)
-    if not dev:
-        dev_name = f"Robot Gehihi ({device_id.replace(':', '')[-4:].upper()})"
-        dev = {
-            "id": f"DEV_{device_id.replace(':', '')[-4:].upper()}",
-            "macAddress": device_id.upper(),
-            "mac": device_id.upper(),
-            "device_mac": device_id.upper(),
-            "pin": "927184",
-            "device_code": "927184",
-            "username": "gehihi",
-            "password": "123456",
-            "name": dev_name,
-            "boardType": "ESP32-S3",
-            "version": "2.5.0",
-            "status": 1,
-            "online": True,
-            "is_online": True,
-            "lastActiveTime": int(time.time() * 1000)
-        }
-        DB_DEVICES[device_id] = dev
-    else:
-        dev["status"] = 1
-        dev["online"] = True
-        dev["is_online"] = True
-        dev["lastActiveTime"] = int(time.time() * 1000)
+
+    # 1. NẾU THIẾT BỊ CHƯA TỪNG ĐƯỢC THÊM TRÊN WEB HOẶC CHƯA KÍCH HOẠT (status != 1):
+    if not dev or dev.get("status") == 0:
+        if device_id in PENDING_ACTIVATIONS:
+            pin_code = PENDING_ACTIVATIONS[device_id]["pin"]
+        else:
+            pin_code = str(random.randint(100000, 999999))
+            PENDING_ACTIVATIONS[device_id] = {
+                "pin": pin_code,
+                "mac": device_id.upper(),
+                "created_at": time.time(),
+                "client_id": client_id
+            }
+
+        logger.info(f"OTA: Robot {device_id.upper()} CHƯA KÍCH HOẠT. Gửi mã PIN ghép nối: {pin_code} để hiển thị trên màn hình robot")
+        return cors_response({
+            "activation": {
+                "code": pin_code,
+                "message": f"Mã PIN: {pin_code}. Nhập trên Web Admin để kích hoạt."
+            },
+            "server_time": {
+                "timestamp": int(time.time() * 1000),
+                "timezone_offset": 420
+            }
+        })
+
+    # 2. NẾU THIẾT BỊ ĐÃ KÍCH HOẠT THÀNH CÔNG: Cung cấp WebSocket endpoint để kết nối
+    dev["online"] = True
+    dev["lastActiveTime"] = int(time.time() * 1000)
 
     active_ws_url = WS_URL
     if ACTIVE_TUNNEL_INFO["url"] and (time.time() - ACTIVE_TUNNEL_INFO["updated_at"] < 180):
