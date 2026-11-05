@@ -170,8 +170,21 @@ ACTIVE_ENGLISH_TUTOR = {
 }
 
 MIC_MONITOR_CLIENTS = set()
+MIC_MONITOR_HISTORY = collections.deque(maxlen=60)
 CONNECTED_ROBOTS = {}
 CONNECTED_ROBOT_PROTOCOLS = {}
+
+def log_mic_event(level_type: str, message: str):
+    """Lưu log vào lịch sử và phát tới tất cả trình duyệt đang mở Live Mic Monitor"""
+    item = {
+        "type": "log",
+        "level_type": level_type,
+        "message": message,
+        "timestamp": time.strftime("%H:%M:%S")
+    }
+    MIC_MONITOR_HISTORY.append(item)
+    if MIC_MONITOR_CLIENTS:
+        asyncio.create_task(broadcast_mic_monitor(item))
 
 
 def decode_robot_audio_frame(frame: bytes, protocol_version: int) -> bytes:
@@ -214,6 +227,33 @@ def encode_robot_audio_frame(payload: bytes, protocol_version: int) -> bytes:
 
 async def broadcast_mic_monitor(msg_dict):
     """Phát tin nhắn trạng thái tới tất cả các trình duyệt đang mở Live Mic Monitor"""
+    m_type = msg_dict.get("type")
+    if m_type == "stt_result":
+        txt = msg_dict.get("text", "")
+        if txt:
+            MIC_MONITOR_HISTORY.append({
+                "type": "log",
+                "level_type": "success",
+                "message": msg_dict.get("message") or f"🗣️ Người dùng: \"{txt}\"",
+                "timestamp": msg_dict.get("timestamp", time.strftime("%H:%M:%S"))
+            })
+    elif m_type == "llm_reply":
+        rep = msg_dict.get("reply", "")
+        if rep:
+            MIC_MONITOR_HISTORY.append({
+                "type": "log",
+                "level_type": "info",
+                "message": msg_dict.get("message") or f"🤖 Robot Gehihi: \"{rep}\"",
+                "timestamp": msg_dict.get("timestamp", time.strftime("%H:%M:%S"))
+            })
+    elif m_type == "state_change" and msg_dict.get("message"):
+        MIC_MONITOR_HISTORY.append({
+            "type": "log",
+            "level_type": msg_dict.get("level_type", "info"),
+            "message": msg_dict["message"],
+            "timestamp": msg_dict.get("timestamp", time.strftime("%H:%M:%S"))
+        })
+
     if not MIC_MONITOR_CLIENTS:
         return
     text = json.dumps(msg_dict, ensure_ascii=False)
@@ -2739,6 +2779,7 @@ async def ws_handler(websocket):
                     "last_reply": LIVE_DIAGNOSTICS.get("last_bot_text", ""),
                     "status": "online" if LIVE_DIAGNOSTICS.get("device_connected") else "idle"
                 },
+                "history": list(MIC_MONITOR_HISTORY),
                 "devices": [
                     {
                         "id": d.get("id", "DEV_001"),
@@ -2813,6 +2854,7 @@ async def ws_handler(websocket):
     logger.info(f"Robot Gehihi ({device_mac.upper()}) connected from {client_ip}")
     LIVE_DIAGNOSTICS["device_connected"] = True
     LIVE_DIAGNOSTICS["protocol_version"] = protocol_version
+    log_mic_event("success", f"🟢 Robot ({device_mac.upper()}) đã kết nối thành công tới WebSocket!")
 
     if device_mac in DB_DEVICES:
         DB_DEVICES[device_mac]["online"] = True
@@ -2990,6 +3032,14 @@ async def ws_handler(websocket):
         processing_ai = True
         turn_started_at = time.perf_counter()
         music_was_playing = bool(ACTIVE_MUSIC_STATE.get("is_playing"))
+        if MIC_MONITOR_CLIENTS:
+            asyncio.create_task(broadcast_mic_monitor({
+                "type": "state_change",
+                "state": "processing",
+                "message": f"🧠 Đang nhận diện giọng nói từ {len(audio_packets)} gói âm thanh...",
+                "level_type": "warning",
+                "timestamp": time.strftime("%H:%M:%S")
+            }))
         try:
             logger.info(f"Executing AI turn with {len(audio_packets)} audio packets...")
             LIVE_DIAGNOSTICS["turns_executed"] += 1
@@ -3034,6 +3084,7 @@ async def ws_handler(websocket):
                 asyncio.create_task(broadcast_mic_monitor({
                     "type": "stt_result",
                     "text": u_text,
+                    "message": f"🗣️ Người dùng: \"{u_text}\"",
                     "timestamp": time.strftime("%H:%M:%S")
                 }))
 
@@ -3159,6 +3210,14 @@ async def ws_handler(websocket):
                             }))
                             is_speaking = True
                             is_first_sentence = False
+                            if MIC_MONITOR_CLIENTS:
+                                asyncio.create_task(broadcast_mic_monitor({
+                                    "type": "state_change",
+                                    "state": "speaking",
+                                    "message": "🔊 Robot đang phát âm thanh trả lời qua loa...",
+                                    "level_type": "info",
+                                    "timestamp": time.strftime("%H:%M:%S")
+                                }))
 
                         frame_idx = 0
                         next_frame_time = time.perf_counter()
@@ -3240,6 +3299,7 @@ async def ws_handler(websocket):
                     asyncio.create_task(broadcast_mic_monitor({
                         "type": "llm_reply",
                         "reply": final_reply,
+                        "message": f"🤖 Robot Gehihi: \"{final_reply}\"",
                         "timestamp": time.strftime("%H:%M:%S")
                     }))
 
@@ -3258,6 +3318,14 @@ async def ws_handler(websocket):
         finally:
             processing_ai = False
             is_speaking = False
+            if MIC_MONITOR_CLIENTS:
+                asyncio.create_task(broadcast_mic_monitor({
+                    "type": "state_change",
+                    "state": "idle",
+                    "message": "🟢 Lượt hội thoại hoàn tất. Robot đang tiếp tục lắng nghe.",
+                    "level_type": "success",
+                    "timestamp": time.strftime("%H:%M:%S")
+                }))
             last_user_activity = max(last_user_activity, time.time())
 
     try:
@@ -3397,16 +3465,6 @@ async def ws_handler(websocket):
                 LIVE_DIAGNOSTICS["last_packet_time"] = time.time()
                 LIVE_DIAGNOSTICS["last_rms"] = round(rms, 1)
                 LIVE_DIAGNOSTICS["recent_rms"].append(round(rms, 1))
-                if MIC_MONITOR_CLIENTS:
-                    asyncio.create_task(broadcast_mic_monitor({
-                        "type": "audio_packet",
-                        "peak": min(int(rms * 1.5), 32000),
-                        "level": int(rms),
-                        "packet_index": speech_frames_count,
-                        "duration_ms": 60,
-                        "total_bytes": len(message),
-                        "timestamp": time.strftime("%H:%M:%S")
-                    }))
 
                 if not speech_active:
                     # Cập nhật mức ồn nền khi đang yên tĩnh
@@ -3417,18 +3475,20 @@ async def ws_handler(websocket):
                     # Ngưỡng duy trì nói
                     is_voice = (rms > max(70.0, noise_floor * 1.15))
 
-                LIVE_DIAGNOSTICS["noise_floor"] = round(noise_floor, 1)
-                LIVE_DIAGNOSTICS["speech_active"] = speech_active
-                LIVE_DIAGNOSTICS["speech_frames_count"] = speech_frames_count
-                LIVE_DIAGNOSTICS["silence_frames_count"] = silence_frames_count
-                LIVE_DIAGNOSTICS["buffer_len"] = len(mic_audio_buffer)
-
                 if is_voice:
                     if not speech_active:
                         speech_active = True
                         speech_frames_count = 0
                         silence_frames_count = 0
                         mic_audio_buffer = list(pre_speech_ring)
+                        if MIC_MONITOR_CLIENTS:
+                            asyncio.create_task(broadcast_mic_monitor({
+                                "type": "state_change",
+                                "state": "recording",
+                                "message": "🎙️ Bắt đầu ghi âm giọng nói người dùng...",
+                                "level_type": "packet",
+                                "timestamp": time.strftime("%H:%M:%S")
+                            }))
                     speech_frames_count += 1
                     last_user_activity = time.time()
                     # Giảm dần silence counter thay vì reset về 0 ngay lập tức nếu bị nhiễu 1 frame
@@ -3471,6 +3531,26 @@ async def ws_handler(websocket):
                                 speech_frames_count = 0
                                 silence_frames_count = 0
 
+                LIVE_DIAGNOSTICS["noise_floor"] = round(noise_floor, 1)
+                LIVE_DIAGNOSTICS["speech_active"] = speech_active
+                LIVE_DIAGNOSTICS["speech_frames_count"] = speech_frames_count
+                LIVE_DIAGNOSTICS["silence_frames_count"] = silence_frames_count
+                LIVE_DIAGNOSTICS["buffer_len"] = len(mic_audio_buffer)
+
+                if MIC_MONITOR_CLIENTS:
+                    norm_lvl = min(1.0, max(0.0, (rms - 35.0) / 450.0))
+                    tot_bytes = sum(len(m) for m in mic_audio_buffer) if speech_active else len(message)
+                    asyncio.create_task(broadcast_mic_monitor({
+                        "type": "audio_packet",
+                        "peak": min(int(rms * 1.5), 32000),
+                        "level": round(norm_lvl, 2),
+                        "packet_index": speech_frames_count if speech_active else 0,
+                        "duration_ms": (speech_frames_count * 60) if speech_active else 0,
+                        "total_bytes": tot_bytes,
+                        "is_speaking": speech_active,
+                        "timestamp": time.strftime("%H:%M:%S")
+                    }))
+
     except websockets.exceptions.ConnectionClosed:
         logger.info(f"Robot disconnected: {session_id}")
     except Exception as e:
@@ -3490,6 +3570,7 @@ async def ws_handler(websocket):
             # Keep status intact on disconnect
             DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
         logger.info(f"Robot {device_mac} disconnected -> marked OFFLINE")
+        log_mic_event("error", f"🔴 Robot ({device_mac.upper()}) đã ngắt kết nối WebSocket.")
         asyncio.create_task(broadcast_mic_monitor({
             "type": "device_event",
             "action": "offline",

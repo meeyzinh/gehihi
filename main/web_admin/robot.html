@@ -7031,6 +7031,7 @@ Ví dụ:
             statusBadge.style.borderColor = "#059669";
           }
           appendMicLog("success", "[WS CONNECTED] Đã kết nối thành công tới WebSocket /ws/mic-monitor!");
+          updateMicState("idle");
         };
 
         micMonitorWs.onmessage = (event) => {
@@ -7095,21 +7096,21 @@ Ví dụ:
         loadDevices();
         if (data.message) showToast(data.message);
       } else if (data.type === 'audio_packet') {
-        updateMicLevel(data.peak, data.level, data.packet_index, data.duration_ms, data.total_bytes);
-        if (data.message) appendMicLog('packet', `[${data.timestamp}] ${data.message}`);
+        updateMicLevel(data.peak, data.level, data.packet_index, data.duration_ms, data.total_bytes, data.is_speaking);
+        if (data.message) appendMicLog('packet', `[${data.timestamp || new Date().toLocaleTimeString()}] ${data.message}`);
       } else if (data.type === 'state_change') {
         updateMicState(data.state);
-        if (data.message) appendMicLog(data.level_type || 'info', `[${data.timestamp}] ${data.message}`);
+        if (data.message) appendMicLog(data.level_type || 'info', `[${data.timestamp || new Date().toLocaleTimeString()}] ${data.message}`);
       } else if (data.type === 'stt_result') {
         const el = document.getElementById("micLastUserText");
         if (el) el.innerText = data.text || "(Trống)";
-        if (data.message) appendMicLog('success', `[${data.timestamp}] ${data.message}`);
+        appendMicLog('success', `[${data.timestamp || new Date().toLocaleTimeString()}] 🗣️ Người dùng: "${data.text || ''}"`);
       } else if (data.type === 'llm_reply') {
         const el = document.getElementById("micLastAiReply");
         if (el) el.innerText = data.reply || "";
-        if (data.message) appendMicLog('info', `[${data.timestamp}] ${data.message}`);
+        appendMicLog('info', `[${data.timestamp || new Date().toLocaleTimeString()}] 🤖 Gehihi: "${data.reply || ''}"`);
       } else if (data.type === 'log') {
-        if (data.message) appendMicLog(data.level_type || 'info', `[${data.timestamp}] ${data.message}`);
+        if (data.message) appendMicLog(data.level_type || 'info', `[${data.timestamp || new Date().toLocaleTimeString()}] ${data.message}`);
       }
     }
 
@@ -7127,10 +7128,14 @@ Ví dụ:
         const el = document.getElementById("micLastAiReply");
         if (el) el.innerText = st.last_reply;
       }
-      updateMicState(st.state || 'idle');
+      if (st.status === 'online' || st.state === 'idle') {
+        updateMicState('idle');
+      } else {
+        updateMicState(st.state || st.status || 'idle');
+      }
     }
 
-    function updateMicLevel(peak, level, packetIdx, durationMs, totalBytes) {
+    function updateMicLevel(peak, level, packetIdx, durationMs, totalBytes, isSpeaking) {
       const peakEl = document.getElementById("micPeakValue");
       if (peakEl) peakEl.innerText = Number(peak || 0).toLocaleString('vi-VN');
 
@@ -7159,17 +7164,23 @@ Ví dụ:
       });
 
       const pktEl = document.getElementById("micPacketCount");
-      if (pktEl) pktEl.innerText = `${packetIdx} gói`;
+      if (pktEl) pktEl.innerText = `${packetIdx || 0} gói`;
 
       const durEl = document.getElementById("micDurationVal");
-      if (durEl) durEl.innerText = `${((packetIdx * 60) / 1000).toFixed(2)} s`;
+      if (durEl) {
+        const dSec = durationMs !== undefined ? (durationMs / 1000) : ((packetIdx || 0) * 0.06);
+        durEl.innerText = `${dSec.toFixed(2)} s`;
+      }
 
       const bufEl = document.getElementById("micBufferSize");
       if (bufEl) {
-        bufEl.innerText = totalBytes > 1024 ? `${(totalBytes / 1024).toFixed(1)} KB` : `${totalBytes} B`;
+        const bytes = totalBytes || 0;
+        bufEl.innerText = bytes > 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${bytes} B`;
       }
 
-      updateMicState("recording");
+      if (isSpeaking) {
+        updateMicState("recording");
+      }
     }
 
     function updateMicState(state) {
