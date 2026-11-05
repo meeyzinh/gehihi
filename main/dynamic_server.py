@@ -3837,7 +3837,14 @@ async def handle_api_auth_register(request):
                 matched_mac = p_mac
                 break
 
-    final_mac = matched_mac or (input_mac if len(input_mac) >= 12 else "14:c1:9f:c4:ee:d0")
+    if matched_mac:
+        final_mac = matched_mac
+    elif input_mac and len(input_mac) >= 12:
+        final_mac = input_mac
+    else:
+        # N?u m? PIN kh?ng kh?p robot ?ang ch? v? kh?ng nh?p MAC, t?o MAC m?i ng?u nhi?n ?? kh?ng ghi ?? robot kh?c
+        rand_hex = [f"{random.randint(16, 250):02x}" for _ in range(6)]
+        final_mac = ":".join(rand_hex)
     final_mac = final_mac.lower()
     final_pin = input_pin or (PENDING_ACTIVATIONS.get(final_mac, {}).get("pin") if final_mac in PENDING_ACTIVATIONS else str(random.randint(100000, 999999)))
 
