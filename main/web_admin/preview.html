@@ -1897,8 +1897,8 @@ body {
         <div class="user-name" id="sidebarRobotName" style="font-size:15px;font-weight:bold;color:#f8fafc;">Ông Robot (ESP32-S3)</div>
         <div class="user-device" id="sidebarRobotMac" style="font-size:12px;color:#94a3b8;font-family:monospace;">14:c1:9f:c4:ee:d0</div>
         <div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:6px;">
-          <span class="status-dot connected" id="sidebarStatusDot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;"></span>
-          <span id="sidebarStatusText" style="color:#4ade80;font-weight:600;">Trực tuyến</span>
+          <span class="status-dot" id="sidebarStatusDot" style="width:8px;height:8px;border-radius:50%;background:#94a3b8;box-shadow:none;"></span>
+          <span id="sidebarStatusText" style="color:#94a3b8;font-weight:600;">Chờ kết nối</span>
         </div>
         <div style="margin-top: 6px; display:flex; align-items:center; gap:6px;">
           <span class="badge" style="background:#1e40af;color:#bfdbfe;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:bold;">🤖 Robot Mini S3</span>
@@ -2035,9 +2035,9 @@ body {
             </div>
 
             <!-- BADGE TRẠNG THÁI -->
-            <div id="dashRobotStatusBadge" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 20px; background: rgba(34,197,94,0.18); border: 1px solid #22c55e; color: #4ade80; font-size: 13px; font-weight: 700;">
-                <span id="dashRobotStatusDot" style="width: 9px; height: 9px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e;"></span>
-                <span id="dashRobotStatusText">Trực tuyến (WebSocket Live)</span>
+            <div id="dashRobotStatusBadge" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 20px; background: rgba(148,163,184,0.12); border: 1px solid #64748b; color: #94a3b8; font-size: 13px; font-weight: 700;">
+                <span id="dashRobotStatusDot" style="width: 9px; height: 9px; border-radius: 50%; background: #94a3b8; box-shadow: none;"></span>
+                <span id="dashRobotStatusText">Ngoại tuyến (Chờ kết nối)</span>
             </div>
         </div>
 
@@ -3932,7 +3932,7 @@ Ví dụ:
             return;
           }
           container.innerHTML = accounts.map(a => {
-            const isOnline = Boolean(a.is_online || a.online || a.status === 1);
+            const isOnline = Boolean(a.is_online || a.online);
             return `
               <div onclick="quickSelectAccount('${a.device_code || a.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#0c1a32;border:1px solid rgba(255,255,255,0.08);border-radius:10px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='#3b82f6';this.style.background='#132747'" onmouseout="this.style.borderColor='rgba(255,255,255,0.08)';this.style.background='#0c1a32'">
                 <div style="display:flex;align-items:center;gap:10px;">
@@ -4406,7 +4406,7 @@ Ví dụ:
       if (!devices || devices.length === 0) return;
       let dev = devices.find(d => d.id === activeDeviceId || d.device_code === activeDeviceId);
       if (!dev) {
-        dev = devices.find(d => Boolean(d.is_online || d.online || d.status === 1)) || devices[0];
+        dev = devices.find(d => Boolean(d.is_online || d.online)) || devices[0];
         if (dev) {
           activeDeviceId = dev.id;
           localStorage.setItem("gehihi_active_robot_id", dev.id);
@@ -4426,7 +4426,7 @@ Ví dụ:
       const macAddr = dev.device_mac || dev.mac || dev.macAddress || '14:C1:9F:C4:EE:D0';
       if (macEl) macEl.innerText = `PIN: ${pinCode} (${macAddr})`;
       
-      const isOnline = Boolean(dev.is_online || dev.online || dev.status === 1);
+      const isOnline = Boolean(dev.is_online || dev.online);
       if (dotEl) {
         dotEl.style.background = isOnline ? "#22c55e" : "#94a3b8";
         dotEl.style.boxShadow = isOnline ? "0 0 6px #22c55e" : "none";
@@ -4472,7 +4472,7 @@ Ví dụ:
         avatarEl.style.color = dev.initial_color || '#e11d48';
       }
 
-      const isOnline = Boolean(dev.is_online || dev.online || dev.status === 1);
+      const isOnline = Boolean(dev.is_online || dev.online);
       const statusDot = document.getElementById("dashRobotStatusDot");
       if (statusBadge) {
         statusBadge.style.background = isOnline ? 'rgba(34,197,94,0.18)' : 'rgba(148,163,184,0.12)';
@@ -4601,7 +4601,7 @@ Ví dụ:
       }
 
       grid.innerHTML = devices.map(d => {
-        const isOnline = Boolean(d.is_online || d.online || d.status === 1);
+        const isOnline = Boolean(d.is_online || d.online);
         const isSelected = d.id === activeDeviceId || d.device_code === activeDeviceId;
         const initial = d.initial || (d.name ? d.name[0] : "R").toUpperCase();
         const badgeBg = d.badge_color || "#ffe4e6";
@@ -4749,7 +4749,7 @@ Ví dụ:
       
       const statusEl = document.getElementById("viewDevOnlineStatus");
       if (statusEl) {
-        const isOnline = Boolean(dev.is_online || dev.online || dev.status === 1);
+        const isOnline = Boolean(dev.is_online || dev.online);
         statusEl.innerHTML = isOnline 
           ? '<span style="display:inline-flex;align-items:center;gap:6px;color:#4ade80;"><span style="width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;"></span>Trực tuyến (WebSocket Live)</span>'
           : '<span style="display:inline-flex;align-items:center;gap:6px;color:#94a3b8;"><span style="width:8px;height:8px;border-radius:50%;background:#94a3b8;"></span>Ngoại tuyến (Chờ kết nối)</span>';
@@ -4981,7 +4981,7 @@ Ví dụ:
       }
 
       container.innerHTML = devices.map(d => {
-        const isOnline = Boolean(d.is_online || d.online || d.status === 1);
+        const isOnline = Boolean(d.is_online || d.online);
         const isSelected = d.id === activeDeviceId || d.device_code === activeDeviceId;
         const initial = d.initial || (d.name ? d.name[0] : "R");
         const badgeBg = d.badge_color || "#1e3a8a";

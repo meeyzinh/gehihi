@@ -915,7 +915,7 @@
       const activeId = localStorage.getItem("gehihi_active_robot_id") || "DEV_001";
 
       container.innerHTML = devices.map(d => {
-        const isOnline = Boolean(d.online || d.is_online || d.status === 1);
+        const isOnline = Boolean(d.online || d.is_online);
         const isSelected = d.id === activeId || d.device_code === activeId;
         const initial = (d.name ? d.name[0] : "R").toUpperCase();
         const pinCode = d.pin || d.device_code || "927184";
