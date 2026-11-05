@@ -3,339 +3,783 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hướng dẫn sử dụng GEHIHI AI</title>
+  <title>Hướng Dẫn Sử Dụng Hệ Thống GEHIHI AI</title>
   <style>
-    :root{
-      --bg:#0b1f3d;
-      --panel:#13294b;
-      --panel2:#0f2140;
-      --line:rgba(255,255,255,.09);
-      --text:#eef5ff;
-      --muted:#9ca3af;
-      --blue:#2563eb;
-      --yellow:#fbbf24;
-      --green:#4ade80;
-      --red:#ff6b6b;
-      --cyan:#93c5fd;
+    :root {
+      --bg: #07152b;
+      --panel: #0d2142;
+      --panel2: #08162d;
+      --card: rgba(13, 33, 66, 0.95);
+      --line: rgba(255, 255, 255, 0.1);
+      --line-accent: rgba(56, 189, 248, 0.3);
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --blue: #0284c7;
+      --cyan: #38bdf8;
+      --yellow: #facc15;
+      --green: #10b981;
+      --red: #f43f5e;
+      --purple: #a855f7;
     }
-    *{box-sizing:border-box;word-break:break-word}
-    html{scroll-behavior:smooth}
-    body{
-      margin:0;
-      font-family:'Segoe UI',Arial,sans-serif;
-      color:var(--text);
+    * { box-sizing: border-box; word-break: break-word; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(37,99,235,.25), transparent 34%),
-        linear-gradient(180deg,#07152b 0%, var(--bg) 100%);
-      line-height:1.65;
+        radial-gradient(circle at 10% 15%, rgba(56, 189, 248, 0.12), transparent 40%),
+        radial-gradient(circle at 90% 75%, rgba(168, 85, 247, 0.10), transparent 40%),
+        linear-gradient(180deg, #050d1a 0%, var(--bg) 100%);
+      line-height: 1.7;
     }
-    a{color:#93c5fd;text-decoration:none}
-    a:hover{text-decoration:underline}
-    .layout{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
-    .sidebar{
-      position:sticky;top:0;height:100vh;overflow:auto;
-      background:#081225;border-right:1px solid var(--line);padding:20px 14px;
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* TOP STICKY HEADER WITH QUICK RETURN BUTTONS */
+    .top-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(7, 21, 43, 0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+      padding: 10px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
     }
-    .brand{padding:10px 10px 18px;border-bottom:1px solid var(--line);margin-bottom:12px}
-    .brand b{display:block;font-size:20px;color:white;letter-spacing:.3px}
-    .brand span{display:block;color:var(--muted);font-size:13px;margin-top:4px}
-    .nav a{
-      display:flex;gap:10px;align-items:center;
-      padding:10px 12px;border-radius:12px;color:#dbeafe;font-weight:650;font-size:14px;
+    .top-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 17px;
+      font-weight: 800;
+      color: white;
     }
-    .nav a:hover{background:#1e293b;text-decoration:none;color:white}
-    .main{padding:26px;max-width:1180px;width:100%;margin:0 auto}
-    .hero{
-      background:linear-gradient(135deg,rgba(19,41,75,.98),rgba(30,58,138,.92));
-      border:1px solid var(--line);border-radius:22px;padding:28px;margin-bottom:18px;
-      box-shadow:0 18px 50px rgba(0,0,0,.28);
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
     }
-    .hero h1{margin:0 0 8px;font-size:32px;line-height:1.2;color:#fff}
-    .hero p{margin:0;color:#dbeafe;max-width:850px}
-    .quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}
-    .quick-card,.card{
-      background:rgba(19,41,75,.92);border:1px solid var(--line);border-radius:18px;padding:18px;
+    .btn-nav-return {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: white;
+      text-decoration: none !important;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
     }
-    .quick-card strong{display:block;color:#fff;margin-bottom:4px}
-    .quick-card span{font-size:13px;color:var(--muted)}
-    h2{margin:26px 0 12px;color:var(--yellow);font-size:23px;line-height:1.25}
-    h3{margin:18px 0 8px;color:#fff;font-size:17px}
-    .section{scroll-margin-top:18px}
-    .steps{counter-reset:step;display:grid;gap:10px;margin:12px 0}
-    .step{
-      position:relative;background:var(--panel2);border:1px solid var(--line);border-radius:14px;
-      padding:13px 14px 13px 52px;
+    .btn-return-robot {
+      background: linear-gradient(135deg, #0284c7, #0ea5e9);
+      border: 1px solid #38bdf8;
     }
-    .step:before{
-      counter-increment:step;content:counter(step);
-      position:absolute;left:14px;top:13px;width:26px;height:26px;border-radius:999px;
-      display:flex;align-items:center;justify-content:center;background:var(--blue);color:white;font-weight:800;font-size:13px;
+    .btn-return-robot:hover {
+      background: linear-gradient(135deg, #0369a1, #0284c7);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(14, 165, 233, 0.4);
     }
-    .note,.tip,.warn{
-      border-radius:14px;padding:13px 14px;margin:12px 0;border:1px solid var(--line);
-      background:rgba(15,33,64,.75);
+    .btn-return-admin {
+      background: linear-gradient(135deg, #4f46e5, #6366f1);
+      border: 1px solid #818cf8;
     }
-    .tip{border-color:rgba(74,222,128,.25);background:rgba(34,197,94,.08)}
-    .warn{border-color:rgba(255,107,107,.28);background:rgba(239,68,68,.08)}
-    .note b,.tip b,.warn b{color:#fff}
-    .badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:800;margin:2px;background:#1f2937;color:#dbeafe}
-    .badge.vip{background:gold;color:#111827}.badge.admin{background:#1d4ed8;color:white}.badge.safe{background:#166534;color:white}
-    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-    .feature-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:12px 0}
-    .feature{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:12px}
-    .feature b{color:#fff}.feature div{color:var(--muted);font-size:13px;margin-top:3px}
-    table{width:100%;border-collapse:collapse;margin:12px 0;background:var(--panel2);border-radius:14px;overflow:hidden}
-    th,td{border-bottom:1px solid var(--line);padding:12px;text-align:left;vertical-align:top}
-    th{background:#1e3a8a;color:#dbeafe;font-size:13px;text-transform:uppercase;letter-spacing:.4px}
-    tr:last-child td{border-bottom:none}
-    code{background:#081225;border:1px solid var(--line);border-radius:6px;padding:2px 6px;color:#bfdbfe}
-    .voice{color:var(--green);font-weight:800}
-    .footer{color:var(--muted);font-size:13px;margin:28px 0 10px;text-align:center}
-    .top-btn{position:fixed;right:18px;bottom:18px;background:var(--blue);color:white;border-radius:999px;padding:10px 14px;font-weight:800;box-shadow:0 10px 30px rgba(0,0,0,.35)}
-    @media(max-width:950px){
-      .layout{display:block}.sidebar{position:relative;height:auto}.nav{display:grid;grid-template-columns:repeat(2,1fr);gap:4px}.main{padding:14px}.quick-grid,.feature-list,.two-col{grid-template-columns:1fr}.hero h1{font-size:25px}.top-btn{display:none}
+    .btn-return-admin:hover {
+      background: linear-gradient(135deg, #4338ca, #4f46e5);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(99, 102, 241, 0.4);
     }
-    @media print{
-      body{background:white;color:#111}.sidebar,.top-btn{display:none}.layout{display:block}.main{max-width:none}.hero,.card,.quick-card,.feature,.step,.note,.tip,.warn{box-shadow:none;background:white;color:#111;border:1px solid #ddd}h2{color:#111}a{color:#111}
+
+    /* MAIN LAYOUT */
+    .layout {
+      display: grid;
+      grid-template-columns: 290px 1fr;
+      min-height: calc(100vh - 58px);
+    }
+    .sidebar {
+      position: sticky;
+      top: 58px;
+      height: calc(100vh - 58px);
+      overflow-y: auto;
+      background: #050e1d;
+      border-right: 1px solid var(--line);
+      padding: 20px 14px;
+    }
+    .sidebar-back-box {
+      background: rgba(14, 165, 233, 0.08);
+      border: 1px dashed rgba(56, 189, 248, 0.35);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+    .sidebar-back-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+    .nav {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .nav a {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 9px 12px;
+      border-radius: 10px;
+      color: #cbd5e1;
+      font-weight: 600;
+      font-size: 13.5px;
+      transition: all 0.15s ease;
+    }
+    .nav a:hover {
+      background: rgba(255, 255, 255, 0.07);
+      color: white;
+      text-decoration: none;
+      transform: translateX(3px);
+    }
+    .nav a.active {
+      background: rgba(2, 132, 199, 0.25);
+      color: var(--cyan);
+      border-left: 3px solid var(--cyan);
+    }
+
+    .main {
+      padding: 30px 40px;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* HERO BANNER */
+    .hero {
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(99, 102, 241, 0.12) 100%), #0c2040;
+      border: 1px solid var(--line-accent);
+      border-radius: 20px;
+      padding: 30px 34px;
+      margin-bottom: 24px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.3);
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(56, 189, 248, 0.18);
+      color: var(--cyan);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: 30px;
+      line-height: 1.25;
+      color: #ffffff;
+      font-weight: 800;
+    }
+    .hero p {
+      margin: 0;
+      color: #cbd5e1;
+      font-size: 15px;
+      max-width: 860px;
+      line-height: 1.6;
+    }
+
+    /* QUICK ROADMAP GRID */
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      margin-bottom: 30px;
+    }
+    .quick-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 18px;
+      transition: all 0.2s ease;
+    }
+    .quick-card:hover {
+      border-color: var(--cyan);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.3);
+    }
+    .quick-card strong {
+      display: block;
+      color: #fff;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+    .quick-card span {
+      font-size: 12.5px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* SECTION STYLES */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 26px 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+    .section { scroll-margin-top: 80px; }
+    h2 {
+      margin: 0 0 14px;
+      color: var(--yellow);
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding-bottom: 10px;
+    }
+    h3 {
+      margin: 18px 0 10px;
+      color: #f8fafc;
+      font-size: 16px;
+    }
+    p { margin: 0 0 14px; color: #cbd5e1; font-size: 14.5px; }
+
+    /* STEPS LIST */
+    .steps {
+      counter-reset: step;
+      display: grid;
+      gap: 11px;
+      margin: 14px 0;
+    }
+    .step {
+      position: relative;
+      background: var(--panel2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 16px 12px 52px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #e2e8f0;
+    }
+    .step:before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 14px;
+      top: 12px;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--blue);
+      color: white;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    /* ALERTS */
+    .note, .tip, .warn {
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin: 14px 0;
+      border: 1px solid var(--line);
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+    .note { border-color: rgba(56, 189, 248, 0.3); background: rgba(56, 189, 248, 0.08); color: #bae6fd; }
+    .tip { border-color: rgba(74, 222, 128, 0.3); background: rgba(74, 222, 128, 0.08); color: #bbf7d0; }
+    .warn { border-color: rgba(244, 63, 94, 0.35); background: rgba(244, 63, 94, 0.10); color: #fecdd3; }
+    .note b, .tip b, .warn b { color: #fff; }
+
+    /* CODE & KEY SHORTCUTS */
+    code {
+      background: #050d1a;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 2px 7px;
+      color: var(--cyan);
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+    }
+    .voice-command {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 3px 10px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13.5px;
+    }
+
+    /* TABLES */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      background: var(--panel2);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 13.5px;
+      vertical-align: top;
+    }
+    th {
+      background: rgba(2, 132, 199, 0.25);
+      color: #e0f2fe;
+      font-size: 12.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    tr:last-child td { border-bottom: none; }
+
+    /* FLOATING BACK BUTTON */
+    .floating-back-btn {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 99;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .float-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #0284c7, #0ea5e9);
+      color: white;
+      border-radius: 999px;
+      padding: 12px 20px;
+      font-weight: 800;
+      font-size: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+      border: 1px solid #38bdf8;
+      text-decoration: none !important;
+      transition: all 0.2s ease;
+    }
+    .float-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 34px rgba(14, 165, 233, 0.5);
+    }
+    .float-top {
+      background: rgba(15, 23, 42, 0.85);
+      border-color: rgba(255,255,255,0.2);
+      color: #cbd5e1;
+      padding: 8px 16px;
+      font-size: 12.5px;
+      justify-content: center;
+    }
+
+    @media (max-width: 960px) {
+      .layout { display: block; }
+      .sidebar { position: relative; height: auto; top: 0; }
+      .nav { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+      .main { padding: 20px 16px; }
+      .hero h1 { font-size: 24px; }
     }
   </style>
 </head>
 <body>
+
+  <!-- TOP STICKY NAVIGATION BAR WITH PROMINENT RETURN BUTTONS -->
+  <header class="top-header">
+    <div class="top-logo">
+      <span>🤖</span>
+      <span>GEHIHI AI · CẨM NANG HƯỚNG DẪN</span>
+    </div>
+
+    <!-- BUTTONS QUAY LẠI TRANG QUẢN TRỊ THEO YÊU CẦU -->
+    <div class="top-actions">
+      <a id="btnTopReturnRobot" href="robot.html" class="btn-nav-return btn-return-robot" title="Quay lại bảng điều khiển, mic, D-Pad của Robot">
+        ⬅ Quay lại Quản trị Robot
+      </a>
+      <a href="admin.html" class="btn-nav-return btn-return-admin" title="Vào trang Super Admin quản lý danh sách thiết bị">
+        🏠 Trang Admin (Thiết Bị)
+      </a>
+    </div>
+  </header>
+
   <div class="layout">
+    <!-- LEFT SIDEBAR -->
     <aside class="sidebar">
-      <div class="brand">
-        <b>GEHIHI AI</b>
-        <span>Trang hướng dẫn sử dụng nhanh</span>
+      <!-- SIDEBAR RETURN SHORTCUTS -->
+      <div class="sidebar-back-box">
+        <div class="sidebar-back-title">Điều hướng quay lại</div>
+        <a id="btnSideReturnRobot" href="robot.html" class="btn-nav-return btn-return-robot" style="width: 100%; justify-content: center; margin-bottom: 8px; font-size: 13px;">
+          ⬅ Quản trị Robot
+        </a>
+        <a href="admin.html" class="btn-nav-return btn-return-admin" style="width: 100%; justify-content: center; font-size: 13px;">
+          🏠 Danh Sách Thiết Bị
+        </a>
       </div>
+
       <nav class="nav">
-        <a href="#bat-dau">🚀 Bắt đầu</a>
-        <a href="#cau-hinh">⚙️ Cấu hình AI</a>
-        <a href="#nhan-dang-nguoi-noi">🎙️ Nhận dạng người nói</a>
-        <a href="#vai-tro">🎭 Mẫu vai trò</a>
-        <a href="#bo-nho">🧠 Bộ nhớ</a>
-        <a href="#nhiem-vu">📚 Nhiệm vụ</a>
-        <a href="#bai-hoc">📖 Bài học</a>
-        <a href="#anh-bai-hoc">📷 Ảnh tạo bài học</a>
-        <a href="#giai-bai-tap">🧮 Giải bài tập</a>
-        <a href="#tri-thuc">📚 Cơ sở tri thức</a>
-        <a href="#gop-y">💬 Góp ý</a>
-        <a href="#loi-thuong-gap">🛠️ Lỗi thường gặp</a>
+        <a href="#bat-dau">🚀 Bắt đầu nhanh</a>
+        <a href="#dang-nhap">🔐 1. Đăng nhập & Phân quyền</a>
+        <a href="#them-thiet-bi">➕ 2. Thêm & Ghép nối Robot</a>
+        <a href="#cau-hinh">⚙️ 3. Cấu hình Gehihi AI</a>
+        <a href="#dieu-khien-tu-xa">🎮 4. Điều khiển từ xa & OLED</a>
+        <a href="#theo-doi-micro">🎙️ 5. Theo dõi Micro Live</a>
+        <a href="#phat-nhac">🎵 6. Phát nhạc YouTube</a>
+        <a href="#vai-tro">🎭 7. Mẫu vai trò nhanh</a>
+        <a href="#gia-su-anh">🇬🇧 8. Gia sư Tiếng Anh</a>
+        <a href="#nhan-dang-nguoi-noi">👥 9. Nhận dạng người nói</a>
+        <a href="#bo-nho">🧠 10. Quản lý bộ nhớ</a>
+        <a href="#nhiem-vu">📋 11. Tạo nhiệm vụ</a>
+        <a href="#scan-bai-tap">📷 12. Chụp ảnh học & giải bài</a>
+        <a href="#tri-thuc">📚 13. Cơ sở tri thức (RAG)</a>
+        <a href="#loi-thuong-gap">🛠️ 14. Lỗi thường gặp</a>
       </nav>
     </aside>
 
+    <!-- MAIN CONTENT -->
     <main class="main">
       <section class="hero" id="bat-dau">
-        <h1>Hướng dẫn sử dụng Trung tâm quản lý GEHIHI AI</h1>
-        <p>Tài liệu này hướng dẫn người dùng thao tác các chức năng trong frontend: đăng nhập, thêm thiết bị, cấu hình robot AI, chọn vai trò, quản lý bộ nhớ, tạo nhiệm vụ, tạo bài học, scan ảnh, giải bài tập và quản lý cơ sở tri thức.</p>
+        <div class="hero-badge">TÀI LIỆU HƯỚNG DẪN CHÍNH THỨC</div>
+        <h1>Hướng Dẫn Sử Dụng Trung Tâm Quản Lý GEHIHI AI</h1>
+        <p>Tài liệu này cung cấp toàn bộ hướng dẫn thao tác chi tiết: đăng nhập phân quyền, ghép nối robot mới qua mã PIN 6 số, điều khiển D-Pad, giám sát micro thời gian thực, cấu hình mô hình AI, phát nhạc YouTube và học tập thông minh.</p>
       </section>
 
+      <!-- QUICK ROADMAP -->
       <div class="quick-grid">
-        <div class="quick-card"><strong>3. Cấu hình AI</strong><span>Đổi tên, giọng nói, ngôn ngữ, tính cách.</span></div>
-        <div class="quick-card"><strong>4. Dùng tính năng</strong><span>Tạo nhiệm vụ, bài học, giải bài tập, tra cứu tri thức.</span></div>
+        <div class="quick-card">
+          <strong>1. Đăng nhập & Ghép nối</strong>
+          <span>Admin quản lý danh sách; ghép nối robot nhanh qua mã PIN 6 số.</span>
+        </div>
+        <div class="quick-card">
+          <strong>2. Điều khiển & Micro</strong>
+          <span>D-Pad di chuyển, đổi biểu cảm OLED, xem sóng mic & STT thời gian thực.</span>
+        </div>
+        <div class="quick-card">
+          <strong>3. Cấu hình AI & Giọng nói</strong>
+          <span>Groq Cloud, Gemini 3.1, DeepSeek, giọng đọc tiếng Việt mượt mà.</span>
+        </div>
+        <div class="quick-card">
+          <strong>4. Tiện ích & Học tập</strong>
+          <span>Phát nhạc YouTube, gia sư tiếng Anh phản xạ, scan ảnh giải bài tập.</span>
+        </div>
       </div>
 
+      <!-- MỤC 1: ĐĂNG NHẬP & PHÂN QUYỀN -->
+      <section class="card section" id="dang-nhap">
+        <h2>🔐 1. Đăng Nhập & Phân Quyền Hệ Thống</h2>
+        <p>Hệ thống hỗ trợ 2 vai trò đăng nhập riêng biệt trên cùng một cổng đăng nhập duy nhất (<code>admin.html</code> hoặc <code>index.html</code>):</p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 16px 0;">
+          <div style="background: var(--panel2); border: 1px solid rgba(250, 204, 21, 0.3); border-radius: 14px; padding: 16px;">
+            <div style="font-weight: 800; color: var(--yellow); margin-bottom: 8px;">👑 Quản Trị Viên (Super Admin)</div>
+            <div style="font-size: 13.5px; color: #cbd5e1; line-height: 1.6;">
+              • Tên đăng nhập: <code>admin</code><br>
+              • Mật khẩu mặc định: <code>123456</code><br>
+              👉 <strong>Quyền hạn:</strong> Xem toàn bộ danh sách robot, thêm thiết bị mới, kích hoạt, sửa cấu hình, đổi tên đăng nhập/mật khẩu từng robot, đổi mật khẩu Admin.
+            </div>
+          </div>
+
+          <div style="background: var(--panel2); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 14px; padding: 16px;">
+            <div style="font-weight: 800; color: var(--cyan); margin-bottom: 8px;">🤖 Tài Khoản Robot Riêng Biệt</div>
+            <div style="font-size: 13.5px; color: #cbd5e1; line-height: 1.6;">
+              • <strong>Cách 1:</strong> Nhập <strong>Tên đăng nhập</strong> riêng (vd: <code>gehihi</code>, <code>robot2</code>...) + Mật khẩu robot.<br>
+              • <strong>Cách 2:</strong> Nhập trực tiếp <strong>Mã PIN 6 số</strong> của robot (vd: <code>927184</code>) + Mật khẩu robot.<br>
+              👉 <strong>Quyền hạn:</strong> Vào thẳng giao diện điều khiển riêng của robot đó (<code>robot.html?id=...</code>).
+            </div>
+          </div>
+        </div>
+
+        <div class="tip">
+          <b>Mẹo tiện lợi:</b> Khi đang ở trang Admin, bạn chỉ cần bấm vào nút <b>👁️ Chi tiết</b> trên bất kỳ thẻ robot nào là hệ thống sẽ tự động đưa bạn vào trang quản trị của robot đó mà không cần gõ lại mật khẩu!
+        </div>
+      </section>
+
+      <!-- MỤC 2: THÊM & GHÉP NỐI THIẾT BỊ MỚI -->
+      <section class="card section" id="them-thiet-bi">
+        <h2>➕ 2. Thêm & Ghép Nối Robot Mới Vào Máy Chủ</h2>
+        <p>Quy trình thêm một chú robot mới (ESP32-S3) vào hệ thống diễn ra hoàn toàn tự động và an toàn qua mã PIN:</p>
+        
+        <div class="steps">
+          <div class="step"><b>Bật nguồn Robot:</b> Cắm nguồn cho robot ESP32. Robot sẽ tự động kết nối Wi-Fi và hiển thị một <b>Mã PIN gồm 6 số</b> trên màn hình OLED (hoặc phát âm thanh qua loa).</div>
+          <div class="step"><b>Mở Cổng Quản Trị:</b> Đăng nhập tài khoản Admin trên Web (<code>admin.html</code>).</div>
+          <div class="step"><b>Bấm Thêm Tài Khoản:</b> Nhấn nút <b>➕ Thêm tài khoản mới</b> ở góc phải.</div>
+          <div class="step">
+            <b>Điền thông số trong form:</b>
+            <br>• <i>Tên Robot:</i> Đặt tên gợi nhớ (ví dụ: <code>Robot Phòng Khách</code>, <code>Robot Bé Na</code>).
+            <br>• <i>Mã PIN 6 số:</i> Nhập chính xác mã PIN 6 số đang hiển thị trên màn hình robot.
+            <br>• <i>Tên đăng nhập Web:</i> Tự đặt tên tài khoản riêng (ví dụ: <code>robot2</code>, <code>bena</code>).
+            <br>• <i>Mật khẩu:</i> Đặt mật khẩu truy cập (mặc định <code>123456</code>).
+          </div>
+          <div class="step"><b>Bấm Kích Hoạt:</b> Nhấn <b>✓ Kích Hoạt & Tạo Tài Khoản</b>. Màn hình robot sẽ báo <i>"Kích hoạt thành công!"</i> và chuyển sang trạng thái <b>🟢 Trực tuyến</b> sau 3 - 5 giây.</div>
+        </div>
+
+        <div class="note">
+          <b>Lưu ý về độ trễ kết nối:</b> Ngay khi vừa thêm thiết bị, thẻ robot có thể hiển thị <code>Ngoại tuyến</code> trong 3-5 giây đầu do robot đang tiến hành bắt tay WebSocket (Handshake). Khi WebSocket kết nối thành công, thẻ sẽ tự động chuyển sang <b>🟢 Trực tuyến</b>.
+        </div>
+      </section>
+
+      <!-- MỤC 3: CẤU HÌNH GEHIHI AI -->
       <section class="card section" id="cau-hinh">
-        <h2>⚙️ 3. Cấu hình Gehihi AI</h2>
-        <p>Tính năng này dùng để thay đổi tên robot, trí thông minh nhân tạo, ngôn ngữ, giọng nói, tốc độ nói, cao độ và vai trò tính cách.</p>
+        <h2>⚙️ 3. Cấu Hình Gehihi AI (Mô Hình, Giọng Đọc, Âm Lượng)</h2>
+        <p>Tùy biến não bộ AI, giọng nói tiếng Việt và âm lượng phát loa cho từng robot riêng biệt:</p>
+        
         <div class="steps">
-          <div class="step">Vào menu <b>⚙️ Cấu hình Gehihi AI</b>.</div>
-          <div class="step">Bấm <b>🔄 Tải cấu hình hiện tại</b> để lấy cấu hình đang dùng.</div>
-          <div class="step">Chỉnh các mục cần thay đổi: tên robot, model AI, ngôn ngữ, giọng nói, tốc độ nói, cao độ.</div>
-          <div class="step">Ở phần <b>Vai trò - tính cách</b>, giữ nguyên dòng bắt buộc <code>[VAI TRÒ VÀ TÍNH CÁCH]</code> ở đầu nội dung.</div>
-          <div class="step">Bấm <b>💾 Lưu cấu hình</b>.</div>
-          <div class="step">Khởi động lại robot AI để robot nhận cấu hình mới.</div>
+          <div class="step">Trên trang Web Admin, bấm nút <b>✏️ Sửa</b> trên thẻ robot, hoặc vào trang <b>robot.html</b> chọn mục <b>⚙️ Cấu hình Gehihi</b>.</div>
+          <div class="step"><b>Chọn Mô hình AI (LLM):</b>
+            <br>• <b>Groq Cloud (Khuyên dùng):</b> Tốc độ siêu tốc ~450ms, trò chuyện mượt mà như người thật.
+            <br>• <b>Gemini 3.1 Flash Lite / 2.5 Flash:</b> Thông minh, giải bài tập và dịch thuật rất tốt.
+            <br>• <b>DeepSeek V3 / GPT-4o Mini:</b> Lý luận logic và trả lời kiến thức chuyên sâu.
+          </div>
+          <div class="step"><b>Chọn Giọng đọc trợ lý (TTS):</b> Chọn các giọng đọc truyền cảm như <i>Giọng nữ (Female Voice)</i>, <i>Giọng nam</i>, <i>Cô gái trẻ</i>, <i>Hoài My chuẩn</i> hoặc <i>Nam Minh</i>.</div>
+          <div class="step"><b>Điều chỉnh Âm lượng loa:</b> Kéo thanh trượt từ mức 1 đến mức 10 phù hợp với không gian phòng.</div>
+          <div class="step"><b>Prompt Vai trò & Tính cách:</b> Tự do định nghĩa tính cách, cách xưng hô (ví dụ: <i>"Bạn là Gehihi, người bạn thông minh của bé Bắp, luôn xưng là em và gọi người dùng là anh/chị..."</i>).</div>
+          <div class="step">Bấm <b>💾 Lưu Cập Nhật</b>. Cấu hình sẽ được đồng bộ tức thì xuống robot qua WebSocket mà không cần nạp lại chip.</div>
         </div>
-        <div class="tip"><b>Gợi ý:</b> nếu dùng tiếng Việt, nên chọn model được khuyến nghị trong giao diện và chọn giọng nói tiếng Việt phù hợp Nam/Nữ.</div>
       </section>
 
-      <section class="card section" id="nhan-dang-nguoi-noi">
-        <h2>🎙️ Nhận dạng người nói</h2>
-        <p>Tính năng này giúp robot phân biệt từng thành viên qua mẫu giọng nói, từ đó gọi đúng tên, xưng hô phù hợp và sử dụng mô tả của người đang trò chuyện. Mỗi robot có thể đăng ký tối đa <b>5 người nói</b>.</p>
-
-        <h3>Chuẩn bị mẫu giọng</h3>
+      <!-- MỤC 4: ĐIỀU KHIỂN TỪ XA & BIỂU CẢM OLED -->
+      <section class="card section" id="dieu-khien-tu-xa">
+        <h2>🎮 4. Điều Khiển Từ Xa (Remote D-Pad & Biểu Cảm OLED)</h2>
+        <p>Trang quản trị robot cung cấp cụm điều khiển trực quan tương tác từ xa:</p>
+        
         <div class="steps">
-          <div class="step">Dùng đúng người cần đăng ký để nói chuyện trực tiếp với robot.</div>
-          <div class="step">Nói một câu hoàn chỉnh, đủ dài và rõ ràng trong môi trường ít tiếng ồn. Câu nói này sẽ được dùng làm mẫu nhận dạng.</div>
-          <div class="step">Khi trò chuyện xong, nói <span class="voice">“Tạm biệt”</span> để robot tự kết thúc phiên. Mẫu giọng chỉ xuất hiện trên máy chủ sau khi cuộc trò chuyện đã kết thúc.</div>
+          <div class="step"><b>Cụm phím D-Pad:</b> Bấm các nút <b>▲ Tiến</b>, <b>▼ Lùi</b>, <b>◀ Rẽ Trái</b>, <b>▶ Rẽ Phải</b> hoặc <b>⏹ Dừng</b> để điều khiển robot di chuyển.</div>
+          <div class="step"><b>Biểu cảm OLED tức thì:</b> Bấm các nút biểu cảm (Vui vẻ, Nháy mắt, Ngạc nhiên, Yêu thương, Buồn ngủ...) để robot đổi hoạt ảnh mắt trên màn hình ngay lập tức.</div>
+          <div class="step"><b>Phát giọng nói tùy chỉnh:</b> Nhập câu văn bất kỳ vào ô chat và bấm <i>"Phát loa ngay"</i> để robot phát âm câu đó ra loa.</div>
         </div>
-
-        <h3>Thêm người nói</h3>
-        <div class="steps">
-          <div class="step">Vào menu <b>⚙️ Cấu hình Gehihi AI</b>, sau đó bấm <b>🔄 Tải cấu hình hiện tại</b>.</div>
-          <div class="step">Kéo xuống phần <b>Nhận dạng người nói</b> và bấm <b>Làm mới</b> để tải các đoạn hội thoại mới nhất.</div>
-          <div class="step">Bấm <b>+ Thêm người nói</b>.</div>
-          <div class="step">Nhập <b>Tên người nói</b>, ví dụ: Bố, Mẹ, bé Gạo. Có thể nhập thêm <b>Mô tả</b>, ví dụ: “Đây là bố Vương, là bố của bé Gạo”.</div>
-          <div class="step">Tại <b>Chọn giọng nói</b>, chọn đoạn thoại do chính người đó nói. Bấm <b>Nghe mẫu</b> để kiểm tra đúng giọng trước khi lưu.</div>
-          <div class="step">Bấm <b>Lưu người nói</b>. Khi thông báo thêm thành công xuất hiện, người nói sẽ có trong danh sách bên dưới.</div>
-        </div>
-
-        <h3>Sửa hoặc xóa người nói</h3>
-        <div class="steps">
-          <div class="step">Bấm <b>Sửa</b> tại người cần cập nhật. Có thể đổi tên, mô tả hoặc chọn mẫu giọng mới; nếu không chọn mẫu mới, hệ thống giữ mẫu giọng hiện tại.</div>
-          <div class="step">Bấm <b>Xóa</b> và xác nhận nếu không muốn robot nhận dạng người đó nữa.</div>
-        </div>
-
-        <div class="tip"><b>Để nhận dạng chính xác:</b> chọn câu hoàn chỉnh dài, phát âm rõ, chỉ có một người nói và ít tạp âm. Không dùng đoạn quá ngắn, tiếng nói nhỏ hoặc có nhiều người nói cùng lúc.</div>
-        <div class="note"><b>Lưu ý:</b> mục <b>Nhận dạng người nói</b> khác với mục <b>Chọn giọng nói</b> của robot. “Chọn giọng nói” quyết định giọng robot phát ra; “Nhận dạng người nói” giúp robot biết ai đang nói với mình.</div>
       </section>
 
+      <!-- MỤC 5: THEO DÕI MICRO LIVE & EVENT STREAM -->
+      <section class="card section" id="theo-doi-micro">
+        <h2>🎙️ 5. Theo Dõi Micro Trực Tiếp (Live Mic Monitor & Event Stream)</h2>
+        <p>Tính năng giám sát tín hiệu âm thanh và sự kiện thoại theo thời gian thực:</p>
+        
+        <div class="steps">
+          <div class="step"><b>Đèn báo trạng thái thông minh:</b>
+            <br>• <b>🟢 SẴN SÀNG (CHỜ GIỌNG NÓI):</b> Robot đang ở trạng thái lắng nghe trong phòng yên tĩnh.
+            <br>• <b>🔴 ĐANG GHI ÂM (RECEIVING OPUS):</b> Khi bạn bắt đầu nói, đèn chuyển sang đỏ, bộ đếm gói và thời lượng nhảy số liên tục.
+            <br>• <b>🟡 ĐANG XỬ LÝ (AI THINKING):</b> AI đang nhận diện câu nói (STT) và tạo câu trả lời.
+            <br>• <b>🔵 ĐANG PHÁT LOA (TTS PLAYBACK):</b> Robot đang đọc câu trả lời qua loa.
+          </div>
+          <div class="step"><b>Thước đo âm lượng (Peak dBFS):</b> Đo biên độ âm thanh thực tế thu từ micro MEMS, các cột sóng nảy sống động theo độ to nhỏ của giọng nói.</div>
+          <div class="step"><b>Nhật ký Sự kiện Trực tiếp (Live Event Stream):</b> Màn hình console đen ghi nhận chi tiết từng sự kiện thoại: người dùng vừa nói gì, robot phản hồi câu gì và thời gian xử lý.</div>
+        </div>
+
+        <div class="tip">
+          <b>Mẹo kích hoạt micro:</b> Nếu sau 10 giây im lặng robot tự động về chế độ nghỉ để tiết kiệm pin, bạn chỉ cần <b>nhấn nhẹ nút BOOT</b> trên mạch là robot sẽ lập tức mở mic lắng nghe trở lại!
+        </div>
+      </section>
+
+      <!-- MỤC 6: PHÁT NHẠC YOUTUBE -->
+      <section class="card section" id="phat-nhac">
+        <h2>🎵 6. Phát Nhạc YouTube Online Trên Loa Robot</h2>
+        <p>Robot Gehihi hỗ trợ tìm kiếm và phát trực tiếp nhạc từ YouTube xuống loa mạch ESP32:</p>
+        
+        <div class="steps">
+          <div class="step"><b>Cách 1 - Ra lệnh bằng giọng nói trực tiếp:</b> Nói vào micro robot:
+            <br>• <span class="voice-command">"Mở bài Bống Bống Bang Bang"</span>
+            <br>• <span class="voice-command">"Phát bài Sơn Tùng MTP"</span>
+            <br>• <span class="voice-command">"Hát bài Em Của Ngày Hôm Qua"</span>
+            <br>• <span class="voice-command">"Dừng nhạc"</span> hoặc <span class="voice-command">"Tắt nhạc"</span> khi muốn ngừng.
+          </div>
+          <div class="step"><b>Cách 2 - Điều khiển trên Web:</b> Vào tab <b>🎵 Phát Nhạc YouTube</b>, gõ tên bài hát vào ô tìm kiếm và bấm <i>"Tìm & Phát ngay"</i>.</div>
+        </div>
+      </section>
+
+      <!-- MỤC 7: MẪU VAI TRÒ NHANH -->
       <section class="card section" id="vai-tro">
-        <h2>🎭 4. Mẫu vai trò nhanh</h2>
-        <p>Mục này giúp áp dụng nhanh các vai trò có sẵn như bạn đồng hành, giáo viên, thông dịch viên, người bản xứ, trò chơi, chuyên gia.</p>
+        <h2>🎭 7. Mẫu Vai Trò Nhanh (AI Personas)</h2>
+        <p>Chuyển đổi tức thì phong cách của robot chỉ bằng 1 cú nhấp chuột:</p>
         <div class="steps">
-          <div class="step">Vào menu <b>🎭 Mẫu vai trò nhanh</b>.</div>
-          <div class="step">Chọn nhóm vai trò, ví dụ: <b>Giáo viên</b>, <b>Ngôn ngữ</b>, <b>Thông dịch</b>, <b>Game</b>.</div>
-          <div class="step">Bấm vào vai trò muốn xem chi tiết.</div>
-          <div class="step">Bấm <b>Áp dụng vào cấu hình Gehihi AI</b>.</div>
-          <div class="step">Sau khi lưu thành công, khởi động lại robot AI.</div>
+          <div class="step">Vào mục <b>🎭 Mẫu vai trò nhanh</b> trên trang quản trị.</div>
+          <div class="step">Chọn nhóm tính cách: <b>Giáo viên</b>, <b>Giao tiếp phản xạ</b>, <b>Thông dịch viên</b>, <b>Bác sĩ tư vấn</b>, <b>Người kể chuyện</b>...</div>
+          <div class="step">Bấm <b>Áp dụng vai trò này</b> để robot tức thì biến đổi phong cách nói chuyện.</div>
         </div>
-        <div class="note"><b>Ví dụ:</b> chọn “Sophia - Giáo viên Toán Cấp 1” để robot giảng Toán dễ hiểu cho học sinh tiểu học.</div>
       </section>
 
+      <!-- MỤC 8: GIA SƯ TIẾNG ANH -->
+      <section class="card section" id="gia-su-anh">
+        <h2>🇬🇧 8. Gia Sư Tiếng Anh Phản Xạ (English Tutor)</h2>
+        <p>Biến Gehihi thành gia sư tiếng Anh bản ngữ 1-kèm-1 cho trẻ em và người lớn:</p>
+        <div class="steps">
+          <div class="step">Vào tab <b>🇬🇧 Gia Sư Tiếng Anh</b> trong trang quản trị.</div>
+          <div class="step">Chọn chủ đề giao tiếp: Chào hỏi hàng ngày, Mua sắm, Du lịch, Phỏng vấn xin việc...</div>
+          <div class="step">Nói tiếng Anh với robot: Robot sẽ nhận diện cách phát âm, đối đáp phản xạ và sửa lỗi ngữ pháp một cách nhẹ nhàng.</div>
+        </div>
+      </section>
+
+      <!-- MỤC 9: NHẬN DẠNG NGƯỜI NÓI -->
+      <section class="card section" id="nhan-dang-nguoi-noi">
+        <h2>👥 9. Nhận Dạng Người Nói (Voice Biometrics)</h2>
+        <p>Giúp robot nhận diện ai trong gia đình đang trò chuyện (Bố, Mẹ, Bé...) để xưng hô chuẩn xác:</p>
+        <div class="steps">
+          <div class="step">Người cần đăng ký nói chuyện 1 câu hoàn chỉnh rõ ràng với robot.</div>
+          <div class="step">Nói <span class="voice-command">"Tạm biệt"</span> để kết thúc phiên thoại và lưu mẫu giọng lên server.</div>
+          <div class="step">Trên web, vào mục <b>Nhận dạng người nói</b>, bấm <b>Làm mới</b> và chọn <b>+ Thêm người nói</b>.</div>
+          <div class="step">Nhập tên (ví dụ: <i>Bố Hùng</i>), mô tả và chọn mẫu giọng vừa thu, sau đó bấm <b>Lưu người nói</b>.</div>
+        </div>
+      </section>
+
+      <!-- MỤC 10: BỘ NHỚ ROBOT -->
       <section class="card section" id="bo-nho">
-        <h2>🧠 5. Quản lý bộ nhớ</h2>
-        <p>Bộ nhớ là nơi lưu các nội dung robot đã ghi nhớ. Bạn có thể tải, tìm kiếm, chọn nhiều mục và xóa dữ liệu không cần thiết.</p>
+        <h2>🧠 10. Quản Lý Bộ Nhớ (Robot Memory)</h2>
+        <p>Bộ nhớ lưu giữ các sự kiện và thông tin quan trọng mà người dùng đã chia sẻ với robot qua các cuộc trò chuyện:</p>
         <div class="steps">
-          <div class="step">Vào menu <b>🧠 Bộ nhớ</b>.</div>
-          <div class="step">Bấm <b>🔄 Tải dữ liệu Bộ nhớ</b>.</div>
-          <div class="step">Dùng ô tìm kiếm để lọc nội dung memory.</div>
-          <div class="step">Muốn xóa 1 dòng, bấm <b>Xóa</b> tại dòng đó.</div>
-          <div class="step">Muốn xóa nhiều dòng, tick chọn các dòng hoặc bấm <b>Chọn tất cả kết quả hiển thị</b>, sau đó bấm <b>Xóa đã chọn</b>.</div>
+          <div class="step">Vào tab <b>🧠 Bộ nhớ</b> trên giao diện điều khiển.</div>
+          <div class="step">Bấm <b>🔄 Tải dữ liệu Bộ nhớ</b> để xem các ký ức robot đã lưu.</div>
+          <div class="step">Bạn có thể tìm kiếm, sửa nội dung hoặc bấm <b>Xóa</b> các ký ức không còn chính xác.</div>
         </div>
-        <div class="warn"><b>Cẩn thận:</b> dữ liệu đã xóa khỏi bộ nhớ có thể không khôi phục được.</div>
       </section>
 
+      <!-- MỤC 11: TẠO NHIỆM VỤ -->
       <section class="card section" id="nhiem-vu">
-        <h2>📚 6. Tạo nhiệm vụ cho robot</h2>
-        <p>Nhiệm vụ là nội dung robot sẽ kích hoạt khi bắt đầu cuộc trò chuyện.</p>
+        <h2>📋 11. Tạo Nhiệm Vụ Cho Robot (Tasks)</h2>
+        <p>Giao việc cho robot nhắc nhở học bài, uống thuốc hoặc rèn luyện thói quen:</p>
         <div class="steps">
-          <div class="step">Vào menu <b>📚 Tạo nhiệm vụ</b>.</div>
-          <div class="step">Nhập nội dung nhiệm vụ, tối đa 1000 ký tự. Ví dụ: học từ tiếng Anh, nhắc uống thuốc, luyện bài tập.</div>
-          <div class="step">Bấm <b>Tạo</b>.</div>
-          <div class="step">Khi bắt đầu trò chuyện với robot, nói <span class="voice">“So-phi-a”</span> hoặc <span class="voice">“Xin chào”</span> để kích hoạt nhiệm vụ.</div>
-          <div class="step">Khi làm xong, nói <span class="voice">“hoàn thành”</span>, <span class="voice">“xong rồi”</span> hoặc <span class="voice">“làm xong rồi”</span> để nhiệm vụ tự xóa.</div>
+          <div class="step">Vào menu <b>📋 Tạo nhiệm vụ</b>.</div>
+          <div class="step">Nhập nội dung nhiệm vụ (ví dụ: <i>"Nhắc bé Minh ôn 10 từ vựng tiếng Anh chủ đề động vật"</i>).</div>
+          <div class="step">Bấm <b>Tạo nhiệm vụ</b>. Khi bắt đầu cuộc trò chuyện tiếp theo, robot sẽ tự động nhắc nhở người dùng thực hiện nhiệm vụ này.</div>
+          <div class="step">Khi hoàn thành, bạn chỉ cần nói <span class="voice-command">"Xong rồi"</span> hoặc <span class="voice-command">"Đã hoàn thành"</span> để nhiệm vụ tự đóng lại.</div>
         </div>
-        <div class="note"><b>Lưu ý:</b> mỗi thiết bị chỉ nên có 1 nhiệm vụ chưa hoàn thành tại một thời điểm.</div>
       </section>
 
-      <section class="card section" id="bai-hoc">
-        <h2>📖 7. Chọn bài học và tự tạo bài học</h2>
-        <div class="two-col">
-          <div>
-            <h3>Chọn bài học có sẵn</h3>
-            <div class="steps">
-              <div class="step">Vào <b>📖 Chọn Bài học</b>.</div>
-              <div class="step">Mở nhóm <b>Bài học có sẵn</b> hoặc <b>Bài học của bạn</b>.</div>
-              <div class="step">Bấm vào bài học để xem nội dung.</div>
-              <div class="step">Bấm <b>Áp dụng</b>.</div>
-              <div class="step">Nói <span class="voice">“So-phi-a”</span> hoặc <span class="voice">“Xin chào”</span> khi bắt đầu trò chuyện để kích hoạt bài học.</div>
-            </div>
-          </div>
-          <div>
-            <h3>Tự tạo bài học</h3>
-            <div class="steps">
-              <div class="step">Vào <b>✍️ Tự tạo bài học</b>.</div>
-              <div class="step">Nhập <b>Tên bài học</b>.</div>
-              <div class="step">Nhập <b>Nội dung bài học</b>.</div>
-              <div class="step">Bấm <b>🚀 Tạo bài học</b>.</div>
-              <div class="step">Sau khi tạo xong, vào <b>Chọn Bài học</b> để áp dụng.</div>
-            </div>
-          </div>
-        </div>
-        <div class="warn"><b>Điều kiện:</b> một số chức năng bài học yêu cầu thiết bị đã liên kết và tài khoản/thiết bị có quyền VIP.</div>
-      </section>
-
-      <section class="card section" id="anh-bai-hoc">
-        <h2>📷 8. Chụp ảnh tạo bài học</h2>
-        <p>Tính năng này giúp scan trang sách thành chữ, sau đó yêu cầu AI soạn bài dạy từ nội dung đã scan.</p>
+      <!-- MỤC 12: CHỤP ẢNH TẠO BÀI HỌC & GIẢI BÀI -->
+      <section class="card section" id="scan-bai-tap">
+        <h2>📷 12. Chụp Ảnh Tạo Bài Học & Giải Bài Tập (AI Vision)</h2>
+        <p>Ứng dụng công nghệ quét ảnh quang học (OCR) kết hợp trí tuệ nhân tạo Gemini Vision:</p>
         <div class="steps">
-          <div class="step">Vào menu <b>📷 Chụp ảnh tạo bài học</b>.</div>
-          <div class="step">Nhập tên bài học nếu muốn. Có thể để trống.</div>
-          <div class="step">Bấm <b>🖼️ Tải ảnh lên</b> hoặc <b>📷 Chụp ảnh</b>.</div>
-          <div class="step">Nếu ảnh có phần thừa, bấm <b>✂️ Bấm để cắt vùng ảnh cần dùng</b>, kéo chọn vùng bài học rồi bấm <b>Cắt lấy vùng ảnh này</b>.</div>
-          <div class="step">Bấm <b>Scan ảnh thành chữ</b>.</div>
-          <div class="step">Kiểm tra phần <b>Văn bản sau khi scan</b>. Nếu sai chữ, bấm <b>Sửa</b> để chỉnh lại.</div>
-          <div class="step">Bấm <b>Soạn bài dạy từ text này</b>.</div>
-          <div class="step">Kiểm tra bài dạy AI tạo ra. Có thể bấm <b>Sửa bài dạy</b>, sau đó bấm <b>Tạo bài học</b> để lưu.</div>
-        </div>
-        <div class="tip"><b>Mẹo chụp ảnh:</b> đặt sách trên mặt phẳng, chụp đủ sáng, giữ camera thẳng, lấy trọn trang hoặc đúng vùng bài cần scan.</div>
-      </section>
-
-      <section class="card section" id="giai-bai-tap">
-        <h2>🧮 9. Chụp ảnh giải bài tập</h2>
-        <p>Tính năng này giúp scan đề bài thành chữ rồi tạo yêu cầu để robot hướng dẫn giải bài tập.</p>
-        <div class="steps">
-          <div class="step">Vào menu <b>🧮 Chụp ảnh giải bài tập</b>.</div>
-          <div class="step">Nhập tên bài hoặc ghi chú nếu cần.</div>
-          <div class="step">Bấm <b>🖼️ Tải ảnh lên</b> hoặc <b>📷 Chụp ảnh</b>.</div>
-          <div class="step">Có thể bấm <b>✂️ Bấm để cắt vùng ảnh cần dùng</b> nếu chỉ muốn lấy một câu hỏi.</div>
-          <div class="step">Bấm <b>Scan ảnh thành chữ</b>.</div>
-          <div class="step">Nếu OCR bị sai, bấm <b>Sửa</b> để chỉnh lại nội dung bài tập.</div>
-          <div class="step">Bấm <b>Yêu cầu AI giải bài này</b>.</div>
-          <div class="step">Nói <span class="voice">“So-phi-a”</span> hoặc <span class="voice">“Xin chào”</span> để robot kích hoạt chế độ giải bài tập.</div>
-          <div class="step">Sau khi giải xong, bấm <b>Xóa yêu cầu giải bài</b> hoặc nói <span class="voice">“hoàn thành”</span>, <span class="voice">“xong rồi”</span>.</div>
+          <div class="step">Vào menu <b>Chụp ảnh giải bài tập</b> hoặc <b>Chụp ảnh tạo bài học</b>.</div>
+          <div class="step">Chụp ảnh trang sách bài tập bằng điện thoại hoặc tải file ảnh từ máy tính.</div>
+          <div class="step">Bấm <b>Scan ảnh thành chữ</b>: Hệ thống tự động trích xuất toàn bộ câu hỏi và nội dung đề bài.</div>
+          <div class="step">Bấm <b>Yêu cầu AI giải bài này</b>: Robot sẽ giải thích từng bước giải bài tập một cách dễ hiểu cho học sinh.</div>
         </div>
       </section>
 
+      <!-- MỤC 13: CƠ SỞ TRI THỨC -->
       <section class="card section" id="tri-thuc">
-        <h2>📚 10. Cơ sở tri thức</h2>
-        <p>Cơ sở tri thức dùng để tải lên tài liệu tham khảo dài hạn, ví dụ: thời khóa biểu, mô tả sản phẩm, kịch bản tư vấn, nội quy, tài liệu học tập.</p>
+        <h2>📚 13. Cơ Sở Tri Thức Riêng Biệt (RAG Document)</h2>
+        <p>Nạp tài liệu riêng của gia đình hoặc doanh nghiệp để robot tra cứu thông tin chính xác:</p>
         <div class="steps">
-          <div class="step">Vào menu <b>📚 Cơ sở tri thức</b>.</div>
-          <div class="step">Nhập tiêu đề tài liệu nếu muốn. Nếu để trống, hệ thống lấy theo tên file.</div>
-          <div class="step">Bấm <b>📄 Chọn tài liệu</b>.</div>
-          <div class="step">Chọn file hỗ trợ: <b>DOCX, TXT, MD</b>, tối đa 3MB.</div>
-          <div class="step">Bấm <b>Tải lên cơ sở tri thức</b>.</div>
-          <div class="step">Chờ hệ thống xử lý tài liệu. Khi trạng thái là <b>✅ Sẵn sàng</b>, robot có thể tra cứu.</div>
-          <div class="step">Khi nói với robot, dùng câu lệnh: <span class="voice">“Tìm trong cơ sở tri thức + nội dung cần tra cứu”</span>.</div>
+          <div class="step">Vào tab <b>📚 Cơ sở tri thức</b>.</div>
+          <div class="step">Tải tài liệu định dạng <b>DOCX, TXT, MD</b> (kích thước tối đa 3MB).</div>
+          <div class="step">Hệ thống tự động phân tích và chia đoạn dữ liệu thông minh.</div>
+          <div class="step">Khi cần hỏi tài liệu, ra lệnh bằng giọng nói: <span class="voice-command">"Tìm trong cơ sở tri thức + câu hỏi của bạn"</span>.</div>
         </div>
-        <h3>Sửa nội dung tài liệu đã tách đoạn</h3>
-        <div class="steps">
-          <div class="step">Chọn tài liệu trong danh sách.</div>
-          <div class="step">Xem từng đoạn nội dung ở phần chi tiết.</div>
-          <div class="step">Bấm <b>Sửa</b> tại đoạn cần chỉnh.</div>
-          <div class="step">Sửa nội dung rồi bấm <b>Lưu</b>.</div>
-        </div>
-        <div class="warn"><b>Giới hạn:</b> tài khoản thường chỉ có 1 cơ sở tri thức cá nhân. Muốn dùng tài liệu khác, hãy xóa tài liệu cũ trước.</div>
       </section>
 
-      <section class="card section" id="gop-y">
-        <h2>💬 11. Góp ý - Báo lỗi</h2>
-        <div class="steps">
-          <div class="step">Vào menu <b>💬 Góp ý - Báo lỗi</b>.</div>
-          <div class="step">Nhập nội dung góp ý hoặc mô tả lỗi đang gặp.</div>
-          <div class="step">Bấm <b>📨 Gửi góp ý</b>.</div>
-        </div>
-        <div class="note"><b>Dành cho admin:</b> admin có thể xem danh sách góp ý, tìm kiếm theo nội dung hoặc username, và xóa góp ý đã xử lý.</div>
-      </section>
-
+      <!-- MỤC 14: LỖI THƯỜNG GẶP -->
       <section class="card section" id="loi-thuong-gap">
-        <h2>🛠️ 12. Lỗi thường gặp và cách xử lý</h2>
+        <h2>🛠️ 14. Lỗi Thường Gặp & Cách Xử Lý Nhanh</h2>
         <table>
-          <tr><th>Vấn đề</th><th>Cách xử lý</th></tr>
-          <tr><td>Không thấy mục VIP</td><td>Một số tính năng như chọn bài học, tạo bài học từ ảnh, giải bài tập ảnh cần thiết bị VIP.</td></tr>
-          <tr><td>AI chưa nhận cấu hình mới</td><td>Sau khi lưu cấu hình, hãy khởi động lại robot AI.</td></tr>
-          <tr><td>Không thấy mẫu giọng mới</td><td>Hãy kết thúc cuộc trò chuyện bằng câu “Tạm biệt”, chờ phiên trò chuyện đóng, rồi bấm <b>Làm mới</b> trong phần Nhận dạng người nói.</td></tr>
-          <tr><td>Robot nhận nhầm người nói</td><td>Sửa người nói và chọn mẫu khác dài, rõ hơn; tránh mẫu có tạp âm hoặc nhiều người cùng nói.</td></tr>
-          <tr><td>Không thêm được người nói</td><td>Kiểm tra đã nhập tên, đã chọn mẫu giọng và danh sách chưa đạt giới hạn 5 người.</td></tr>
-          <tr><td>Scan ảnh bị sai chữ</td><td>Chụp lại ảnh sáng hơn, cắt đúng vùng cần dùng, hoặc bấm <b>Sửa</b> để chỉnh text trước khi gửi AI.</td></tr>
-          <tr><td>Không tải được tài liệu cơ sở tri thức</td><td>Kiểm tra định dạng DOCX/TXT/MD và dung lượng dưới 3MB.</td></tr>
+          <thead>
+            <tr>
+              <th style="width: 30%;">Vấn Đề</th>
+              <th>Cách Khắc Phục Nhanh</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>Thẻ Robot báo "Ngoại tuyến"</b></td>
+              <td>Sau khi ghép nối PIN, robot cần 3-5 giây để thiết lập đường truyền WebSocket thoại. Hãy chờ vài giây hoặc kiểm tra Wi-Fi của mạch ESP32.</td>
+            </tr>
+            <tr>
+              <td><b>Sau khi nói 1-2 câu robot không nghe nữa</b></td>
+              <td>Robot có cơ chế tiết kiệm pin: nếu sau 10 giây không có ai nói chuyện, robot sẽ tự động về trạng thái nghỉ (Idle). Bạn chỉ cần <b>nhấn nhẹ nút BOOT</b> trên mạch là robot sẽ lập tức lắng nghe tiếp.</td>
+            </tr>
+            <tr>
+              <td><b>Không đăng nhập được vào trang riêng của robot</b></td>
+              <td>Bạn có thể đăng nhập bằng <b>Tên đăng nhập</b> riêng của robot hoặc nhập trực tiếp <b>Mã PIN 6 số</b> của robot + mật khẩu tài khoản robot đó.</td>
+            </tr>
+            <tr>
+              <td><b>Chưa nghe thấy tiếng trả lời qua loa</b></td>
+              <td>Kiểm tra thanh âm lượng trên web (nên đặt mức 8-10) và đảm bảo cáp kết nối loa với mạch ESP32 được cắm chắc chắn.</td>
+            </tr>
+            <tr>
+              <td><b>Chưa cập nhật cấu hình mới</b></td>
+              <td>Các thay đổi về tên, model AI, âm lượng và prompt được tự động đồng bộ tức thì qua WebSocket tới robot ngay sau khi bấm "Lưu Cập Nhật".</td>
+            </tr>
+          </tbody>
         </table>
       </section>
 
-      <section class="card section">
-        <h2>✅ Quy trình sử dụng khuyến nghị</h2>
-        <div class="feature-list">
-          <div class="feature"><b>Người mới dùng</b><div>Đăng nhập → Thêm thiết bị → Cấu hình AI → Tạo nhiệm vụ đơn giản.</div></div>
-          <div class="feature"><b>Phụ huynh/học sinh</b><div>Chọn bài học → Chụp ảnh giải bài tập → Nói “Xin chào” để bắt đầu học.</div></div>
-          <div class="feature"><b>Người dạy học</b><div>Tự tạo bài học hoặc scan sách → sửa nội dung → lưu bài học → áp dụng.</div></div>
-          <div class="feature"><b>Doanh nghiệp/tư vấn</b><div>Tải tài liệu vào cơ sở tri thức → dùng câu lệnh tìm trong cơ sở tri thức khi cần tra cứu.</div></div>
-        </div>
-      </section>
-
-      <div class="footer">GEHIHI AI · Trang hướng dẫn sử dụng frontend</div>
+      <!-- FOOTER -->
+      <footer style="margin: 40px 0 20px; text-align: center; color: var(--muted); font-size: 13px;">
+        GEHIHI AI · Hệ thống Robot Trợ lý Thông minh Thế hệ Mới © 2026
+      </footer>
     </main>
   </div>
-  <a href="#bat-dau" class="top-btn">↑ Đầu trang</a>
+
+  <!-- FLOATING QUICK RETURN BUTTON (ALWAYS ACCESSIBLE) -->
+  <div class="floating-back-btn">
+    <a id="btnFloatReturnRobot" href="robot.html" class="float-btn" title="Quay lại Quản trị Robot ngay lập tức">
+      ⬅ Quay lại Quản trị Robot
+    </a>
+    <a href="#bat-dau" class="float-btn float-top" title="Lên đầu trang">
+      ↑ Đầu trang
+    </a>
+  </div>
+
+  <!-- JAVASCRIPT ĐỒNG BỘ ĐƯỜNG DẪN QUAY LẠI CHÍNH XÁC ROBOT ĐANG DÙNG -->
+  <script>
+    // Lấy ID robot đang chọn từ URL hoặc localStorage
+    function syncBackButtons() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryId = urlParams.get('id');
+      const activeId = queryId || localStorage.getItem('gehihi_active_robot_id') || 'DEV_EED0';
+
+      const targetUrl = activeId ? `robot.html?id=${encodeURIComponent(activeId)}` : 'robot.html';
+
+      const topBtn = document.getElementById('btnTopReturnRobot');
+      const sideBtn = document.getElementById('btnSideReturnRobot');
+      const floatBtn = document.getElementById('btnFloatReturnRobot');
+
+      if (topBtn) topBtn.href = targetUrl;
+      if (sideBtn) sideBtn.href = targetUrl;
+      if (floatBtn) floatBtn.href = targetUrl;
+    }
+
+    // Active state highlighting on scroll
+    window.addEventListener('DOMContentLoaded', () => {
+      syncBackButtons();
+
+      const sections = document.querySelectorAll('.section');
+      const navLinks = document.querySelectorAll('.nav a');
+
+      window.addEventListener('scroll', () => {
+        let current = '';
+        sections.forEach(section => {
+          const sectionTop = section.offsetTop - 120;
+          if (pageYOffset >= sectionTop) {
+            current = section.getAttribute('id');
+          }
+        });
+
+        navLinks.forEach(link => {
+          link.classList.remove('active');
+          if (link.getAttribute('href') === '#' + current) {
+            link.classList.add('active');
+          }
+        });
+      });
+    });
+  </script>
 </body>
 </html>
