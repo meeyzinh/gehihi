@@ -2511,23 +2511,25 @@ async def call_unified_ai(wav_bytes: bytes):
 # ==================== ASYNC LLM STREAMING & SENTENCE CHUNKER ====================
 def extract_ready_sentence(buffer: str) -> tuple:
     """
-    Tách câu thông minh dựa trên dấu câu (. ? ! : ; \n hoặc dấu , nếu cụm dài trên 25 ký tự).
-    Trả về (cụm_câu, buffer_còn_lại). Nếu chưa đủ điều kiện, trả về ("", buffer).
+    Tách câu theo ranh giới câu tự nhiên (. ? ! \n ;) với độ dài tối thiểu hợp lý (25+ ký tự).
+    TUYỆT ĐỐI KHÔNG tách ở dấu phẩy (,) vì dấu phẩy chia vụn câu thành các đoạn ngắn 10-15 ký tự,
+    gây ra hàng loạt cuộc gọi EdgeTTS nối tiếp nhau làm phát âm thanh cực kỳ chậm trễ và ngắt quãng!
     """
     stripped = buffer.strip()
-    if len(stripped) < 12:
+    if len(stripped) < 20:
         return ("", buffer)
 
-    delimiters = [".", "?", "!", ":", ";", "\n"]
+    delimiters = [".", "?", "!", "\n", ";"]
     for i, char in enumerate(buffer):
-        if char in delimiters and i >= 10:
+        if char in delimiters and i >= 18:
             clause = buffer[:i + 1].strip()
             rest = buffer[i + 1:].lstrip()
             return (clause, rest)
 
-    if len(buffer) >= 25:
-        comma_idx = buffer.find(",")
-        if comma_idx >= 12:
+    # Chỉ khi câu quá dài (> 90 ký tự) mới ngắt ở dấu phẩy để tránh tràn câu
+    if len(buffer) >= 90:
+        comma_idx = buffer.rfind(",", 25, 85)
+        if comma_idx != -1:
             clause = buffer[:comma_idx + 1].strip()
             rest = buffer[comma_idx + 1:].lstrip()
             return (clause, rest)
@@ -2673,7 +2675,7 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
         # và duy trì độ đệm 360ms để hàng đợi giải mã của robot không bao giờ bị rỗng (underflow).
         protocol_version = CONNECTED_ROBOT_PROTOCOLS.get(id(websocket), 1)
         sent_frames = 0
-        loop = asyncio.get_running_loop()
+        play_start_time = time.perf_counter()
 
         async def flush_chunk(chunk):
             nonlocal sent_frames, started
@@ -2694,12 +2696,12 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             await websocket.send(encode_robot_audio_frame(chunk, protocol_version))
             sent_frames += 1
 
-        FRAME_DURATION = 0.060   # 60ms mỗi frame Opus
+        FRAME_DURATION = 0.058   # 58ms mỗi frame Opus để truyền đều đặn, không tràn queue 20 frames của ESP32
         next_send_time = time.perf_counter()
 
         if hasattr(opus_chunks, "__aiter__"):
             async for chunk in opus_chunks:
-                if sent_frames < 3:
+                if sent_frames < 4:
                     await flush_chunk(chunk)
                     next_send_time = time.perf_counter() + FRAME_DURATION
                 else:
@@ -2707,10 +2709,10 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
                     if wait_sec > 0:
                         await asyncio.sleep(wait_sec)
                     await flush_chunk(chunk)
-                    next_send_time = max(time.perf_counter(), next_send_time + FRAME_DURATION)
+                    next_send_time = time.perf_counter() + FRAME_DURATION
         else:
             for chunk in opus_chunks:
-                if sent_frames < 3:
+                if sent_frames < 4:
                     await flush_chunk(chunk)
                     next_send_time = time.perf_counter() + FRAME_DURATION
                 else:
@@ -2718,7 +2720,7 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
                     if wait_sec > 0:
                         await asyncio.sleep(wait_sec)
                     await flush_chunk(chunk)
-                    next_send_time = max(time.perf_counter(), next_send_time + FRAME_DURATION)
+                    next_send_time = time.perf_counter() + FRAME_DURATION
 
         if not started:
             if not LIVE_DIAGNOSTICS["last_tts_error"]:
@@ -2727,11 +2729,11 @@ async def send_dynamic_tts_response(websocket, session_id, user_text, bot_text, 
             return False
 
         # Cho robot phát hết toàn bộ buffer âm thanh trong hàng đợi trước khi gửi tts: stop
-        total_audio_sec = sent_frames * FRAME_DURATION
-        elapsed_sec = loop.time() - play_start_time if play_start_time else 0
-        remain_sec = total_audio_sec - elapsed_sec + 0.250
+        total_audio_sec = sent_frames * 0.060
+        elapsed_sec = time.perf_counter() - play_start_time
+        remain_sec = total_audio_sec - elapsed_sec + 0.400
         if remain_sec > 0:
-            await asyncio.sleep(min(remain_sec, 10.0))
+            await asyncio.sleep(min(remain_sec, 6.0))
 
         await websocket.send(json.dumps({
             "type": "tts",
@@ -2900,8 +2902,8 @@ async def ws_handler(websocket):
             "status": 1,
             "online": True,
             "is_online": True,
-            "prompt": "B?n l? Gehihi, m?t tr? l? robot th?ng minh n?i ti?ng Vi?t t? nhi?n v? th?n thi?n.",
-            "system_prompt": "B?n l? Gehihi, m?t tr? l? robot th?ng minh n?i ti?ng Vi?t t? nhi?n v? th?n thi?n.",
+            "prompt": DEFAULT_AI_PROMPT,
+            "system_prompt": DEFAULT_AI_PROMPT,
             "model": "groq",
             "voice": "vi-female",
             "volume": 8,
@@ -3003,11 +3005,11 @@ async def ws_handler(websocket):
 
                 # Watchdog 1: Nếu đang ghi nhận giọng nói (speech_active) mà micro ngưng gửi gói tin > 0.6s
                 # (người dùng vừa dứt lời hoặc ngắt quãng mạng), lập tức chốt câu thoại và gọi AI!
-                if speech_active and not processing_ai and now > cooldown_until:
+                if speech_active and not processing_ai and not is_speaking and now > cooldown_until:
                     last_pkt = LIVE_DIAGNOSTICS.get("last_packet_time", 0)
                     if last_pkt > 0 and (now - last_pkt >= 0.6):
                         logger.info(f"Packet gap detected ({now - last_pkt:.2f}s). Finalizing speech turn for AI...")
-                        if speech_frames_count >= 4 and len(mic_audio_buffer) >= 4:
+                        if speech_frames_count >= 5 and len(mic_audio_buffer) >= 5:
                             pkts = list(mic_audio_buffer)
                             mic_audio_buffer.clear()
                             speech_active = False
@@ -3020,8 +3022,8 @@ async def ws_handler(websocket):
                             speech_frames_count = 0
                             silence_frames_count = 0
 
-                # Watchdog 2: Tự động xóa hàng đợi nếu không có hoạt động âm thanh trong 15s (giữ kết nối WebSocket)
-                if not processing_ai and now > cooldown_until:
+                # Watchdog 2: Tự động xóa hàng đợi nếu không có hoạt động âm thanh trong 8s (giữ kết nối WebSocket)
+                if not processing_ai and not is_speaking and now > cooldown_until:
                     last_active = max(last_user_activity, LIVE_DIAGNOSTICS.get("last_packet_time", 0))
                     if now - last_active >= 8.0:
                         if len(mic_audio_buffer) > 0 or speech_active:
@@ -3076,7 +3078,7 @@ async def ws_handler(websocket):
                     pass
                 return
 
-            if peak_amp < 120 or rms_energy < 25.0:
+            if peak_amp < 180 or rms_energy < 30.0:
                 logger.info(f"Audio energy below human speech threshold (peak={peak_amp}, rms={rms_energy:.1f}). Discarding quiet noise, keep listening.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = f"Silence/Noise discarded (peak={peak_amp}, rms={rms_energy:.1f})"
                 try:
@@ -3241,20 +3243,21 @@ async def ws_handler(websocket):
                                 }))
 
                         frame_idx = 0
+                        # Pre-buffer 4 frames (240ms), sau đó pace đều 58ms/frame để ESP32 decode không bị nghẽn hay rỗng
                         next_frame_time = time.perf_counter()
                         async for opus_frame in generate_opus_frames_pyav(clause_clean, voice=active_voice, sample_rate=robot_sample_rate):
                             if not is_speaking:
                                 break
                             encoded_pkt = encode_robot_audio_frame(opus_frame, protocol_version)
-                            if frame_idx < 3:
+                            if frame_idx < 4:
                                 await websocket.send(encoded_pkt)
-                                next_frame_time = time.perf_counter() + 0.060
+                                next_frame_time = time.perf_counter() + 0.058
                             else:
                                 wait_sec = next_frame_time - time.perf_counter()
                                 if wait_sec > 0:
                                     await asyncio.sleep(wait_sec)
                                 await websocket.send(encoded_pkt)
-                                next_frame_time = max(time.perf_counter(), next_frame_time + 0.060)
+                                next_frame_time = time.perf_counter() + 0.058
                             frame_idx += 1
                             total_frames += 1
 
@@ -3262,7 +3265,8 @@ async def ws_handler(websocket):
                 except asyncio.CancelledError:
                     pass
                 finally:
-                    await asyncio.sleep(0.18)
+                    # Chờ 450ms để toàn bộ buffer âm thanh cuối cùng trên ESP32 phát hết qua màng loa
+                    await asyncio.sleep(0.45)
                     try:
                         await websocket.send(json.dumps({
                             "type": "tts",
@@ -3325,7 +3329,8 @@ async def ws_handler(websocket):
                     }))
 
             LIVE_DIAGNOSTICS["last_total_latency"] = round(time.perf_counter() - turn_started_at, 3)
-            cooldown_until = time.time() + 0.8
+            # Thiết lập Cooldown 0.9s sau khi loa tắt hẳn để triệt tiêu toàn bộ tiếng vang phòng (Echo Reverb)
+            cooldown_until = time.time() + 0.9
             last_user_activity = cooldown_until
             mic_audio_buffer.clear()
             pre_speech_ring.clear()
@@ -3339,6 +3344,13 @@ async def ws_handler(websocket):
         finally:
             processing_ai = False
             is_speaking = False
+            cooldown_until = max(cooldown_until, time.time() + 0.9)
+            last_user_activity = max(last_user_activity, cooldown_until)
+            mic_audio_buffer.clear()
+            pre_speech_ring.clear()
+            speech_active = False
+            speech_frames_count = 0
+            silence_frames_count = 0
             if MIC_MONITOR_CLIENTS:
                 asyncio.create_task(broadcast_mic_monitor({
                     "type": "state_change",
@@ -3347,7 +3359,6 @@ async def ws_handler(websocket):
                     "level_type": "success",
                     "timestamp": time.strftime("%H:%M:%S")
                 }))
-            last_user_activity = max(last_user_activity, time.time())
 
     try:
         async for message in websocket:
@@ -3405,11 +3416,13 @@ async def ws_handler(websocket):
 
                         elif state == "detect":
                             last_user_activity = time.time()
+                            is_speaking = True
                             opus_pkts = await tts_to_opus("Dạ, tôi nghe đây! Bạn cần tôi giúp gì nào?")
                             await send_dynamic_tts_response(
                                 websocket, session_id, "Gehihi ơi!", "Dạ, tôi nghe đây! Bạn cần Gehihi giúp gì nào?", "happy", opus_pkts
                             )
-                            cooldown_until = time.time() + 1.2
+                            is_speaking = False
+                            cooldown_until = time.time() + 1.0
                             last_user_activity = cooldown_until
                             mic_audio_buffer.clear()
                             pre_speech_ring.clear()
@@ -3445,21 +3458,21 @@ async def ws_handler(websocket):
                 if device_mac in DB_DEVICES:
                     DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
 
-                # Real-time Barge-in: Nếu robot đang phát âm thanh mà người dùng cất tiếng nói đè lên tiếng loa
-                if is_speaking:
-                    if rms > 280.0:
-                        logger.info(f"Real-time Barge-in triggered by user voice (RMS={rms:.1f})! Cutting speech immediately.")
-                        await cancel_current_speech(reason="barge_in_voice")
-                        speech_active = True
-                        speech_frames_count = 1
-                        silence_frames_count = 0
-                        mic_audio_buffer = [message]
-                        continue
-                    else:
-                        continue
-
-                # Bỏ qua âm thanh khi đang bận xử lý AI hoặc trong thời gian Cooldown
-                if processing_ai or time.time() < cooldown_until:
+                # Real-time Duplex & Acoustic Echo Prevention:
+                # Khi robot đang phát âm thanh qua loa (is_speaking), đang xử lý AI (processing_ai)
+                # hoặc đang trong thời gian Cooldown khử vọng âm phòng (time.time() < cooldown_until):
+                # BỎ QUA HOÀN TOÀN TẤT CẢ CÁC GÓI MIC ĐẾN!
+                # Điều này ngăn 100%:
+                # 1. Tiếng loa robot tự kích hoạt VAD làm ngắt lời chính nó (bỏ xót nội dung).
+                # 2. Tiếng loa / tiếng vọng phòng bị ghi âm lại thành câu hỏi mới (robot tự nói chuyện một mình).
+                if is_speaking or processing_ai or time.time() < cooldown_until:
+                    if mic_audio_buffer:
+                        mic_audio_buffer.clear()
+                    if pre_speech_ring:
+                        pre_speech_ring.clear()
+                    speech_active = False
+                    speech_frames_count = 0
+                    silence_frames_count = 0
                     continue
 
                 # Tính toán RMS năng lượng âm thanh (đã khử DC offset micro MEMS)
@@ -3490,11 +3503,11 @@ async def ws_handler(websocket):
                 if not speech_active:
                     # Cập nhật mức ồn nền khi đang yên tĩnh
                     noise_floor = noise_floor * 0.92 + min(rms, 250.0) * 0.08
-                    # Ngưỡng bắt đầu nói: yêu cầu âm lượng rõ ràng (260+ RMS và gấp 1.7x mức ồn nền)
-                    is_voice = (rms > max(115.0, noise_floor * 1.3))
+                    # Ngưỡng bắt đầu nói: yêu cầu âm lượng rõ ràng của người nói gần robot
+                    is_voice = (rms > max(140.0, noise_floor * 1.45))
                 else:
                     # Ngưỡng duy trì nói
-                    is_voice = (rms > max(70.0, noise_floor * 1.15))
+                    is_voice = (rms > max(85.0, noise_floor * 1.2))
 
                 if is_voice:
                     if not speech_active:
@@ -3537,9 +3550,9 @@ async def ws_handler(websocket):
                     else:
                         mic_audio_buffer.append(message)
                         silence_frames_count += 1
-                        # Phát hiện kết thúc câu: 8 frames im lặng (~480ms) sau khi nói ít nhất 6 frames (~360ms)
-                        if silence_frames_count >= 7:
-                            if speech_frames_count >= 4 and not processing_ai:
+                        # Phát hiện kết thúc câu: 8 frames im lặng (~480ms) sau khi nói ít nhất 5 frames (~300ms)
+                        if silence_frames_count >= 8:
+                            if speech_frames_count >= 5 and not processing_ai:
                                 pkts = list(mic_audio_buffer)
                                 mic_audio_buffer.clear()
                                 speech_active = False
