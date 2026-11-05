@@ -1110,7 +1110,7 @@
         body: JSON.stringify({
           name: newName,
           device_code: pin,
-          device_mac: "14:C1:9F:" + Math.floor(10 + Math.random() * 89) + ":" + Math.floor(10 + Math.random() * 89) + ":" + Math.floor(10 + Math.random() * 89),
+          device_mac: "14:C1:9F:C4:EE:D0", pin: pin,
           password: "123"
         })
       }).then(r => r.json()).then(d => {

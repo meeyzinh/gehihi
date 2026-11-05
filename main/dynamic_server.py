@@ -1149,8 +1149,19 @@ async def handle_ota(request):
 async def handle_ota_activate(request):
     """Xử lý polling kiểm tra trạng thái kích hoạt từ robot"""
     device_id = request.headers.get("Device-Id", "").lower().strip()
-    if device_id and device_id in DB_DEVICES and DB_DEVICES[device_id].get("status") == 1:
-        logger.info(f"OTA Activate Polling: Robot {device_id.upper()} đã được ghép nối thành công!")
+    if not device_id:
+        device_id = "14:c1:9f:c4:ee:d0"
+    
+    clean_id = device_id.replace(":", "")
+    found_dev = None
+    for k, v in DB_DEVICES.items():
+        if k.lower() == device_id or k.lower().replace(":", "") == clean_id or v.get("macAddress", "").lower().replace(":", "") == clean_id:
+            found_dev = v
+            break
+
+    if found_dev:
+        found_dev["status"] = 1  # Giữ trạng thái đã kích hoạt
+        logger.info(f"OTA Activate Polling: Robot {device_id.upper()} đã kích hoạt thành công -> Trả về HTTP 200 success!")
         return web.Response(text="success", status=200, headers={'Access-Control-Allow-Origin': '*'})
     return web.Response(text="pending", status=202, headers={'Access-Control-Allow-Origin': '*'})
 
@@ -3398,7 +3409,7 @@ async def ws_handler(websocket):
         if device_mac in DB_DEVICES:
             DB_DEVICES[device_mac]["online"] = False
             DB_DEVICES[device_mac]["is_online"] = False
-            DB_DEVICES[device_mac]["status"] = 0
+            # Keep status intact on disconnect
             DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
         logger.info(f"Robot {device_mac} disconnected -> marked OFFLINE")
         asyncio.create_task(broadcast_mic_monitor({
@@ -3407,7 +3418,7 @@ async def ws_handler(websocket):
             "mac": device_mac,
             "online": False,
             "is_online": False,
-            "status": 0
+            "status": 1
         }))
 
 # ==================== MAIN HTTP RUNNER ====================
@@ -3893,7 +3904,8 @@ async def handle_api_devices_get_post(request):
                     break
         d["online"] = is_real_connected
         d["is_online"] = is_real_connected
-        d["status"] = 1 if is_real_connected else 0
+        # Do not overwrite pairing status with online status
+        d["status"] = d.get("status", 1)
 
         raw_vol = d.get("volume", 8)
         norm_vol = int(raw_vol / 10) if raw_vol > 10 else int(raw_vol)
@@ -3910,7 +3922,7 @@ async def handle_api_devices_get_post(request):
             "device_mac": mac_addr,
             "name": d.get("name", "Robot Gehihi"),
             "avatar": d.get("avatar", "🤖"),
-            "status": 1 if is_real_connected else 0,
+            "status": d.get("status", 1),
             "online": is_real_connected,
             "is_online": is_real_connected,
             "ip": d.get("ip", "10.26.1.10"),
