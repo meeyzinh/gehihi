@@ -509,8 +509,8 @@
 
       <form onsubmit="handleUnifiedLoginSubmit(event)">
         <div class="form-group">
-          <label>Tên đăng nhập / Tài khoản:</label>
-          <input type="text" id="loginUser" class="form-control" required placeholder="Nhập admin hoặc gehihi..." autocomplete="username">
+          <label>Tên đăng nhập / Tài khoản hoặc Mã PIN 6 số:</label>
+          <input type="text" id="loginUser" class="form-control" required placeholder="Nhập 'admin', tên tài khoản robot hoặc mã PIN 6 số..." autocomplete="username">
         </div>
 
         <div class="form-group">
@@ -535,8 +535,8 @@
           <span style="color: #94a3b8; font-size: 11px;">👉 Vào trang <strong>Quản lý tài khoản thiết bị</strong> (danh sách robot, CRUD, đổi cấu hình, thêm mới).</span>
         </div>
         <div style="color: #cbd5e1;">
-          🤖 <strong style="color: #4ade80;">Thiết bị Robot Gehihi:</strong> User: <code style="color: #38bdf8; background: #1e293b; padding: 2px 6px; border-radius: 4px;">gehihi</code> | Pass: <code style="color: #38bdf8; background: #1e293b; padding: 2px 6px; border-radius: 4px;">123456</code><br>
-          <span style="color: #94a3b8; font-size: 11px;">👉 Vào trực tiếp trang <strong>Quản trị & Điều khiển riêng của Robot Gehihi</strong> (D-Pad, mic, chat AI, học tiếng Anh).</span>
+          🤖 <strong style="color: #4ade80;">Tài khoản Robot riêng:</strong> Nhập <strong>Tên đăng nhập</strong> (vd: <code style="color:#38bdf8;background:#1e293b;padding:2px 6px;border-radius:4px;">gehihi</code>) hoặc <strong>Mã PIN 6 số</strong> | Mật khẩu tài khoản robot<br>
+          <span style="color: #94a3b8; font-size: 11px;">👉 Vào trực tiếp trang <strong>Quản trị & Điều khiển riêng của Robot đó</strong> (D-Pad, mic, chat AI, học tiếng Anh).</span>
         </div>
       </div>
     </section>
@@ -634,20 +634,25 @@
             <input type="text" id="editDevName" class="form-control" required>
           </div>
           <div>
-            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">🔒 Mật khẩu tài khoản</label>
-            <input type="text" id="editDevPass" class="form-control" placeholder="123456">
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">👤 Tên đăng nhập (Username)</label>
+            <input type="text" id="editDevUser" class="form-control" required placeholder="gehihi">
           </div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
           <div>
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">🔒 Mật khẩu tài khoản</label>
+            <input type="text" id="editDevPass" class="form-control" placeholder="123456">
+          </div>
+          <div>
             <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">🔑 Mã PIN kết nối (6 số)</label>
             <input type="text" id="editDevPin" class="form-control">
           </div>
-          <div>
-            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">📡 Địa chỉ MAC ESP32</label>
-            <input type="text" id="editDevMac" class="form-control" readonly style="opacity: 0.7;">
-          </div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">📡 Địa chỉ MAC ESP32</label>
+          <input type="text" id="editDevMac" class="form-control" readonly style="opacity: 0.7;">
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
@@ -717,6 +722,54 @@
           <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Hủy</button>
           <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #2563eb, #3b82f6);">
             💾 Lưu Cập Nhật (Qua WebSocket)
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL THÊM TÀI KHOẢN ROBOT MỚI -->
+  <div id="createDeviceModal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">➕ Thêm Tài Khoản Robot Mới</h3>
+        <button class="btn-close" onclick="closeCreateModal()">✕</button>
+      </div>
+
+      <form onsubmit="handleCreateDeviceSubmit(event)">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">🤖 Tên hiển thị Robot (*)</label>
+            <input type="text" id="newDevName" class="form-control" required placeholder="Robot Gehihi 2">
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">🔑 Mã PIN 6 số (*)</label>
+            <input type="text" id="newDevPin" class="form-control" required placeholder="Nhập PIN 6 số trên màn hình robot">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">👤 Tên đăng nhập Web (*)</label>
+            <input type="text" id="newDevUser" class="form-control" required placeholder="ví dụ: robot2, gehihi2">
+            <span style="font-size: 11px; color: #64748b;">Dùng để đăng nhập trang quản trị riêng của robot</span>
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">🔒 Mật khẩu đăng nhập (*)</label>
+            <input type="text" id="newDevPass" class="form-control" required value="123456" placeholder="123456">
+            <span style="font-size: 11px; color: #64748b;">Mật khẩu tài khoản robot này</span>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 18px;">
+          <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 5px;">📡 Địa chỉ MAC ESP32 (Không bắt buộc)</label>
+          <input type="text" id="newDevMac" class="form-control" placeholder="Để trống nếu đã nhập đúng mã PIN ở trên">
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Hủy</button>
+          <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669);">
+            ✓ Kích Hoạt & Tạo Tài Khoản
           </button>
         </div>
       </form>
@@ -1031,6 +1084,7 @@
       if (!dev) return;
       document.getElementById("editDevId").value = dev.id || "DEV_001";
       document.getElementById("editDevName").value = dev.name || "Robot Gehihi";
+      document.getElementById("editDevUser").value = dev.username || "gehihi";
       document.getElementById("editDevPass").value = dev.password || "123456";
       document.getElementById("editDevPin").value = dev.device_code || dev.pin || "927184";
       document.getElementById("editDevMac").value = dev.device_mac || dev.mac || "14:C1:9F:C4:EE:D0";
@@ -1054,8 +1108,10 @@
       const devId = document.getElementById("editDevId").value;
       const payload = {
         name: document.getElementById("editDevName").value.trim(),
+        username: document.getElementById("editDevUser").value.trim().toLowerCase() || "gehihi",
         password: document.getElementById("editDevPass").value.trim() || "123456",
         device_code: document.getElementById("editDevPin").value.trim(),
+        pin: document.getElementById("editDevPin").value.trim(),
         model_id: document.getElementById("editDevModel").value,
         model: document.getElementById("editDevModel").value,
         voice: document.getElementById("editDevVoice").value,
@@ -1099,26 +1155,56 @@
     }
 
     function openCreateDeviceModal() {
-      const newName = prompt("Nhập tên hiển thị cho Robot mới:", "Robot Gehihi AI");
-      if (!newName) return;
-      const pin = prompt("Nhập mã PIN 6 số cho Robot:", Math.floor(100000 + Math.random() * 900000));
-      if (!pin) return;
+      const idx = currentDevicesList.length + 1;
+      document.getElementById("newDevName").value = "Robot Gehihi " + idx;
+      document.getElementById("newDevUser").value = "robot" + idx;
+      document.getElementById("newDevPass").value = "123456";
+      document.getElementById("newDevPin").value = "";
+      document.getElementById("newDevMac").value = "";
+      document.getElementById("createDeviceModal").style.display = "flex";
+    }
 
-      fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newName,
-          device_code: pin,
-          pin: pin,
-          password: "123"
-        })
-      }).then(r => r.json()).then(d => {
-        showToast("✓ Đã thêm tài khoản robot mới!");
-        loadDevicesList();
-      }).catch(e => {
-        showToast("Lỗi thêm robot: " + e.message, false);
-      });
+    function closeCreateModal() {
+      document.getElementById("createDeviceModal").style.display = "none";
+    }
+
+    async function handleCreateDeviceSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById("newDevName").value.trim();
+      const pin = document.getElementById("newDevPin").value.trim();
+      const username = document.getElementById("newDevUser").value.trim().toLowerCase();
+      const password = document.getElementById("newDevPass").value.trim() || "123456";
+      const mac = document.getElementById("newDevMac").value.trim();
+
+      if (!pin) {
+        showToast("Vui lòng nhập mã PIN 6 số trên màn hình robot!", false);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name,
+            pin: pin,
+            device_code: pin,
+            username: username,
+            password: password,
+            macAddress: mac
+          })
+        });
+        const d = await res.json();
+        if (res.ok && d.code === 0) {
+          showToast(`✓ Đã thêm Robot "${name}"! Tài khoản: ${username} | Pass: ${password}`);
+          closeCreateModal();
+          await loadDevicesList();
+        } else {
+          showToast("Không thể thêm robot: " + (d.message || "Lỗi máy chủ"), false);
+        }
+      } catch (err) {
+        showToast("Lỗi thêm robot: " + err.message, false);
+      }
     }
 
     // ========== ĐỔI MẬT KHẨU ADMIN ==========

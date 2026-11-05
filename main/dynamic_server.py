@@ -3907,28 +3907,36 @@ async def handle_api_auth_login(request):
             })
         return cors_response({"code": 1, "message": "Sai mật khẩu Quản trị viên (Admin)!"}, status=401)
 
-    # 2. DEVICE / ROBOT LOGIN (Tài khoản riêng của thiết bị robot, ví dụ: user 'gehihi', pass '123456')
+    # 2. DEVICE / ROBOT LOGIN (Hỗ trợ đăng nhập từng robot riêng biệt qua Username, PIN 6 số, MAC hoặc ID)
     found_dev = None
+    clean_user = user.lower().strip()
+    clean_pwd = pwd.strip()
+
+    # Bước 1: Khớp chính xác theo Username hoặc PIN hoặc MAC hoặc Device ID
     for mac, dev in DB_DEVICES.items():
-        dev_u = str(dev.get("username", "gehihi")).lower().strip()
-        dev_id = str(dev.get("id", "")).lower().strip()
+        dev_u = str(dev.get("username", "")).lower().strip()
         dev_pin = str(dev.get("pin", "")).lower().strip()
+        dev_id = str(dev.get("id", "")).lower().strip()
         dev_mac = str(dev.get("macAddress", mac)).lower().strip()
-        dev_name = str(dev.get("name", "")).lower().strip()
+        dev_code = str(dev.get("device_code", "")).lower().strip()
 
         if (
-            user.lower() == dev_u
-            or (user.lower() in ("gehihi", "robot_gehihi", "robot-gehihi") and dev_id in ("dev_001", "ong-robot", ""))
-            or user.lower() == dev_pin
-            or user.lower() == dev_id
-            or user.lower() == dev_mac
-            or user.lower() in dev_name
+            (dev_u and clean_user == dev_u)
+            or (clean_user and clean_user in (dev_pin, dev_id, dev_mac, dev_code))
         ):
             found_dev = dev
             break
 
-    # Nếu không tìm thấy bằng vòng lặp và danh sách chỉ có 1 robot mặc định mà user là 'gehihi'
-    if not found_dev and len(DB_DEVICES) > 0 and user.lower() in ("gehihi", "robot"):
+    # Bước 2: Tìm kiếm theo tên robot hoặc từ khóa chung nếu chưa tìm thấy
+    if not found_dev:
+        for mac, dev in DB_DEVICES.items():
+            dev_name = str(dev.get("name", "")).lower().strip()
+            if dev_name and clean_user == dev_name:
+                found_dev = dev
+                break
+
+    # Bước 3: Fallback nếu chỉ có 1 robot trong hệ thống
+    if not found_dev and len(DB_DEVICES) == 1 and clean_user in ("gehihi", "robot"):
         found_dev = list(DB_DEVICES.values())[0]
 
     if found_dev:
@@ -4008,6 +4016,11 @@ async def handle_api_auth_register(request):
     final_pin = input_pin or (PENDING_ACTIVATIONS.get(final_mac, {}).get("pin") if final_mac in PENDING_ACTIVATIONS else str(random.randint(100000, 999999)))
 
     dev_id = f"DEV_{final_mac.replace(':', '')[-4:].upper()}"
+    custom_username = str(data.get("username") or "").strip().lower()
+    if not custom_username:
+        custom_username = f"robot_{final_pin}"
+    custom_password = str(data.get("password") or "123456").strip()
+
     DB_DEVICES[final_mac] = {
         "id": dev_id,
         "macAddress": final_mac.upper(),
@@ -4016,8 +4029,8 @@ async def handle_api_auth_register(request):
         "name": name,
         "pin": final_pin,
         "device_code": final_pin,
-        "username": "gehihi",
-        "password": data.get("password", "123456"),
+        "username": custom_username,
+        "password": custom_password,
         "avatar": data.get("avatar", "🤖"),
         "boardType": "ESP32-S3",
         "version": "2.5.0",
@@ -4147,10 +4160,10 @@ async def handle_api_device_by_id(request):
                 data["system_prompt"] = data["prompt"]
 
             for k in (
-                "name", "volume", "prompt", "system_prompt", "avatar", "model_id", "model",
+                "name", "username", "password", "volume", "prompt", "system_prompt", "avatar", "model_id", "model",
                 "voice", "voice_id", "voice_name", "language", "voice_speed", "tts_speed", "voice_pitch",
                 "openai_api_key", "deepseek_api_key", "gemini_api_key",
-                "custom_prompt", "memory_enabled", "password", "pin", "device_code"
+                "custom_prompt", "memory_enabled", "pin", "device_code"
             ):
                 if k in data:
                     dev[k] = data[k]
