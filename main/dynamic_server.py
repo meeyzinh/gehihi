@@ -227,6 +227,58 @@ async def broadcast_mic_monitor(msg_dict):
         MIC_MONITOR_CLIENTS.discard(ws)
 
 DB_DEVICES = {}
+DEVICES_STORE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "devices_store.json")
+
+def load_devices_from_disk():
+    global DB_DEVICES
+    if os.path.exists(DEVICES_STORE_FILE):
+        try:
+            with open(DEVICES_STORE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    DB_DEVICES.update(data)
+                    logger.info(f"Loaded {len(DB_DEVICES)} devices from {DEVICES_STORE_FILE}")
+        except Exception as e:
+            logger.warning(f"Error loading {DEVICES_STORE_FILE}: {e}")
+    # N?u DB_DEVICES tr?ng, n?p m?c ??nh h? s? Robot hi?n t?i
+    if not DB_DEVICES:
+        default_mac = "14:c1:9f:c4:ee:d0"
+        DB_DEVICES[default_mac] = {
+            "id": "DEV_EED0",
+            "macAddress": "14:C1:9F:C4:EE:D0",
+            "mac": "14:C1:9F:C4:EE:D0",
+            "device_mac": "14:C1:9F:C4:EE:D0",
+            "name": "Robot Gehihi AI",
+            "pin": "927184",
+            "device_code": "927184",
+            "username": "gehihi",
+            "password": "123",
+            "avatar": "??",
+            "boardType": "ESP32-S3",
+            "version": "2.5.0",
+            "status": 1,
+            "online": False,
+            "is_online": False,
+            "prompt": "B?n l? Gehihi, m?t tr? l? robot th?ng minh n?i ti?ng Vi?t t? nhi?n v? th?n thi?n.",
+            "system_prompt": "B?n l? Gehihi, m?t tr? l? robot th?ng minh n?i ti?ng Vi?t t? nhi?n v? th?n thi?n.",
+            "model": "groq",
+            "voice": "vi-female",
+            "volume": 8,
+            "lastActiveTime": int(time.time() * 1000)
+        }
+        save_devices_to_disk()
+
+def save_devices_to_disk():
+    try:
+        to_save = {}
+        for k, v in DB_DEVICES.items():
+            to_save[k] = {**v, "online": False, "is_online": False}
+        with open(DEVICES_STORE_FILE, "w", encoding="utf-8") as f:
+            json.dump(to_save, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Error saving {DEVICES_STORE_FILE}: {e}")
+
+load_devices_from_disk()
 
 DB_AGENTS = [
     {
@@ -2756,8 +2808,9 @@ async def ws_handler(websocket):
     if protocol_version not in (1, 2, 3):
         logger.warning(f"Unsupported robot Protocol-Version {protocol_version}; using v1")
         protocol_version = 1
-    device_mac = "14:c1:9f:c4:ee:d0"
-    logger.info(f"Robot Gehihi connected from {client_ip}")
+    raw_mac = request_headers.get("Device-Id") or request_headers.get("device-id") or ""
+    device_mac = raw_mac.lower().strip() if raw_mac else "14:c1:9f:c4:ee:d0"
+    logger.info(f"Robot Gehihi ({device_mac.upper()}) connected from {client_ip}")
     LIVE_DIAGNOSTICS["device_connected"] = True
     LIVE_DIAGNOSTICS["protocol_version"] = protocol_version
 
@@ -2766,6 +2819,32 @@ async def ws_handler(websocket):
         DB_DEVICES[device_mac]["is_online"] = True
         DB_DEVICES[device_mac]["status"] = 1
         DB_DEVICES[device_mac]["lastActiveTime"] = int(time.time() * 1000)
+    else:
+        dev_id = f"DEV_{device_mac.replace(':', '')[-4:].upper()}"
+        DB_DEVICES[device_mac] = {
+            "id": dev_id,
+            "macAddress": device_mac.upper(),
+            "mac": device_mac.upper(),
+            "device_mac": device_mac.upper(),
+            "name": "Robot Gehihi AI",
+            "pin": "927184",
+            "device_code": "927184",
+            "username": "gehihi",
+            "password": "123",
+            "avatar": "??",
+            "boardType": "ESP32-S3",
+            "version": "2.5.0",
+            "status": 1,
+            "online": True,
+            "is_online": True,
+            "prompt": "B?n l? Gehihi, m?t tr? l? robot th?ng minh n?i ti?ng Vi?t t? nhi?n v? th?n thi?n.",
+            "system_prompt": "B?n l? Gehihi, m?t tr? l? robot th?ng minh n?i ti?ng Vi?t t? nhi?n v? th?n thi?n.",
+            "model": "groq",
+            "voice": "vi-female",
+            "volume": 8,
+            "lastActiveTime": int(time.time() * 1000)
+        }
+        save_devices_to_disk()
     CONNECTED_ROBOTS[device_mac] = websocket
     CONNECTED_ROBOT_PROTOCOLS[id(websocket)] = protocol_version
     asyncio.create_task(broadcast_mic_monitor({
@@ -3870,6 +3949,7 @@ async def handle_api_auth_register(request):
 
     if final_mac in PENDING_ACTIVATIONS:
         del PENDING_ACTIVATIONS[final_mac]
+    save_devices_to_disk()
 
     logger.info(f"Đã kích hoạt & liên kết thành công Robot: {name} (MAC: {final_mac.upper()}, PIN: {final_pin})")
     await broadcast_mic_monitor({
@@ -3969,6 +4049,7 @@ async def handle_api_device_by_id(request):
     if request.method == "DELETE":
         if found_key:
             del DB_DEVICES[found_key]
+            save_devices_to_disk()
             await broadcast_mic_monitor({"type": "device_event", "action": "deleted", "mac": found_key})
             return cors_response({"code": 0, "msg": "Đã xoá thiết bị"})
         return cors_response({"code": 1, "message": "Không tìm thấy thiết bị"}, status=404)
@@ -4056,6 +4137,7 @@ async def handle_api_device_by_id(request):
                 CUSTOM_API_KEYS["openai"] = data["openai_api_key"]
             if data.get("deepseek_api_key"):
                 CUSTOM_API_KEYS["deepseek"] = data["deepseek_api_key"]
+            save_devices_to_disk()
             await broadcast_mic_monitor({"type": "device_event", "action": "updated", "data": dev})
             return cors_response({"code": 0, "msg": "Cập nhật thành công", "data": dev})
         return cors_response({"code": 1, "message": "Không tìm thấy thiết bị"}, status=404)
