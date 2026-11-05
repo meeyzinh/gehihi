@@ -2997,19 +2997,19 @@ async def ws_handler(websocket):
             LIVE_DIAGNOSTICS["last_turn_status"] = f"Processing {len(audio_packets)} packets"
             wav_bytes, peak_amp, rms_energy = decode_opus_frames_to_wav(audio_packets)
             if len(wav_bytes) < 3000:
-                logger.info(f"Audio payload too small ({len(wav_bytes)} bytes). Skipping AI turn.")
+                logger.info(f"Audio payload too small ({len(wav_bytes)} bytes). Skipping AI turn, keep listening.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = f"Audio too small ({len(wav_bytes)} bytes)"
                 try:
-                    await websocket.send(json.dumps({"type": "abort"}))
+                    await websocket.send(json.dumps({"type": "tts", "state": "stop"}))
                 except Exception:
                     pass
                 return
 
             if peak_amp < 120 or rms_energy < 25.0:
-                logger.info(f"Audio energy below human speech threshold (peak={peak_amp}, rms={rms_energy:.1f}). Discarding quiet noise.")
+                logger.info(f"Audio energy below human speech threshold (peak={peak_amp}, rms={rms_energy:.1f}). Discarding quiet noise, keep listening.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = f"Silence/Noise discarded (peak={peak_amp}, rms={rms_energy:.1f})"
                 try:
-                    await websocket.send(json.dumps({"type": "abort"}))
+                    await websocket.send(json.dumps({"type": "tts", "state": "stop"}))
                 except Exception:
                     pass
                 return
@@ -3020,10 +3020,10 @@ async def ws_handler(websocket):
             LIVE_DIAGNOSTICS["last_asr_latency"] = round(t_asr, 3)
 
             if not u_text or not u_text.strip() or is_whisper_hallucination(u_text):
-                logger.info("Speech empty or filtered. Resetting robot.")
+                logger.info("Speech empty or filtered. Keeping robot listening.")
                 LIVE_DIAGNOSTICS["last_turn_status"] = "Silence/hallucination filtered"
                 try:
-                    await websocket.send(json.dumps({"type": "abort"}))
+                    await websocket.send(json.dumps({"type": "tts", "state": "stop"}))
                 except Exception:
                     pass
                 return
@@ -3182,16 +3182,15 @@ async def ws_handler(websocket):
                 except asyncio.CancelledError:
                     pass
                 finally:
-                    if not is_first_sentence and is_speaking:
-                        await asyncio.sleep(0.18)
-                        try:
-                            await websocket.send(json.dumps({
-                                "type": "tts",
-                                "state": "stop",
-                                "session_id": session_id
-                            }))
-                        except Exception:
-                            pass
+                    await asyncio.sleep(0.18)
+                    try:
+                        await websocket.send(json.dumps({
+                            "type": "tts",
+                            "state": "stop",
+                            "session_id": session_id
+                        }))
+                    except Exception:
+                        pass
                     is_speaking = False
 
             async def llm_producer_task():
