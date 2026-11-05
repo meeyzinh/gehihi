@@ -30,6 +30,7 @@ COPY main/web_admin /usr/share/nginx/html
 
 # Sao chép Dynamic Backend (OTA + WebSocket + REST APIs)
 COPY main/dynamic_server.py /app/dynamic_server.py
+COPY main/devices_store.json /app/devices_store.json
 COPY main/web_admin /app/web_admin
 
 # Sao chép và cấp quyền script khởi động

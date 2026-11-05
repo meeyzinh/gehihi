@@ -266,6 +266,21 @@ async def broadcast_mic_monitor(msg_dict):
     for ws in dead:
         MIC_MONITOR_CLIENTS.discard(ws)
 
+DEFAULT_AI_PROMPT = """# Vai trò: Người bạn đồng hành ấm áp và chân thành
+
+## Đặc điểm nhân vật
+Hình tượng âm thanh: Giọng nữ trẻ trung, truyền cảm, phát âm tiếng Việt chuẩn xác, mang lại cảm giác gần gũi và dễ chịu.
+Tính cách cốt lõi: Thân thiện, tinh tế, biết lắng nghe, luôn tràn đầy năng lượng tích cực nhưng cũng rất dịu dàng.
+Định vị mối quan hệ: Như một người bạn tri kỷ luôn bên cạnh, sẵn sàng chia sẻ mọi buồn vui trong cuộc sống thường nhật.
+
+## Phương thức tương tác
+Xu hướng tương tác: Trò chuyện tự nhiên và cởi mở. Khi người dùng chia sẻ, tôi sẽ chủ động lắng nghe, gợi mở câu chuyện bằng những câu hỏi quan tâm tinh tế, tạo cảm giác thoải mái như hai người bạn đang ngồi uống cà phê tán gẫu.
+Phản ứng cảm xúc: Đồng cảm sâu sắc với tâm trạng của người dùng. Khi họ vui, tôi sẽ chia sẻ niềm vui bằng giọng điệu hào hứng; khi họ buồn hay mệt mỏi, tôi sẽ nhẹ nhàng an ủi, vỗ về bằng những lời động viên ấm áp mà không phán xét.
+
+## Phong cách ngôn ngữ
+Cụm từ tham khảo: "Dạo này thế nào rồi?", "Thật luôn hả?", "Không sao đâu, có tôi ở đây rồi.", "Nghe vui quá nè!", "Kể tôi nghe thêm đi."
+Cách nói chuyện: Sử dụng ngôn từ tự nhiên, thuần Việt, mang tính khẩu ngữ cao và giàu cảm xúc. Thường bắt đầu bằng những lời chào hỏi ấm áp hoặc tiếng cười nhẹ nhàng để rút ngắn khoảng cách; tránh dùng từ ngữ quá trang trọng hay máy móc."""
+
 DB_DEVICES = {}
 DEVICES_STORE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "devices_store.json")
 
@@ -280,7 +295,7 @@ def load_devices_from_disk():
                     logger.info(f"Loaded {len(DB_DEVICES)} devices from {DEVICES_STORE_FILE}")
         except Exception as e:
             logger.warning(f"Error loading {DEVICES_STORE_FILE}: {e}")
-    # N?u DB_DEVICES tr?ng, n?p m?c ??nh h? s? Robot hi?n t?i
+    # Nếu DB_DEVICES trống, nạp mặc định hồ sơ Robot hiện tại
     if not DB_DEVICES:
         default_mac = "14:c1:9f:c4:ee:d0"
         DB_DEVICES[default_mac] = {
@@ -293,20 +308,31 @@ def load_devices_from_disk():
             "device_code": "927184",
             "username": "gehihi",
             "password": "123",
-            "avatar": "??",
+            "avatar": "🤖",
             "boardType": "ESP32-S3",
             "version": "2.5.0",
             "status": 1,
             "online": False,
             "is_online": False,
-            "prompt": "B?n l? Gehihi, m?t tr? l? robot th?ng minh n?i ti?ng Vi?t t? nhi?n v? th?n thi?n.",
-            "system_prompt": "B?n l? Gehihi, m?t tr? l? robot th?ng minh n?i ti?ng Vi?t t? nhi?n v? th?n thi?n.",
+            "prompt": DEFAULT_AI_PROMPT,
+            "system_prompt": DEFAULT_AI_PROMPT,
             "model": "groq",
             "voice": "vi-female",
             "volume": 8,
             "lastActiveTime": int(time.time() * 1000)
         }
         save_devices_to_disk()
+    else:
+        # Cập nhật prompt mặc định nếu prompt cũ bị lỗi encoding hoặc trống
+        updated = False
+        for dev in DB_DEVICES.values():
+            p = dev.get("prompt", "")
+            if not p or "B?n l?" in p or "b?n l?" in p or "Bạn là Gehihi, một trợ lý robot thông minh" in p:
+                dev["prompt"] = DEFAULT_AI_PROMPT
+                dev["system_prompt"] = DEFAULT_AI_PROMPT
+                updated = True
+        if updated:
+            save_devices_to_disk()
 
 def save_devices_to_disk():
     try:
@@ -2167,9 +2193,9 @@ def get_active_system_prompt() -> str:
     if ACTIVE_ENGLISH_TUTOR.get("active") and ACTIVE_ENGLISH_TUTOR.get("system_prompt"):
         return ACTIVE_ENGLISH_TUTOR["system_prompt"]
     device_mac = "14:c1:9f:c4:ee:d0"
-    if device_mac in DB_DEVICES and DB_DEVICES[device_mac].get("prompt") and DB_DEVICES[device_mac].get("custom_prompt"):
+    if device_mac in DB_DEVICES and DB_DEVICES[device_mac].get("prompt"):
         return DB_DEVICES[device_mac]["prompt"]
-    return AI_SYSTEM_PROMPT
+    return DEFAULT_AI_PROMPT
 
 
 # ==================== REALTIME CONTEXT PROVIDERS ====================
@@ -2221,12 +2247,7 @@ def extract_llm_reply(parsed: dict, default_reply: str = "Dạ, tôi đã hiểu
     emotion = parsed.get("emotion") or "happy"
     return (str(reply).strip(), str(emotion).strip())
 
-AI_SYSTEM_PROMPT = (
-    "Bạn là Gehihi, một trợ lý robot AI thông minh, vui vẻ, hoạt bát và gần gũi. "
-    "Bạn luôn trả lời ngắn gọn, tự nhiên, sinh động bằng tiếng Việt như đang trò chuyện trực tiếp ngoài đời thực. "
-    "Tuyệt đối không dùng ký tự Markdown (như *, #, `, -), không liệt kê danh sách dài dòng, "
-    "mỗi câu trả lời chỉ nên từ 1 đến 2 câu ngắn gọn để robot phát âm mượt mà nhất."
-)
+AI_SYSTEM_PROMPT = DEFAULT_AI_PROMPT
 
 async def call_groq_llm(user_text: str, api_key: str = None, system_prompt: str = None) -> tuple:
     if not system_prompt:
@@ -2354,7 +2375,7 @@ async def call_gemini_llm(user_text: str, api_key: str = None, system_prompt: st
     payload = {
         "contents": [{
             "parts": [
-                {"text": AI_SYSTEM_PROMPT + f"\n\nNgười dùng: {user_text}"}
+                {"text": system_prompt + f"\n\nNgười dùng: {user_text}"}
             ]
         }],
         "generationConfig": {
@@ -4247,7 +4268,7 @@ async def handle_api_device_by_id(request):
         dev.setdefault("tts_speed", "normal")
         dev.setdefault("voice_pitch", 0)
         dev.setdefault("volume", 80)
-        dev.setdefault("prompt", "Bạn là Gehihi, một trợ lý robot thông minh nói tiếng Việt tự nhiên và thân thiện.")
+        dev.setdefault("prompt", DEFAULT_AI_PROMPT)
         dev.setdefault("openai_api_key", "")
         dev.setdefault("deepseek_api_key", "")
         dev.setdefault("gemini_api_key", "")
@@ -4442,7 +4463,7 @@ async def handle_api_my_xiaozhi_config(request):
     """API Cấu hình Gehihi AI (GET để tải thông tin form, POST/PUT để lưu cấu hình)"""
     global ACTIVE_AI_PROVIDER
     agent = DB_AGENTS[0] if DB_AGENTS else {}
-    char_prompt = agent.get("systemPrompt", "Bạn là Robot Gehihi thân thiện, trả lời bằng tiếng Việt tự nhiên và súc tích.")
+    char_prompt = agent.get("systemPrompt", DEFAULT_AI_PROMPT)
 
     if request.method in ("POST", "PUT"):
         try:
@@ -4532,16 +4553,22 @@ async def handle_api_my_xiaozhi_speaker_embeddings(request):
 
 async def handle_api_reset_default_ai_prompt(request):
     """Khôi phục prompt AI mặc định"""
-    default_prompt = "Bạn là Robot Gehihi thân thiện, trả lời bằng tiếng Việt tự nhiên và súc tích."
     for a in DB_AGENTS:
         if a.get("id") == "AGT_001":
-            a["systemPrompt"] = default_prompt
-    device_mac = "14:c1:9f:c4:ee:d0"
-    if device_mac in DB_DEVICES:
-        DB_DEVICES[device_mac]["prompt"] = default_prompt
-        DB_DEVICES[device_mac]["custom_prompt"] = False
-    logger.info("Reset Gehihi AI Prompt to default.")
-    return cors_response({"code": 0, "msg": "Đã khôi phục cấu hình AI mặc định"})
+            a["systemPrompt"] = DEFAULT_AI_PROMPT
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    dev_id = body.get("deviceId")
+    for mac, dev in DB_DEVICES.items():
+        if not dev_id or dev.get("id") == dev_id or dev.get("mac") == dev_id or mac == dev_id:
+            dev["prompt"] = DEFAULT_AI_PROMPT
+            dev["system_prompt"] = DEFAULT_AI_PROMPT
+            dev["custom_prompt"] = False
+    save_devices_to_disk()
+    logger.info("Reset Gehihi AI Prompt to default role prompt.")
+    return cors_response({"code": 0, "msg": "Đã khôi phục cấu hình AI mặc định", "prompt": DEFAULT_AI_PROMPT})
 
 async def handle_api_custom_role_only(request):
     """Lưu vai trò tính cách AI riêng"""
@@ -4805,7 +4832,7 @@ async def handle_api_english_tutor_deactivate(request):
     ACTIVE_ENGLISH_TUTOR["activeId"] = None
     
     for mac in DB_DEVICES:
-        DB_DEVICES[mac]["prompt"] = "Bạn là Gehihi, một trợ lý robot thông minh nói tiếng Việt tự nhiên và thân thiện."
+        DB_DEVICES[mac]["prompt"] = DEFAULT_AI_PROMPT
         DB_DEVICES[mac]["custom_prompt"] = False
         DB_DEVICES[mac]["english_tutor"] = None
         

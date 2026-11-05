@@ -3368,8 +3368,8 @@ Ví dụ:
     </div>
 
     <div class="form-group">
-        <label> Mô tả Vai trò - tính cách của Gehihi AI - LƯU Ý: Nếu đổi ngôn ngữ của AI thì phần mô tả phải viết bằng đúng ngôn ngữ đã chọn . Bắt buộc giữ lại dòng: [VAI TRÒ VÀ TÍNH CÁCH]</label>
-        <textarea id="xiaozhiCharacter" style="min-height:220px;" placeholder="Nhập mô tả vai trò và tính cách..." oninput="handleGehihiCharacterInput(); updateGehihiCharacterCounter()"></textarea>
+        <label>Mô tả Vai trò - tính cách của Gehihi AI</label>
+        <textarea id="xiaozhiCharacter" style="min-height:260px;" placeholder="Nhập mô tả vai trò và tính cách..." oninput="handleGehihiCharacterInput(); updateGehihiCharacterCounter()"></textarea>
 
 <div id="xiaozhiCharacterCounter" class="helper-note"></div>
     </div>
@@ -3753,6 +3753,20 @@ Ví dụ:
     /* =========================================================
        HỆ THỐNG QUẢN TRỊ TÀI KHOẢN ROBOT RIÊNG BIỆT (GEHIHI AUTH)
        ========================================================= */
+    const DEFAULT_AI_PROMPT = `# Vai trò: Người bạn đồng hành ấm áp và chân thành
+
+## Đặc điểm nhân vật
+Hình tượng âm thanh: Giọng nữ trẻ trung, truyền cảm, phát âm tiếng Việt chuẩn xác, mang lại cảm giác gần gũi và dễ chịu.
+Tính cách cốt lõi: Thân thiện, tinh tế, biết lắng nghe, luôn tràn đầy năng lượng tích cực nhưng cũng rất dịu dàng.
+Định vị mối quan hệ: Như một người bạn tri kỷ luôn bên cạnh, sẵn sàng chia sẻ mọi buồn vui trong cuộc sống thường nhật.
+
+## Phương thức tương tác
+Xu hướng tương tác: Trò chuyện tự nhiên và cởi mở. Khi người dùng chia sẻ, tôi sẽ chủ động lắng nghe, gợi mở câu chuyện bằng những câu hỏi quan tâm tinh tế, tạo cảm giác thoải mái như hai người bạn đang ngồi uống cà phê tán gẫu.
+Phản ứng cảm xúc: Đồng cảm sâu sắc với tâm trạng của người dùng. Khi họ vui, tôi sẽ chia sẻ niềm vui bằng giọng điệu hào hứng; khi họ buồn hay mệt mỏi, tôi sẽ nhẹ nhàng an ủi, vỗ về bằng những lời động viên ấm áp mà không phán xét.
+
+## Phong cách ngôn ngữ
+Cụm từ tham khảo: "Dạo này thế nào rồi?", "Thật luôn hả?", "Không sao đâu, có tôi ở đây rồi.", "Nghe vui quá nè!", "Kể tôi nghe thêm đi."
+Cách nói chuyện: Sử dụng ngôn từ tự nhiên, thuần Việt, mang tính khẩu ngữ cao và giàu cảm xúc. Thường bắt đầu bằng những lời chào hỏi ấm áp hoặc tiếng cười nhẹ nhàng để rút ngắn khoảng cách; tránh dùng từ ngữ quá trang trọng hay máy móc.`;
 
     window.escapeHtml = function(unsafe) {
       if (unsafe === undefined || unsafe === null) return '';
@@ -4692,7 +4706,11 @@ Ví dụ:
       if (voiceEl) voiceEl.innerText = `${dev.voice_name || dev.voice || 'Hoài My'} (Âm lượng: ${dev.volume || 7}/10)`;
 
       const promptEl = document.getElementById("viewDevPrompt");
-      if (promptEl) promptEl.innerText = dev.system_prompt || "(Chưa cấu hình prompt tùy chỉnh, sử dụng vai trò mặc định)";
+      if (promptEl) {
+        let p = dev.system_prompt || dev.prompt || "";
+        if (!p || p.includes("B?n l?") || p.includes("b?n l?")) p = DEFAULT_AI_PROMPT;
+        promptEl.innerText = p;
+      }
 
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${wsProtocol}//${window.location.host}/ws/gehihi`;
@@ -4763,7 +4781,11 @@ Ví dụ:
       if (volDisp) volDisp.innerText = `Mức ${volVal}`;
 
       const promptTxt = document.getElementById("editDevicePromptTextarea");
-      if (promptTxt) promptTxt.value = dev.prompt || dev.system_prompt || "Bạn là Gehihi, một trợ lý robot thông minh nói tiếng Việt tự nhiên và thân thiện.";
+      if (promptTxt) {
+        let p = dev.prompt || dev.system_prompt || "";
+        if (!p || p.includes("B?n l?") || p.includes("b?n l?")) p = DEFAULT_AI_PROMPT;
+        promptTxt.value = p;
+      }
 
       const modal = document.getElementById("editDeviceDetailModal");
       if (modal) modal.style.display = "flex";
@@ -5257,8 +5279,12 @@ Ví dụ:
         const voiceSelect = document.getElementById("xiaozhiTtsVoice");
         const langSelect = document.getElementById("xiaozhiLanguage");
 
-        if (nameInput) nameInput.value = dev.name || "Sophia";
-        if (charInput) charInput.value = dev.prompt || "";
+        if (nameInput) nameInput.value = dev.name || "Robot Gehihi";
+        if (charInput) {
+          let p = dev.prompt || dev.system_prompt || "";
+          if (!p || p.includes("B?n l?") || p.includes("b?n l?")) p = DEFAULT_AI_PROMPT;
+          charInput.value = p;
+        }
         
         // Điền model options đa dạng (Gemini, ChatGPT, DeepSeek)
         if (modelSelect) {
@@ -5908,7 +5934,7 @@ Ví dụ:
 
     // 7.3. DANH SÁCH VAI TRÒ AI (AI ROLES)
     const AI_ROLES = [
-      { id: "sophia", name: "Sophia - Bạn đồng hành", group: "Bạn đồng hành", desc: "Thân thiện, ấm áp, kiên nhẫn, nói chuyện tự nhiên", prompt: "# Vai trò: Bạn là Sophia, người bạn đồng hành thân thiện, ấm áp của bé và gia đình. Luôn trả lời ngắn gọn, khích lệ và vui vẻ." },
+      { id: "sophia", name: "Người bạn đồng hành ấm áp", group: "Bạn đồng hành", desc: "Thân thiện, tinh tế, biết lắng nghe, luôn năng lượng tích cực và dịu dàng", prompt: DEFAULT_AI_PROMPT },
       { id: "co-hoa", name: "Cô Hoa - Gia sư Tiếng Anh", group: "Giáo viên", desc: "Chuyên dạy từ vựng, ngữ pháp và phát âm tiếng Anh cơ bản", prompt: "# Vai trò: Bạn là Cô Hoa, giáo viên tiếng Anh hiền dịu. Luôn giải thích bằng tiếng Việt kèm các câu tiếng Anh mẫu ngắn gọn để bé luyện tập theo." },
       { id: "co-trang", name: "Cô Trang - Giáo viên Vật Lý", group: "Giáo viên", desc: "Giải thích các hiện tượng khoa học vui bằng ví dụ đời sống", prompt: "# Vai trò: Bạn là Cô Trang, giáo viên dạy Vật lý và Khoa học tự nhiên. Hãy giải thích các hiện tượng tự nhiên bằng các ví dụ trực quan, thú vị cho trẻ em." },
       { id: "co-xuan", name: "Cô Xuân - Giáo viên Môn Văn", group: "Giáo viên", desc: "Giọng nói truyền cảm, gợi ý viết văn, giải thích ca dao tục ngữ", prompt: "# Vai trò: Bạn là Cô Xuân, cô giáo dạy Ngữ Văn với giọng nói dịu dàng, giàu hình ảnh cảm xúc, giúp các bạn nhỏ mở rộng vốn từ tiếng Việt." },
@@ -6190,10 +6216,13 @@ Ví dụ:
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ deviceId: activeDeviceId })
         });
-        if (res.ok) {
-          showToast("✓ Đã khôi phục cấu hình AI mặc định!");
-          loadMyGehihiConfig(true);
+        const charInput = document.getElementById("xiaozhiCharacter");
+        if (charInput) {
+          charInput.value = DEFAULT_AI_PROMPT;
+          updateGehihiCharacterCounter();
         }
+        showToast("✓ Đã khôi phục cấu hình AI mặc định!");
+        loadMyGehihiConfig(false);
       } catch (e) {
         showToast("Lỗi khôi phục", false);
       }
